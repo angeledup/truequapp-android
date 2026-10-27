@@ -4,7 +4,7 @@ import com.truequapp.core.domain.model.DoubleBlindStatus
 import com.truequapp.core.domain.model.TradeReview
 
 /**
- * Resultado de la evaluación de visibilidad bajo el protocolo Doble Ciego.
+ * Resultado de la evaluación de visibilidad de reseñas (RN-12).
  */
 data class DoubleBlindReviewOutcome(
     val status: DoubleBlindStatus,
@@ -14,65 +14,45 @@ data class DoubleBlindReviewOutcome(
 )
 
 /**
- * Caso de uso: Evaluación Doble Ciego para Reseñas y Calificaciones (RN-12 / CU020).
+ * Caso de uso: Transparencia y Visibilidad de Reseñas (RN-12 / CU020).
  *
- * Previene el sesgo de represalia: si el Usuario A deja una calificación negativa,
- * el Usuario B no puede verla antes de emitir la suya propia.
- * Las reseñas se liberan simultáneamente solo cuando:
- *  1. Ambas partes han emitido su reseña, O
- *  2. Han transcurrido 7 días desde la conclusión del intercambio.
+ * Bajo la regla RN-12 modificada (Transparencia Pública):
+ * Las reseñas emitidas son públicas de manera inmediata para cualquier usuario,
+ * sin importar si ha interactuado previamente o no con el perfil evaluado.
+ * Esto garantiza que cualquiera pueda comprobar la reputación antes de iniciar una oferta.
  */
 class EvaluateDoubleBlindReviewUseCase {
 
+    private val reviewVisibilityUseCase = EvaluateReviewVisibilityUseCase()
+
     /**
-     * Evalúa si una o ambas reseñas deben revelarse públicamente y a las partes interesadas.
-     *
-     * @param reviewFromUserA Reseña emitida por el primer participante (o null si aún no califica).
-     * @param reviewFromUserB Reseña emitida por la contraparte (o null si aún no califica).
-     * @param tradeCompletedAtEpochMs Marca de tiempo cuando el intercambio fue marcado como COMPLETADO.
-     * @param currentTimeEpochMs Marca de tiempo actual en milisegundos.
-     * @return [DoubleBlindReviewOutcome] con el estado de revelación y reseñas públicas.
+     * Evalúa la publicación inmediata de reseñas al ser emitidas.
+     * Ya no se ocultan ni se retienen por 7 días; se publican al registrarse.
      */
     operator fun invoke(
         reviewFromUserA: TradeReview?,
         reviewFromUserB: TradeReview?,
-        tradeCompletedAtEpochMs: Long,
+        tradeCompletedAtEpochMs: Long = 0L,
         currentTimeEpochMs: Long = System.currentTimeMillis()
     ): DoubleBlindReviewOutcome {
-        val daysElapsed = (currentTimeEpochMs - tradeCompletedAtEpochMs) / (1000.0 * 60 * 60 * 24)
-
-        // Caso 1: Ambas partes ya emitieron su calificación
-        if (reviewFromUserA != null && reviewFromUserB != null) {
-            return DoubleBlindReviewOutcome(
-                status = DoubleBlindStatus.REVELADA_AMBOS_CALIFICARON,
-                isRevealedToPublic = true,
-                visibleReviews = listOf(reviewFromUserA, reviewFromUserB),
-                explanationMessage = "Ambas partes completaron su evaluación. Las reseñas son ahora públicas."
-            )
-        }
-
-        // Caso 2: Solo una parte calificó, pero ya expiró la ventana de 7 días
-        if (daysElapsed >= SEVEN_DAYS_THRESHOLD) {
-            val submittedReviews = listOfNotNull(reviewFromUserA, reviewFromUserB)
-            return DoubleBlindReviewOutcome(
-                status = DoubleBlindStatus.REVELADA_POR_VENCIMIENTO_7_DIAS,
-                isRevealedToPublic = true,
-                visibleReviews = submittedReviews,
-                explanationMessage = "Ventana de 7 días concluida. Se hacen públicas las evaluaciones registradas."
-            )
-        }
-
-        // Caso 3: Solo una parte calificó y aún no transcurren 7 días (permanece oculta)
         val submittedReviews = listOfNotNull(reviewFromUserA, reviewFromUserB)
+
         return DoubleBlindReviewOutcome(
-            status = DoubleBlindStatus.OCULTA_PENDIENTE_CONTRAPARTE,
-            isRevealedToPublic = false,
-            visibleReviews = emptyList(), // Ocultas para prevenir represalias en la contraparte
-            explanationMessage = "Evaluación enviada con éxito. Permanecerá oculta hasta que tu contraparte califique o transcurran 7 días."
+            status = DoubleBlindStatus.PUBLICA_INMEDIATA,
+            isRevealedToPublic = submittedReviews.isNotEmpty(),
+            visibleReviews = submittedReviews,
+            explanationMessage = "Las reseñas emitidas son públicas de inmediato para toda la comunidad."
         )
     }
 
-    companion object {
-        const val SEVEN_DAYS_THRESHOLD = 7.0 // 7 días según RN-12 de la UV
+    /**
+     * Permite a cualquier usuario consultar las reseñas públicas de un perfil sin interacción previa.
+     */
+    fun getPublicReviews(
+        requestingUserId: String?,
+        evaluatedUserId: String,
+        allReviews: List<TradeReview>
+    ): List<TradeReview> {
+        return reviewVisibilityUseCase(requestingUserId, evaluatedUserId, allReviews).visibleReviews
     }
 }

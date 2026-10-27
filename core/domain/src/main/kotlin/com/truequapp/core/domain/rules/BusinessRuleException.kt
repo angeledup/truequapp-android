@@ -35,6 +35,9 @@ sealed class BusinessRuleException(
     class ProhibitedItemException(val matchedKeyword: String) :
         BusinessRuleException("RN-11", "El artículo contiene contenido prohibido por la política de seguridad ('$matchedKeyword').")
 
+    class ReviewVisibilityException(message: String) :
+        BusinessRuleException("RN-12", message)
+
     class DualBlindNotReadyException(message: String) :
         BusinessRuleException("RN-12", message)
 }

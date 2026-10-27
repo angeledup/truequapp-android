@@ -28,7 +28,7 @@ El motor de dominio de la aplicación debe hacer cumplir de manera estricta las 
 | **RN-09** | *Cálculo de Reputación Bayesiana* | La calificación promedio de un usuario no es un promedio simple; usa una fórmula bayesiana ponderada para evitar que cuentas nuevas con una sola calificación de 5 estrellas aparezcan por encima de veteranos con docenas de trueques. |
 | **RN-10** | *Política de Privacidad Geoespacial* | En listados públicos y perfiles, las coordenadas reales del domicilio se ofuscan en un polígono difuso con radio de **500 metros** (RNF-08). Solo los Puntos Seguros muestran coordenadas exactas. |
 | **RN-11** | *Prohibición de Artículos Ilícitos* | Bloqueo estricto e inmediato de publicaciones de armas, medicamentos controlados, sustancias ilícitas, animales o servicios adultos. |
-| **RN-12** | *Evaluación Doble Ciego* | Las reseñas y calificaciones de un intercambio permanecen ocultas hasta que ambas partes hayan calificado o hayan transcurrido 7 días, evitando represalias en puntuaciones. |
+| **RN-12** | *Transparencia Pública de Reseñas* | Las reseñas y calificaciones históricas de cualquier usuario son de acceso público para toda la comunidad, incluso sin haber interactuado previamente con él. Toda reseña emitida tras un trueque se publica de inmediato para permitir evaluar la confiabilidad y seguridad antes de iniciar una negociación. |
 
 ---
 

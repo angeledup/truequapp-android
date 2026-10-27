@@ -42,12 +42,12 @@ Cuando una propuesta pasa a estado `RESERVADO`, los usuarios pueden abrir la int
 
 ---
 
-## ⭐ 3. Sistema de Calificación Doble Ciego (RN-12)
-* Finalizada la entrega presencial, ambos usuarios acceden a la pantalla de reseña:
+## ⭐ 3. Sistema de Calificación y Transparencia Pública (RN-12)
+* Finalizada la entrega presencial, los usuarios acceden a la pantalla de reseña:
   - Calificación de 1 a 5 estrellas.
   - Indicador de puntualidad y trato.
   - Comentario escrito.
-* **Invariante RN-12:** La reseña permanece oculta para la contraparte hasta que ambos hayan calificado o hayan transcurrido 7 días naturales. Esto erradica el sesgo de calificaciones negativas por represalia.
+* **Invariante RN-12:** Las reseñas y calificaciones históricas son de acceso público para toda la comunidad, incluso sin haber interactuado antes con el usuario. Toda reseña emitida tras un trueque se publica de inmediato para permitir a los demás miembros auditar la confiabilidad y antecedentes antes de acordar un intercambio.
 
 ---
 

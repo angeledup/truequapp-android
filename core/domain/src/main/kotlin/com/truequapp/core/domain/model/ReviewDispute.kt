@@ -1,7 +1,9 @@
 package com.truequapp.core.domain.model
 
 /**
- * Reseña y evaluación mutua entre participantes de un intercambio completado (CU020 / RN-12).
+ * Reseña y evaluación entre participantes de un intercambio completado (CU020 / RN-12).
+ * Bajo la regla RN-12 de Transparencia Pública, las reseñas son de dominio público para permitir
+ * que cualquier usuario consulte la reputación y confianza de un perfil antes de interactuar.
  */
 data class TradeReview(
     val id: String,
@@ -12,6 +14,8 @@ data class TradeReview(
     val wasPunctual: Boolean,
     val matchedPhotos: Boolean,
     val writtenComment: String,
+    val isPubliclyVisible: Boolean = true,
+    val visibilityStatus: ReviewVisibilityStatus = ReviewVisibilityStatus.PUBLICA_INMEDIATA,
     val submittedAtEpochMs: Long = System.currentTimeMillis()
 ) {
     init {
@@ -20,12 +24,23 @@ data class TradeReview(
 }
 
 /**
- * Estado de revelación de una evaluación bajo el mecanismo Doble Ciego (RN-12).
+ * Estado de visibilidad de una reseña bajo el principio de Transparencia Pública (RN-12).
+ * Garantiza que cualquier usuario pueda consultar las reseñas y calificaciones históricas
+ * de otro usuario sin requerir haber interactuado previamente con él.
+ */
+enum class ReviewVisibilityStatus {
+    PUBLICA_INMEDIATA,             // Visible públicamente para cualquier usuario desde su emisión
+    OCULTA_POR_DISPUTA_EN_REVISION // Temporalmente restringida únicamente si existe expediente de arbitraje
+}
+
+/**
+ * Compatibilidad con nombres previos: se mapea al esquema de visibilidad pública.
  */
 enum class DoubleBlindStatus {
-    OCULTA_PENDIENTE_CONTRAPARTE, // Una de las partes ya calificó, pero se oculta para prevenir sesgo
-    REVELADA_AMBOS_CALIFICARON,    // Ambas partes enviaron su evaluación; se hace pública
-    REVELADA_POR_VENCIMIENTO_7_DIAS // Transcurrieron 7 días desde el trueque; se publica automáticamente
+    PUBLICA_INMEDIATA,
+    REVELADA_AMBOS_CALIFICARON,
+    REVELADA_POR_VENCIMIENTO_7_DIAS,
+    OCULTA_PENDIENTE_CONTRAPARTE
 }
 
 /**
