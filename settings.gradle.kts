@@ -16,4 +16,10 @@ dependencyResolutionManagement {
     }
 }
 
+include(":app")
 include(":core:domain")
+include(":core:common")
+include(":core:designsystem")
+include(":core:network")
+include(":core:datastore")
+
