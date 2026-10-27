@@ -23,7 +23,14 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+
+    testOptions {
+        unitTests.all {
+            it.useJUnitPlatform()
+        }
+    }
 }
+
 
 dependencies {
     // Coroutines & Lifecycle
