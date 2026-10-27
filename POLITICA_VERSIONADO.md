@@ -66,6 +66,12 @@ Para optimizar el almacenamiento, prevenir inconsistencias en el trabajo en equi
 
 Cuando Antigravity IDE o un desarrollador trabaje en el repositorio, debe seguir este flujo riguroso:
 
+### Paso 0: Confirmación Previa Obligatoria con el Usuario
+Antes de iniciar cualquier nueva fase de desarrollo:
+1. Explicar en detalle al usuario el alcance, arquitectura, módulos y entregables previstos.
+2. Preguntar explícitamente si esa propuesta coincide con lo solicitado y esperar su visto bueno antes de realizar cualquier cambio en el código.
+*(Ver detalle en `.agents/rules/fases.md`).*
+
 ### Paso 1: Verificación de Calidad Previa
 Antes de actualizar la versión, ejecutar la suite de pruebas unitarias y comprobación de sintaxis:
 ```powershell
