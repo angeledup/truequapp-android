@@ -119,7 +119,7 @@ class TradeViewModelTest {
         viewModel.onEvent(TradeUiEvent.InitTradeCreation(targetItemId = "item_002", userId = "usr_current"))
 
         // Sin seleccionar artículos, solo ofrecer 500 TC (500 / 600 = ~83% > 40%)
-        viewModel.onEvent(TradeUiEvent.OnCompensatoryCoinsChanged("500"))
+        viewModel.onEvent(TradeUiEvent.OnTruequeCoinsChanged("500"))
 
         val state = viewModel.uiState.value
         assertTrue(state.isRatioValid, "El ratio es mayor al 40%")
@@ -137,7 +137,7 @@ class TradeViewModelTest {
 
         // Ofrecer Audífonos (Mediana ~$900) + 100 TC -> Valor combinado ~$1000 / $600 = ~166%
         viewModel.onEvent(TradeUiEvent.ToggleOfferedItemSelection(itemId = "item_user_02"))
-        viewModel.onEvent(TradeUiEvent.OnCompensatoryCoinsChanged("100"))
+        viewModel.onEvent(TradeUiEvent.OnTruequeCoinsChanged("100"))
 
         val state = viewModel.uiState.value
         assertTrue(state.isRatioValid)
@@ -211,12 +211,58 @@ class TradeViewModelTest {
         advanceUntilIdle()
 
         viewModel.onEvent(TradeUiEvent.OpenCounterOfferDialog)
-        viewModel.onEvent(TradeUiEvent.OnCounterOfferCoinsChanged("1500"))
+        viewModel.onEvent(TradeUiEvent.OnCounterOfferTruequeCoinsChanged("1500"))
         viewModel.onEvent(TradeUiEvent.SubmitCounterOffer)
         advanceUntilIdle()
 
         assertEquals(TradeStatus.CONTRAOFERTADA, viewModel.uiState.value.currentProposal?.status)
         assertEquals(1500.0, viewModel.uiState.value.currentProposal?.compensatoryTruequeCoins)
+    }
+
+    @Test
+    @DisplayName("Zona de Trueques: Segregación entre Activas y Ofertas recibidas de otros usuarios")
+    fun tradeList_segregatesActiveAndReceivedOffers() = runTest(testDispatcher) {
+        advanceUntilIdle()
+
+        val incomingOffer = TradeProposal(
+            id = "prop_offer_1",
+            requesterUserId = "usr_other",
+            receiverUserId = "usr_current",
+            offeredItemIds = listOf("item_001"),
+            targetItemId = "item_user_01",
+            modality = TradeModality.DIRECTO_1_A_1,
+            status = TradeStatus.PENDIENTE
+        )
+        val outgoingActive = TradeProposal(
+            id = "prop_active_1",
+            requesterUserId = "usr_current",
+            receiverUserId = "usr_other",
+            offeredItemIds = listOf("item_user_01"),
+            targetItemId = "item_002",
+            modality = TradeModality.DIRECTO_1_A_1,
+            status = TradeStatus.PENDIENTE
+        )
+        val counterOfferToMe = TradeProposal(
+            id = "prop_counter_offer_1",
+            requesterUserId = "usr_current",
+            receiverUserId = "usr_other",
+            offeredItemIds = listOf("item_user_02"),
+            targetItemId = "item_002",
+            modality = TradeModality.DIRECTO_1_A_1,
+            status = TradeStatus.CONTRAOFERTADA
+        )
+
+        viewModel.addTestProposal(incomingOffer)
+        viewModel.addTestProposal(outgoingActive)
+        viewModel.addTestProposal(counterOfferToMe)
+
+        viewModel.onEvent(TradeUiEvent.LoadProposals("usr_current"))
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.activeProposals.any { it.id == "prop_active_1" })
+        assertTrue(state.receivedOffers.any { it.id == "prop_offer_1" })
+        assertTrue(state.receivedOffers.any { it.id == "prop_counter_offer_1" })
     }
 
     @Test

@@ -19,8 +19,10 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.NearMe
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
@@ -55,7 +57,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
 
 /**
- * Pantalla de Exploración del Marketplace con Feed en cuadrícula y filtros PostGIS geolocalizados (CU008).
+ * Pantalla de Exploración del Marketplace con Feed en cuadrícula, filtros geolocalizados,
+ * filtro de guardados/favoritos activos y acceso a publicaciones propias guardadas (CU008).
  */
 @Composable
 fun CatalogFeedScreen(
@@ -80,11 +83,11 @@ fun CatalogFeedScreen(
     }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TruequappTopAppBar(
-                title = "Marketplace Truequapp",
-                coinsBalance = 150
+                title = "Explorar Trueques",
+                coinsBalance = 100,
+                unreadNotifications = 0
             )
         },
         floatingActionButton = {
@@ -93,10 +96,11 @@ fun CatalogFeedScreen(
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
             ) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "Publicar Artículo")
+                Icon(Icons.Default.Add, contentDescription = "Publicar artículo")
             }
         },
-        modifier = modifier.fillMaxSize()
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        modifier = modifier
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -176,19 +180,49 @@ fun CatalogFeedScreen(
                 }
             }
 
-            // Chips horizontales de categorías
+            // Chips horizontales: Filtros especiales (Guardados / Mis Publicaciones) y categorías
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                // Filtro de Guardados / Favoritos
                 FilterChip(
-                    selected = state.selectedCategoryId == null,
+                    selected = state.filterOnlyBookmarked,
+                    onClick = { onEvent(CatalogUiEvent.ToggleBookmarkedFilter) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Bookmark,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    },
+                    label = { Text("Guardados (${state.bookmarkedItemIds.size})") }
+                )
+
+                // Filtro de Mis Publicaciones
+                FilterChip(
+                    selected = state.filterOnlyMyPublications,
+                    onClick = { onEvent(CatalogUiEvent.ToggleMyPublicationsFilter) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Inventory2,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    },
+                    label = { Text("Mis Publicaciones (${state.myInventory.size})") }
+                )
+
+                FilterChip(
+                    selected = state.selectedCategoryId == null && !state.filterOnlyBookmarked && !state.filterOnlyMyPublications,
                     onClick = { onEvent(CatalogUiEvent.CategoryFilterSelected(null)) },
                     label = { Text("Todas") }
                 )
+
                 CategoryTaxonomy.LIQUID_CATEGORIES.forEach { category ->
                     FilterChip(
                         selected = state.selectedCategoryId == category.id,
@@ -209,7 +243,11 @@ fun CatalogFeedScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "No se encontraron artículos con los filtros seleccionados.",
+                        text = when {
+                            state.filterOnlyBookmarked -> "No tienes publicaciones guardadas activas en este momento."
+                            state.filterOnlyMyPublications -> "Aún no has publicado ningún artículo. Presiona '+' para publicar."
+                            else -> "No se encontraron artículos con los filtros seleccionados."
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -225,7 +263,9 @@ fun CatalogFeedScreen(
                     items(state.filteredItems, key = { it.id }) { item ->
                         ItemCard(
                             item = item,
-                            onClick = { onNavigateToItemDetail(item.id) }
+                            onClick = { onNavigateToItemDetail(item.id) },
+                            isBookmarked = state.bookmarkedItemIds.contains(item.id),
+                            onToggleBookmark = { onEvent(CatalogUiEvent.ToggleBookmark(item.id)) }
                         )
                     }
                 }
@@ -233,4 +273,3 @@ fun CatalogFeedScreen(
         }
     }
 }
-

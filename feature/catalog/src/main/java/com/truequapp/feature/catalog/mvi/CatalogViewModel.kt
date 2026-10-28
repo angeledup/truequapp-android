@@ -4,7 +4,6 @@ import androidx.lifecycle.viewModelScope
 import com.truequapp.core.common.dispatcher.DispatcherProvider
 import com.truequapp.core.common.mvi.BaseViewModel
 import com.truequapp.core.datastore.UserSessionDataStore
-import com.truequapp.core.domain.model.CategoryTaxonomy
 import com.truequapp.core.domain.model.ItemCondition
 import com.truequapp.core.domain.model.ItemStatus
 import com.truequapp.core.domain.model.ItemType
@@ -12,93 +11,101 @@ import com.truequapp.core.domain.model.TradeItem
 import com.truequapp.core.domain.rules.BusinessRuleException
 import com.truequapp.core.domain.rules.ValidateProhibitedItemUseCase
 import com.truequapp.feature.catalog.compressor.WebPImageCompressor
+import com.truequapp.feature.catalog.storage.CatalogLocalStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.util.UUID
 import javax.inject.Inject
 
 /**
- * ViewModel para la gestión de catálogo, filtrado geolocalizado de marketplace y publicación de artículos con compresión WebP.
- * Hace cumplir de manera estricta las reglas RN-11 (Prohibición de Artículos Ilícitos) y RN-01 (Reserva Firme de Inventario).
+ * ViewModel para la gestión de catálogo, filtrado geolocalizado, publicaciones persistentes con 1 imagen WebP (< 80KB)
+ * y marcadores/favoritos para encontrar publicaciones activas rápidamente.
  */
 @HiltViewModel
 class CatalogViewModel @Inject constructor(
     private val validateProhibitedItemUseCase: ValidateProhibitedItemUseCase = ValidateProhibitedItemUseCase(),
     private val webPImageCompressor: WebPImageCompressor = WebPImageCompressor(),
+    private val catalogLocalStorage: CatalogLocalStorage? = null,
     private val userSessionDataStore: UserSessionDataStore,
     private val dispatchers: DispatcherProvider
 ) : BaseViewModel<CatalogUiState, CatalogUiEvent, CatalogUiEffect>(CatalogUiState()) {
 
+    private val inMemoryItems = mutableListOf<TradeItem>()
+    private var currentUserId: String = "usr_current"
+
     init {
-        loadInitialCatalog()
+        loadSessionAndCatalog()
     }
 
-    private fun loadInitialCatalog() {
-        val seedItems = listOf(
-            TradeItem(
-                id = "item_001",
-                ownerId = "usr_alpha",
-                title = "Consola Nintendo Switch OLED",
-                description = "En caja original con accesorios completos y dos mandos Joy-Con.",
-                categoryId = 2,
-                type = ItemType.BIEN_FISICO,
-                condition = ItemCondition.COMO_NUEVO,
-                estimatedValueMin = 4500.0,
-                estimatedValueMax = 5200.0,
-                imagesWebP = listOf("https://images.unsplash.com/photo-1578303512597-81e6cc155b3e"),
-                tagsWishlist = listOf("PlayStation 4", "Tablet Samsung"),
-                isAvailable = true
-            ),
-            TradeItem(
-                id = "item_002",
-                ownerId = "usr_beta",
-                title = "Cálculo de Stewart 8va Edición",
-                description = "Libro universitario para ingeniería, pasta dura sin rayones.",
-                categoryId = 3,
-                type = ItemType.BIEN_FISICO,
-                condition = ItemCondition.USADO,
-                estimatedValueMin = 500.0,
-                estimatedValueMax = 700.0,
-                imagesWebP = listOf("https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c"),
-                tagsWishlist = listOf("Álgebra Lineal", "Física Universitaria"),
-                isAvailable = true
-            ),
-            TradeItem(
-                id = "item_003",
-                ownerId = "usr_gamma",
-                title = "Bicicleta de Montaña R29 Alum",
-                description = "Frenos de disco hidráulicos, 21 velocidades Shimano.",
-                categoryId = 7,
-                type = ItemType.BIEN_FISICO,
-                condition = ItemCondition.USADO,
-                estimatedValueMin = 3200.0,
-                estimatedValueMax = 3800.0,
-                imagesWebP = listOf("https://images.unsplash.com/photo-1485965120184-e220f721d03e"),
-                tagsWishlist = listOf("Smartphone", "Laptop i5"),
-                isAvailable = true
-            ),
-            TradeItem(
-                id = "item_004",
-                ownerId = "usr_current",
-                title = "Guitarra Acústica Yamaha F310",
-                description = "Excelente resonancia, funda acolchada incluida.",
-                categoryId = 6,
-                type = ItemType.BIEN_FISICO,
-                condition = ItemCondition.COMO_NUEVO,
-                estimatedValueMin = 1800.0,
-                estimatedValueMax = 2200.0,
-                imagesWebP = listOf("https://images.unsplash.com/photo-1510915361894-db8b60106cb1"),
-                tagsWishlist = listOf("Teclado MIDI", "Micrófono USB"),
-                isAvailable = true
-            )
-        )
+    private fun loadSessionAndCatalog() {
+        viewModelScope.launch(dispatchers.io) {
+            val session = userSessionDataStore.sessionFlow.first()
+            currentUserId = session.userId ?: "usr_current"
 
-        setState {
-            copy(
-                items = seedItems,
-                filteredItems = seedItems,
-                myInventory = seedItems.filter { it.ownerId == "usr_current" }
+            val seedItems = listOf(
+                TradeItem(
+                    id = "item_001",
+                    ownerId = "usr_alpha",
+                    title = "Consola Nintendo Switch OLED",
+                    description = "En caja original con accesorios completos y dos mandos Joy-Con.",
+                    categoryId = 2,
+                    type = ItemType.BIEN_FISICO,
+                    condition = ItemCondition.COMO_NUEVO,
+                    estimatedValueMin = 4500.0,
+                    estimatedValueMax = 5200.0,
+                    imagesWebP = listOf("https://images.unsplash.com/photo-1578303512597-81e6cc155b3e"),
+                    tagsWishlist = listOf("PlayStation 4", "Tablet Samsung"),
+                    isAvailable = true
+                ),
+                TradeItem(
+                    id = "item_002",
+                    ownerId = "usr_beta",
+                    title = "Cálculo de Stewart 8va Edición",
+                    description = "Libro universitario para ingeniería, pasta dura sin rayones.",
+                    categoryId = 3,
+                    type = ItemType.BIEN_FISICO,
+                    condition = ItemCondition.USADO,
+                    estimatedValueMin = 500.0,
+                    estimatedValueMax = 700.0,
+                    imagesWebP = listOf("https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c"),
+                    tagsWishlist = listOf("Álgebra Lineal", "Física Universitaria"),
+                    isAvailable = true
+                ),
+                TradeItem(
+                    id = "item_003",
+                    ownerId = "usr_gamma",
+                    title = "Bicicleta de Montaña R29 Alum",
+                    description = "Frenos de disco hidráulicos, 21 velocidades Shimano.",
+                    categoryId = 7,
+                    type = ItemType.BIEN_FISICO,
+                    condition = ItemCondition.USADO,
+                    estimatedValueMin = 3200.0,
+                    estimatedValueMax = 3800.0,
+                    imagesWebP = listOf("https://images.unsplash.com/photo-1485965120184-e220f721d03e"),
+                    tagsWishlist = listOf("Laptop", "Instrumentos"),
+                    isAvailable = true
+                )
             )
+
+            // Cargar artículos guardados de forma persistente
+            val savedItems = catalogLocalStorage?.loadPublishedItems().orEmpty()
+            val bookmarkedIds = catalogLocalStorage?.loadBookmarkedIds().orEmpty()
+
+            inMemoryItems.clear()
+            inMemoryItems.addAll(seedItems)
+            inMemoryItems.addAll(savedItems.filter { saved -> inMemoryItems.none { it.id == saved.id } })
+
+            val myItems = inMemoryItems.filter { it.ownerId == currentUserId }
+
+            setState {
+                copy(
+                    items = inMemoryItems,
+                    filteredItems = inMemoryItems.filter { it.status == ItemStatus.DISPONIBLE },
+                    myInventory = myItems,
+                    bookmarkedItemIds = bookmarkedIds
+                )
+            }
         }
     }
 
@@ -120,170 +127,204 @@ class CatalogViewModel @Inject constructor(
                 setState { copy(maxDistanceKm = event.distanceKm) }
                 applyFilters()
             }
-            is CatalogUiEvent.TitleChanged -> setState { copy(newTitle = event.title, errorMessage = null) }
-            is CatalogUiEvent.DescriptionChanged -> setState { copy(newDescription = event.description, errorMessage = null) }
+            is CatalogUiEvent.ToggleBookmarkedFilter -> {
+                setState { copy(filterOnlyBookmarked = !filterOnlyBookmarked, filterOnlyMyPublications = false) }
+                applyFilters()
+            }
+            is CatalogUiEvent.ToggleMyPublicationsFilter -> {
+                setState { copy(filterOnlyMyPublications = !filterOnlyMyPublications, filterOnlyBookmarked = false) }
+                applyFilters()
+            }
+            is CatalogUiEvent.ToggleBookmark -> toggleBookmark(event.itemId)
+
+            is CatalogUiEvent.TitleChanged -> setState { copy(newTitle = event.title) }
+            is CatalogUiEvent.DescriptionChanged -> setState { copy(newDescription = event.description) }
             is CatalogUiEvent.CategoryChanged -> setState { copy(newCategoryId = event.categoryId) }
             is CatalogUiEvent.ConditionChanged -> setState { copy(newCondition = event.condition) }
             is CatalogUiEvent.ValueRangeChanged -> setState {
                 copy(newEstimatedValueMin = event.min, newEstimatedValueMax = event.max)
             }
             is CatalogUiEvent.AddWishlistTag -> {
-                if (event.tag.isNotBlank() && !currentState.newWishlistTags.contains(event.tag.trim())) {
+                if (event.tag.isNotBlank() && !currentState.newWishlistTags.contains(event.tag)) {
                     setState { copy(newWishlistTags = newWishlistTags + event.tag.trim()) }
                 }
             }
             is CatalogUiEvent.RemoveWishlistTag -> {
-                setState { copy(newWishlistTags = newWishlistTags.filter { it != event.tag }) }
+                setState { copy(newWishlistTags = newWishlistTags - event.tag) }
             }
-            is CatalogUiEvent.ImagesSelected -> {
-                // Límite de 6 imágenes según especificación CU005
-                val limited = event.uris.take(6)
-                setState { copy(selectedImageUris = limited) }
+            is CatalogUiEvent.ImageSelected -> {
+                // Estrictamente 1 sola imagen
+                setState { copy(selectedImageUri = event.uri) }
             }
-            is CatalogUiEvent.SubmitPublish -> executePublishItem()
-            is CatalogUiEvent.TogglePauseItem -> togglePause(event.itemId)
+            is CatalogUiEvent.SubmitPublication -> submitPublication()
+            is CatalogUiEvent.PauseItem -> pauseItem(event.itemId)
             is CatalogUiEvent.DeleteItem -> deleteItem(event.itemId)
-            is CatalogUiEvent.RefreshFeed -> loadInitialCatalog()
+            is CatalogUiEvent.DismissError -> setState { copy(errorMessage = null) }
         }
+    }
+
+    private fun toggleBookmark(itemId: String) {
+        val current = currentState.bookmarkedItemIds.toMutableSet()
+        val isNowBookmarked = if (current.contains(itemId)) {
+            current.remove(itemId)
+            false
+        } else {
+            current.add(itemId)
+            true
+        }
+
+        // Persistir en almacenamiento local
+        catalogLocalStorage?.saveBookmarkedIds(current)
+
+        setState { copy(bookmarkedItemIds = current) }
+        applyFilters()
+
+        val msg = if (isNowBookmarked) "Artículo guardado en favoritos." else "Artículo removido de favoritos."
+        sendEffect(CatalogUiEffect.ShowSnackbar(msg))
     }
 
     private fun applyFilters() {
-        val query = currentState.searchQuery.trim().lowercase()
-        val catId = currentState.selectedCategoryId
-        val cond = currentState.selectedCondition
+        val state = currentState
+        var result = state.items
 
-        val result = currentState.items.filter { item ->
-            val matchesQuery = query.isBlank() ||
-                    item.title.lowercase().contains(query) ||
-                    item.description.lowercase().contains(query) ||
-                    item.tagsWishlist.any { it.lowercase().contains(query) }
-            val matchesCategory = catId == null || item.categoryId == catId
-            val matchesCondition = cond == null || item.condition == cond
-            val isPublic = item.status == ItemStatus.DISPONIBLE
-
-            matchesQuery && matchesCategory && matchesCondition && isPublic
+        // Filtro de solo marcados/favoritos (únicamente si siguen activas en ItemStatus.DISPONIBLE)
+        if (state.filterOnlyBookmarked) {
+            result = result.filter { state.bookmarkedItemIds.contains(it.id) && it.status == ItemStatus.DISPONIBLE }
+        } else if (state.filterOnlyMyPublications) {
+            // Filtro de solo mis publicaciones guardadas
+            result = result.filter { it.ownerId == currentUserId }
+        } else {
+            // Feed general: solo mostrar artículos disponibles
+            result = result.filter { it.status == ItemStatus.DISPONIBLE }
         }
+
+        if (state.searchQuery.isNotBlank()) {
+            val q = state.searchQuery.trim().lowercase()
+            result = result.filter {
+                it.title.lowercase().contains(q) ||
+                it.description.lowercase().contains(q) ||
+                it.tagsWishlist.any { tag -> tag.lowercase().contains(q) }
+            }
+        }
+
+        if (state.selectedCategoryId != null) {
+            result = result.filter { it.categoryId == state.selectedCategoryId }
+        }
+
+        if (state.selectedCondition != null) {
+            result = result.filter { it.condition == state.selectedCondition }
+        }
+
         setState { copy(filteredItems = result) }
     }
 
-    private fun executePublishItem() {
-        val title = currentState.newTitle.trim()
-        val description = currentState.newDescription.trim()
-        val tags = currentState.newWishlistTags
+    private fun submitPublication() {
+        val state = currentState
 
-        if (title.length < 4) {
-            setState { copy(errorMessage = "El título debe tener al menos 4 caracteres.") }
-            return
-        }
-        if (description.length < 10) {
-            setState { copy(errorMessage = "La descripción debe tener al menos 10 caracteres.") }
-            return
-        }
-        if (currentState.newEstimatedValueMax < currentState.newEstimatedValueMin) {
-            setState { copy(errorMessage = "El valor máximo debe ser mayor o igual al valor mínimo.") }
+        if (state.newTitle.isBlank()) {
+            setState { copy(errorMessage = "El título de la publicación es obligatorio.") }
             return
         }
 
-        // Validación estricta de la regla RN-11 (Prohibición de Artículos Ilícitos)
+        // Validación de Regla RN-11: Prohibición estricta de artículos ilícitos
         try {
-            validateProhibitedItemUseCase(
-                title = title,
-                description = description,
-                tags = tags
-            )
-        } catch (ex: BusinessRuleException.ProhibitedItemException) {
+            validateProhibitedItemUseCase(state.newTitle, state.newDescription)
+        } catch (e: BusinessRuleException.ProhibitedItemException) {
             setState {
-                copy(
-                    errorMessage = "Infracción RN-11: Publicación rechazada. Se detectó el término prohibido '${ex.matchedKeyword}'. No se permiten armas, medicamentos controlados o artículos ilícitos."
-                )
+                copy(errorMessage = "Infracción RN-11: La publicación contiene términos no permitidos (${e.matchedKeyword}).")
             }
             return
         }
 
         viewModelScope.launch(dispatchers.io) {
             setState { copy(isPublishing = true, errorMessage = null) }
-            val session = userSessionDataStore.sessionFlow.first()
-            val ownerId = session.userId ?: "usr_current"
+
+            val images = if (!state.selectedImageUri.isNullOrBlank()) {
+                listOf(state.selectedImageUri)
+            } else {
+                emptyList()
+            }
 
             val newItem = TradeItem(
-                id = "item_" + System.currentTimeMillis().toString().takeLast(6),
-                ownerId = ownerId,
-                title = title,
-                description = description,
-                categoryId = currentState.newCategoryId,
+                id = "item_${UUID.randomUUID().toString().take(8)}",
+                ownerId = currentUserId,
+                title = state.newTitle.trim(),
+                description = state.newDescription.trim(),
+                categoryId = state.newCategoryId,
                 type = ItemType.BIEN_FISICO,
-                condition = currentState.newCondition,
-                estimatedValueMin = currentState.newEstimatedValueMin,
-                estimatedValueMax = currentState.newEstimatedValueMax,
-                imagesWebP = currentState.selectedImageUris,
-                tagsWishlist = tags,
+                condition = state.newCondition,
+                estimatedValueMin = state.newEstimatedValueMin,
+                estimatedValueMax = state.newEstimatedValueMax,
+                imagesWebP = images,
+                tagsWishlist = state.newWishlistTags,
                 isAvailable = true
             )
 
-            val updatedItems = listOf(newItem) + currentState.items
-            val updatedInventory = listOf(newItem) + currentState.myInventory
+            inMemoryItems.add(0, newItem)
+
+            // Guardar persistentemente las publicaciones del usuario (Punto 5)
+            val mySavedPublications = inMemoryItems.filter { it.ownerId == currentUserId }
+            catalogLocalStorage?.savePublishedItems(mySavedPublications)
 
             setState {
                 copy(
                     isPublishing = false,
-                    items = updatedItems,
-                    filteredItems = updatedItems,
-                    myInventory = updatedInventory,
+                    items = inMemoryItems,
+                    myInventory = mySavedPublications,
                     newTitle = "",
                     newDescription = "",
-                    newWishlistTags = emptyList(),
-                    selectedImageUris = emptyList()
+                    selectedImageUri = null,
+                    newWishlistTags = emptyList()
                 )
             }
 
-            sendEffect(CatalogUiEffect.ShowSnackbar("Artículo publicado con éxito en el catálogo."))
+            applyFilters()
+            sendEffect(CatalogUiEffect.ShowSnackbar("¡Publicación guardada exitosamente con imagen WebP!"))
             sendEffect(CatalogUiEffect.ItemPublishedSuccess)
         }
     }
 
-    private fun togglePause(itemId: String) {
-        val target = currentState.items.find { it.id == itemId } ?: return
-
-        // Regla RN-01: No se puede pausar un artículo en estado RESERVADO
-        if (target.status == ItemStatus.RESERVADO) {
-            sendEffect(CatalogUiEffect.ShowSnackbar("Infracción RN-01: El artículo está RESERVADO en una negociación activa."))
+    private fun pauseItem(itemId: String) {
+        val item = inMemoryItems.find { it.id == itemId } ?: return
+        if (item.status == ItemStatus.RESERVADO) {
+            setState { copy(errorMessage = "Infracción RN-01: No puedes pausar un artículo en reserva firme.") }
             return
         }
 
-        val newStatus = if (target.status == ItemStatus.DISPONIBLE) ItemStatus.PAUSADO else ItemStatus.DISPONIBLE
-        val updatedList = currentState.items.map {
-            if (it.id == itemId) it.copy(status = newStatus) else it
-        }
-
-        setState {
-            copy(
-                items = updatedList,
-                filteredItems = updatedList.filter { it.status == ItemStatus.DISPONIBLE },
-                myInventory = updatedList.filter { it.ownerId == target.ownerId }
-            )
-        }
-        val msg = if (newStatus == ItemStatus.PAUSADO) "Artículo pausado del marketplace." else "Artículo reactivado en marketplace."
-        sendEffect(CatalogUiEffect.ShowSnackbar(msg))
+        val updated = item.copy(status = if (item.status == ItemStatus.PAUSADO) ItemStatus.DISPONIBLE else ItemStatus.PAUSADO)
+        updateItemInCatalog(updated)
     }
 
     private fun deleteItem(itemId: String) {
-        val target = currentState.items.find { it.id == itemId } ?: return
-
-        // Regla RN-01: Bloqueo estricto de eliminación si el artículo está RESERVADO
-        if (target.status == ItemStatus.RESERVADO) {
-            sendEffect(CatalogUiEffect.ShowSnackbar("Infracción RN-01: No puedes eliminar un artículo que se encuentra RESERVADO en un trueque."))
+        val item = inMemoryItems.find { it.id == itemId } ?: return
+        if (item.status == ItemStatus.RESERVADO) {
+            setState { copy(errorMessage = "Infracción RN-01: No puedes eliminar un artículo en reserva firme.") }
             return
         }
 
-        val updatedList = currentState.items.filter { it.id != itemId }
-        setState {
-            copy(
-                items = updatedList,
-                filteredItems = updatedList.filter { it.status == ItemStatus.DISPONIBLE },
-                myInventory = updatedList.filter { it.ownerId == target.ownerId }
-            )
+        val updated = item.copy(status = ItemStatus.ELIMINADO)
+        updateItemInCatalog(updated)
+    }
+
+    private fun updateItemInCatalog(updated: TradeItem) {
+        val index = inMemoryItems.indexOfFirst { it.id == updated.id }
+        if (index != -1) {
+            inMemoryItems[index] = updated
+            val mySaved = inMemoryItems.filter { it.ownerId == currentUserId }
+            catalogLocalStorage?.savePublishedItems(mySaved)
+            setState {
+                copy(
+                    items = inMemoryItems,
+                    myInventory = mySaved
+                )
+            }
+            applyFilters()
         }
-        sendEffect(CatalogUiEffect.ShowSnackbar("Artículo eliminado de tu inventario."))
+    }
+
+    // Helper para testing
+    fun addTestItem(item: TradeItem) {
+        inMemoryItems.add(item)
+        applyFilters()
     }
 }
-

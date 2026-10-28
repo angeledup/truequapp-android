@@ -23,8 +23,10 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -36,11 +38,15 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -71,6 +77,7 @@ fun ChatScreen(
 ) {
     val listState = rememberLazyListState()
     val snackbarHostState = remember { SnackbarHostState() }
+    var showRn03InfoDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(proposalId) {
         onEvent(ChatUiEvent.InitChat(proposalId, state.currentUserId))
@@ -116,6 +123,15 @@ fun ChatScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Regresar")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { showRn03InfoDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = "Especificación RN-03",
+                            tint = TruequappTheme.colorScheme.primary
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -165,25 +181,40 @@ fun ChatScreen(
                     .fillMaxSize()
                     .padding(padding)
             ) {
-                // Banner informativo si está en modo solo lectura de auditoría (RN-03)
-                if (state.isReadOnly) {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "El intercambio ha finalizado. Chat disponible en modo solo lectura por 48 horas para fines de auditoría (RN-03).",
-                                style = MaterialTheme.typography.bodySmall
-                            )
+                // Banner informativo permanente de cumplimiento RN-03
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (state.isReadOnly) {
+                            MaterialTheme.colorScheme.surfaceVariant
+                        } else {
+                            TruequappTheme.colorScheme.primary.copy(alpha = 0.08f)
                         }
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = TruequappTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (state.isReadOnly) {
+                                "RN-03: Auditoría activa de 48h (modo solo lectura). Canal cerrado para nuevos mensajes."
+                            } else {
+                                "RN-03: Chat seguro condicionado a la propuesta activa. Sin libre contacto directo previo."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
 
@@ -251,6 +282,47 @@ fun ChatScreen(
                 }
             }
         }
+    }
+
+    if (showRn03InfoDialog) {
+        AlertDialog(
+            onDismissRequest = { showRn03InfoDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Info,
+                    contentDescription = null,
+                    tint = TruequappTheme.colorScheme.primary
+                )
+            },
+            title = {
+                Text(
+                    text = "Regla RN-03: Restricción de Contacto Directo y Ventana de Auditoría",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "1. Apertura Condicionada:\nEl canal de mensajería solo se habilita una vez que exista una oferta formalmente en negociación o aceptada (estados PENDIENTE, CONTRAOFERTADA, RESERVADO o EN_ENTREGA). No existe mensajería directa libre entre usuarios previa a una propuesta.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Text(
+                        text = "2. Prevención de Acoso y Tratos Fuera de Plataforma:\nAl suprimir la mensajería abierta general, se evitan fraudes, tratos sin garantías de Safe Zone y conductas inapropiadas.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Text(
+                        text = "3. Ventana de Auditoría de 48 Horas:\nConcluido o cancelado el intercambio, el canal permanecerá en modo solo lectura durante exactamente 48 horas para resolución de controversias y aclaraciones, tras lo cual se cerrará definitivamente.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showRn03InfoDialog = false }) {
+                    Text("Entendido", fontWeight = FontWeight.Bold)
+                }
+            }
+        )
     }
 }
 

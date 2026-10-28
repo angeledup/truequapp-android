@@ -203,11 +203,11 @@ fun CreateTradeProposalScreen(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
-                    value = state.compensatoryCoinsInput,
-                    onValueChange = { onEvent(TradeUiEvent.OnCompensatoryCoinsChanged(it)) },
+                    value = state.truequeCoinsInput,
+                    onValueChange = { onEvent(TradeUiEvent.OnTruequeCoinsChanged(it)) },
                     label = { Text("Monto de TruequeCoins") },
                     supportingText = {
-                        Text("Saldo disponible: ${String.format("%.0f", state.userCoinsBalance)} TC")
+                        Text("Saldo disponible: ${String.format("%.0f", state.truequeCoins)} TC")
                     },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),

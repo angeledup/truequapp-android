@@ -55,7 +55,7 @@ class AuthViewModel @Inject constructor(
                         currentUserId = loggedUserId,
                         emailInput = session.userEmail.orEmpty(),
                         kycLevel = if (session.isKycVerified) KycLevel.TELEFONO_SMS_NIVEL_1 else KycLevel.BASICO_NIVEL_0,
-                        walletBalanceCoins = 100.0,
+                        truequeCoins = 100.0,
                         bayesianRating = rating,
                         obfuscatedNeighborhood = obfuscated.neighborhoodName
                     )
@@ -125,7 +125,7 @@ class AuthViewModel @Inject constructor(
                     isLoggedIn = true,
                     currentUserId = generatedUserId,
                     kycLevel = KycLevel.TELEFONO_SMS_NIVEL_1,
-                    walletBalanceCoins = 150.0,
+                    truequeCoins = 150.0,
                     bayesianRating = rating,
                     obfuscatedNeighborhood = obfuscated.neighborhoodName
                 )
@@ -211,7 +211,7 @@ class AuthViewModel @Inject constructor(
                     isOtpDialogVisible = false,
                     currentUserId = newUserId,
                     kycLevel = KycLevel.TELEFONO_SMS_NIVEL_1,
-                    walletBalanceCoins = 100.0, // Monedero inicializado
+                    truequeCoins = 100.0, // Monedero inicializado con una única variable canónica
                     bayesianRating = initialRating,
                     obfuscatedNeighborhood = obfuscated.neighborhoodName
                 )

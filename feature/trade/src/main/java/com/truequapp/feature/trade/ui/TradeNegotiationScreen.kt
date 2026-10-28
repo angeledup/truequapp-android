@@ -190,12 +190,24 @@ fun TradeNegotiationScreen(
                     }
                 }
 
-                // Botón de Chat Transaccional (RN-03: permitido en estados activos)
+                // Botón de Chat Transaccional y Regulación RN-03
                 if (proposal.isChatAllowed) {
                     TruequappOutlinedButton(
                         text = "Abrir Chat Transaccional (RN-03)",
                         onClick = { onNavigateToChat(proposal.id) }
                     )
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "RN-03: Chat privado regulado exclusivamente para esta propuesta. Al concluir o cancelar, se activará una ventana de auditoría de 48 horas en modo solo lectura.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(10.dp)
+                        )
+                    }
                 }
 
                 // Acciones según Máquina de Estados y Rol
@@ -276,8 +288,8 @@ fun TradeNegotiationScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Ajusta los créditos en TruequeCoins de compensación:")
                     OutlinedTextField(
-                        value = state.counterOfferCoinsInput,
-                        onValueChange = { onEvent(TradeUiEvent.OnCounterOfferCoinsChanged(it)) },
+                        value = state.counterOfferTruequeCoinsInput,
+                        onValueChange = { onEvent(TradeUiEvent.OnCounterOfferTruequeCoinsChanged(it)) },
                         label = { Text("Nuevos TruequeCoins") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,

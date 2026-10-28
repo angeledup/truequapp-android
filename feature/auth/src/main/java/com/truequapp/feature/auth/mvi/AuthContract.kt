@@ -8,6 +8,7 @@ import com.truequapp.core.domain.model.UserProfile
 
 /**
  * Estado inmutable de la interfaz de usuario para el módulo de Autenticación y Perfil.
+ * Utiliza una única variable canónica para la moneda virtual: [truequeCoins].
  */
 data class AuthUiState(
     val isLoading: Boolean = false,
@@ -23,12 +24,16 @@ data class AuthUiState(
     val currentUserId: String = "",
     val currentUserProfile: UserProfile? = null,
     val kycLevel: KycLevel = KycLevel.BASICO_NIVEL_0,
-    val walletBalanceCoins: Double = 0.0,
+    val truequeCoins: Double = 0.0, // Única variable para la moneda virtual
     val bayesianRating: Double = 3.0,
     val attendanceRate: Double = 1.0,
     val obfuscatedNeighborhood: String = "",
     val errorMessage: String? = null
-) : UiState
+) : UiState {
+    // Compatibilidad retroactiva
+    val walletBalanceCoins: Double
+        get() = truequeCoins
+}
 
 /**
  * Eventos e intenciones del usuario disparados desde las pantallas de autenticación y perfil.
@@ -50,7 +55,7 @@ sealed interface AuthUiEvent : UiEvent {
 }
 
 /**
- * Efectos secundarios de navegación y notificaciones únicas.
+ * Efectos de navegación y notificaciones efímeras (Toasts / Snackbars).
  */
 sealed interface AuthUiEffect : UiEffect {
     data class ShowSnackbar(val message: String) : AuthUiEffect

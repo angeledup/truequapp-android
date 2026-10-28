@@ -54,7 +54,7 @@ fun TradeListScreen(
     modifier: Modifier = Modifier
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Activas (${state.activeProposals.size})", "Historial (${state.historyProposals.size})")
+    val tabs = listOf("Activas (${state.activeProposals.size})", "Ofertas (${state.receivedOffers.size})")
 
     LaunchedEffect(state.currentUserId) {
         if (state.currentUserId.isNotBlank()) {
@@ -65,7 +65,7 @@ fun TradeListScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Mis Negociaciones", fontWeight = FontWeight.Bold) }
+                title = { Text("Zona de Trueques", fontWeight = FontWeight.Bold) }
             )
         },
         modifier = modifier
@@ -82,7 +82,10 @@ fun TradeListScreen(
                 tabs.forEachIndexed { index, title ->
                     Tab(
                         selected = selectedTab == index,
-                        onClick = { selectedTab = index },
+                        onClick = {
+                            selectedTab = index
+                            onEvent(TradeUiEvent.SelectTab(index))
+                        },
                         text = {
                             Text(
                                 text = title,
@@ -93,7 +96,7 @@ fun TradeListScreen(
                 }
             }
 
-            val listToDisplay = if (selectedTab == 0) state.activeProposals else state.historyProposals
+            val listToDisplay = if (selectedTab == 0) state.activeProposals else state.receivedOffers
 
             if (listToDisplay.isEmpty()) {
                 Box(
@@ -103,7 +106,11 @@ fun TradeListScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = if (selectedTab == 0) "No tienes negociaciones activas actualmente." else "No hay intercambios en tu historial.",
+                        text = if (selectedTab == 0) {
+                            "No tienes propuestas activas o en entrega en curso."
+                        } else {
+                            "No has recibido ofertas ni contraofertas de otros usuarios respecto a tus artículos."
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -119,6 +126,7 @@ fun TradeListScreen(
                         ProposalCard(
                             proposal = proposal,
                             currentUserId = state.currentUserId,
+                            isOfferTab = selectedTab == 1,
                             onClick = { onSelectProposal(proposal.id) }
                         )
                     }
@@ -132,9 +140,15 @@ fun TradeListScreen(
 private fun ProposalCard(
     proposal: TradeProposal,
     currentUserId: String,
+    isOfferTab: Boolean = false,
     onClick: () -> Unit
 ) {
     val isProposer = proposal.requesterUserId == currentUserId
+    val offerRoleLabel = when {
+        proposal.status == TradeStatus.CONTRAOFERTADA && isProposer -> "Contraoferta a tu propuesta inicial"
+        proposal.receiverUserId == currentUserId -> "Oferta recibida de otro usuario"
+        else -> "Propuesta enviada"
+    }
     val (statusText, statusColor) = when (proposal.status) {
         TradeStatus.PENDIENTE -> "Pendiente" to Color(0xFFE65100)
         TradeStatus.CONTRAOFERTADA -> "Contraofertada" to Color(0xFF1565C0)
@@ -164,7 +178,7 @@ private fun ProposalCard(
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = if (isProposer) "Oferta enviada" else "Oferta recibida",
+                        text = offerRoleLabel,
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant

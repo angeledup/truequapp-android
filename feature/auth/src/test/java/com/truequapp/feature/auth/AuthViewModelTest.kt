@@ -129,7 +129,7 @@ class AuthViewModelTest {
         val state = viewModel.uiState.value
         assertTrue(state.isLoggedIn)
         assertEquals(KycLevel.TELEFONO_SMS_NIVEL_1, state.kycLevel)
-        assertEquals(100.0, state.walletBalanceCoins)
+        assertEquals(100.0, state.truequeCoins)
         assertFalse(state.isOtpDialogVisible)
         assertTrue(fakeDataStore.sessionFlow.first().isAuthenticated)
     }

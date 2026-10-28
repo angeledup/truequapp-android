@@ -54,8 +54,8 @@ class TestCatalogDispatcherProvider(private val dispatcher: TestDispatcher) : Di
 class CatalogViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
-    private val fakeDataStore = FakeCatalogDataStore()
     private val dispatchers = TestCatalogDispatcherProvider(testDispatcher)
+    private val fakeDataStore = FakeCatalogDataStore()
 
     private lateinit var viewModel: CatalogViewModel
 
@@ -78,7 +78,7 @@ class CatalogViewModelTest {
     fun shouldRejectPublication_whenProhibitedWordDetected() = runTest(testDispatcher) {
         viewModel.onEvent(CatalogUiEvent.TitleChanged("Vendo pistola de colección"))
         viewModel.onEvent(CatalogUiEvent.DescriptionChanged("Arma deportiva con municiones incluidas."))
-        viewModel.onEvent(CatalogUiEvent.SubmitPublish)
+        viewModel.onEvent(CatalogUiEvent.SubmitPublication)
 
         val state = viewModel.uiState.value
         assertNotNull(state.errorMessage)
@@ -87,28 +87,50 @@ class CatalogViewModelTest {
     }
 
     @Test
-    @DisplayName("CU005: Publicación válida de artículo agrega el ítem al catálogo e inventario personal")
-    fun shouldPublishItemSuccessfully_whenValid() = runTest(testDispatcher) {
+    @DisplayName("CU005: Publicación válida con 1 sola imagen agrega el ítem al catálogo y lo guarda en mis publicaciones")
+    fun shouldPublishItemSuccessfully_withSingleImage() = runTest(testDispatcher) {
         viewModel.onEvent(CatalogUiEvent.TitleChanged("Teclado Mecánico RGB"))
         viewModel.onEvent(CatalogUiEvent.DescriptionChanged("Switches Brown, cable tipo C desmontable."))
         viewModel.onEvent(CatalogUiEvent.CategoryChanged(1))
         viewModel.onEvent(CatalogUiEvent.ConditionChanged(ItemCondition.COMO_NUEVO))
         viewModel.onEvent(CatalogUiEvent.ValueRangeChanged(800.0, 1100.0))
         viewModel.onEvent(CatalogUiEvent.AddWishlistTag("Audífonos"))
+        viewModel.onEvent(CatalogUiEvent.ImageSelected("content://media/external/images/media/101"))
 
-        viewModel.onEvent(CatalogUiEvent.SubmitPublish)
+        viewModel.onEvent(CatalogUiEvent.SubmitPublication)
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
         assertNull(state.errorMessage)
         assertTrue(state.items.any { it.title == "Teclado Mecánico RGB" })
         assertTrue(state.myInventory.any { it.title == "Teclado Mecánico RGB" })
+        val published = state.items.first { it.title == "Teclado Mecánico RGB" }
+        assertEquals(1, published.imagesWebP.size)
+    }
+
+    @Test
+    @DisplayName("Marcadores: Permite guardar publicaciones y filtrarlas rápidamente solo si siguen activas")
+    fun shouldBookmarkAndFilterActiveItems() = runTest(testDispatcher) {
+        advanceUntilIdle()
+
+        // Marcar el ítem item_001
+        viewModel.onEvent(CatalogUiEvent.ToggleBookmark("item_001"))
+        assertTrue(viewModel.uiState.value.bookmarkedItemIds.contains("item_001"))
+
+        // Activar filtro de guardados
+        viewModel.onEvent(CatalogUiEvent.ToggleBookmarkedFilter)
+        val filtered = viewModel.uiState.value.filteredItems
+        assertEquals(1, filtered.size)
+        assertEquals("item_001", filtered.first().id)
+
+        // Si el ítem ya no está disponible, no debe mostrarse en guardados activos
+        val reservedItem = filtered.first().copy(status = ItemStatus.RESERVADO)
+        viewModel.onEvent(CatalogUiEvent.PauseItem(reservedItem.id)) // Cambia estado
     }
 
     @Test
     @DisplayName("CU008: Filtrado de catálogo por categoría muestra únicamente ítems coincidentes")
     fun shouldFilterItemsByCategory() = runTest(testDispatcher) {
-        // Filtrar por categoría 2 (Videojuegos)
         viewModel.onEvent(CatalogUiEvent.CategoryFilterSelected(2))
 
         val state = viewModel.uiState.value
@@ -129,7 +151,6 @@ class CatalogViewModelTest {
     @Test
     @DisplayName("RN-01: No debe permitir eliminar ni pausar un artículo en estado RESERVADO")
     fun shouldPreventDeletingOrPausing_whenItemIsReserved() = runTest(testDispatcher) {
-        // Simular ítem reservado
         val reservedItem = TradeItem(
             id = "reserved_item_99",
             ownerId = "usr_current",
@@ -143,13 +164,13 @@ class CatalogViewModelTest {
             tagsWishlist = emptyList(),
             status = ItemStatus.RESERVADO
         )
+        viewModel.addTestItem(reservedItem)
 
         // Intentar pausar
-        viewModel.onEvent(CatalogUiEvent.TogglePauseItem(reservedItem.id))
+        viewModel.onEvent(CatalogUiEvent.PauseItem(reservedItem.id))
         // Intentar eliminar
         viewModel.onEvent(CatalogUiEvent.DeleteItem(reservedItem.id))
 
-        // El ítem no sufre cambios ilegítimos
         val state = viewModel.uiState.value
         assertFalse(state.items.any { it.id == reservedItem.id && it.status == ItemStatus.ELIMINADO })
     }

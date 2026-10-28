@@ -17,16 +17,19 @@ data class TradeUiState(
     val currentUserId: String = "",
     val availableUserItems: List<TradeItem> = emptyList(),
     val selectedOfferedItemIds: Set<String> = emptySet(),
-    val compensatoryCoinsInput: String = "0",
-    val userCoinsBalance: Double = 100.0,
+    val truequeCoinsInput: String = "0",
+    val truequeCoins: Double = 100.0,
     val calculatedRatio: Double = 0.0,
     val isRatioValid: Boolean = false, // RN-02: ratio >= 0.40
     val hasMinimumItemsSelected: Boolean = false, // Opción A: mínimo 1 artículo
     val canSubmitProposal: Boolean = false, // isRatioValid && hasMinimumItemsSelected
 
     // Datos para gestión y listado de propuestas (CU010 / CU011 / CU012)
+    // Pestañas 'Activas' y 'Ofertas' solicitadas por el usuario
     val activeProposals: List<TradeProposal> = emptyList(),
+    val receivedOffers: List<TradeProposal> = emptyList(),
     val historyProposals: List<TradeProposal> = emptyList(),
+    val selectedTab: Int = 0, // 0: Activas, 1: Ofertas
     val currentProposal: TradeProposal? = null,
     val negotiationTargetItem: TradeItem? = null,
     val negotiationOfferedItems: List<TradeItem> = emptyList(),
@@ -36,7 +39,7 @@ data class TradeUiState(
     // Diálogos y advertencias
     val showCounterOfferDialog: Boolean = false,
     val counterOfferOfferedItemIds: Set<String> = emptySet(),
-    val counterOfferCoinsInput: String = "0",
+    val counterOfferTruequeCoinsInput: String = "0",
     val counterOfferRatio: Double = 0.0,
     val isCounterOfferValid: Boolean = false,
 
@@ -48,7 +51,12 @@ data class TradeUiState(
     val isLoading: Boolean = false,
     val isSubmitting: Boolean = false,
     val errorMessage: String? = null
-) : UiState
+) : UiState {
+    // Getters retrocompatibles para unificación de variable de moneda
+    val compensatoryCoinsInput: String get() = truequeCoinsInput
+    val userCoinsBalance: Double get() = truequeCoins
+    val counterOfferCoinsInput: String get() = counterOfferTruequeCoinsInput
+}
 
 /**
  * Eventos e intenciones del usuario para el flujo de negociación de trueques.
@@ -57,11 +65,13 @@ sealed interface TradeUiEvent : UiEvent {
     // Creación de propuesta (CU009)
     data class InitTradeCreation(val targetItemId: String, val userId: String) : TradeUiEvent
     data class ToggleOfferedItemSelection(val itemId: String) : TradeUiEvent
+    data class OnTruequeCoinsChanged(val truequeCoinsStr: String) : TradeUiEvent
     data class OnCompensatoryCoinsChanged(val coinsStr: String) : TradeUiEvent
     data object SubmitProposal : TradeUiEvent
 
-    // Listado y consulta
+    // Listado y consulta (Pestañas 'Activas' y 'Ofertas')
     data class LoadProposals(val userId: String) : TradeUiEvent
+    data class SelectTab(val tabIndex: Int) : TradeUiEvent
     data class LoadProposalDetails(val proposalId: String, val currentUserId: String) : TradeUiEvent
 
     // Negociación: Aceptación con bloqueo ACID (CU010 / RN-01)
@@ -71,6 +81,7 @@ sealed interface TradeUiEvent : UiEvent {
     data object OpenCounterOfferDialog : TradeUiEvent
     data object DismissCounterOfferDialog : TradeUiEvent
     data class ToggleCounterOfferItemSelection(val itemId: String) : TradeUiEvent
+    data class OnCounterOfferTruequeCoinsChanged(val truequeCoinsStr: String) : TradeUiEvent
     data class OnCounterOfferCoinsChanged(val coinsStr: String) : TradeUiEvent
     data object SubmitCounterOffer : TradeUiEvent
 

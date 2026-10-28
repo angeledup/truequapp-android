@@ -149,7 +149,7 @@ class TradeViewModel @Inject constructor(
             setState {
                 copy(
                     currentUserId = userId,
-                    userCoinsBalance = 100.0,
+                    truequeCoins = 100.0,
                     currentUserProfile = userProfile
                 )
             }
@@ -160,14 +160,17 @@ class TradeViewModel @Inject constructor(
         when (event) {
             is TradeUiEvent.InitTradeCreation -> initTradeCreation(event.targetItemId, event.userId)
             is TradeUiEvent.ToggleOfferedItemSelection -> toggleOfferedItem(event.itemId)
-            is TradeUiEvent.OnCompensatoryCoinsChanged -> updateCompensatoryCoins(event.coinsStr)
+            is TradeUiEvent.OnTruequeCoinsChanged -> updateTruequeCoins(event.truequeCoinsStr)
+            is TradeUiEvent.OnCompensatoryCoinsChanged -> updateTruequeCoins(event.coinsStr)
             is TradeUiEvent.SubmitProposal -> submitProposal()
             is TradeUiEvent.LoadProposals -> loadProposals(event.userId)
+            is TradeUiEvent.SelectTab -> setState { copy(selectedTab = event.tabIndex) }
             is TradeUiEvent.LoadProposalDetails -> loadProposalDetails(event.proposalId, event.currentUserId)
             is TradeUiEvent.AcceptProposal -> acceptProposal(event.proposalId)
             is TradeUiEvent.OpenCounterOfferDialog -> setState { copy(showCounterOfferDialog = true) }
             is TradeUiEvent.DismissCounterOfferDialog -> setState { copy(showCounterOfferDialog = false) }
             is TradeUiEvent.ToggleCounterOfferItemSelection -> toggleCounterOfferItem(event.itemId)
+            is TradeUiEvent.OnCounterOfferTruequeCoinsChanged -> updateCounterOfferCoins(event.truequeCoinsStr)
             is TradeUiEvent.OnCounterOfferCoinsChanged -> updateCounterOfferCoins(event.coinsStr)
             is TradeUiEvent.SubmitCounterOffer -> submitCounterOffer()
             is TradeUiEvent.RejectProposal -> rejectProposal(event.proposalId)
@@ -189,7 +192,7 @@ class TradeViewModel @Inject constructor(
                 currentUserId = userId,
                 availableUserItems = userItems,
                 selectedOfferedItemIds = emptySet(),
-                compensatoryCoinsInput = "0",
+                truequeCoinsInput = "0",
                 calculatedRatio = 0.0,
                 isRatioValid = false,
                 hasMinimumItemsSelected = false,
@@ -206,10 +209,10 @@ class TradeViewModel @Inject constructor(
         } else {
             currentSelected.add(itemId)
         }
-        recalculateCreationValidation(currentSelected, currentState.compensatoryCoinsInput)
+        recalculateCreationValidation(currentSelected, currentState.truequeCoinsInput)
     }
 
-    private fun updateCompensatoryCoins(coinsStr: String) {
+    private fun updateTruequeCoins(coinsStr: String) {
         val sanitized = coinsStr.filter { it.isDigit() || it == '.' }
         recalculateCreationValidation(currentState.selectedOfferedItemIds, sanitized)
     }
@@ -240,7 +243,7 @@ class TradeViewModel @Inject constructor(
         setState {
             copy(
                 selectedOfferedItemIds = selectedItemIds,
-                compensatoryCoinsInput = coinsStr,
+                truequeCoinsInput = coinsStr,
                 calculatedRatio = ratio,
                 isRatioValid = isValidRatio,
                 hasMinimumItemsSelected = hasMinItems,
@@ -262,8 +265,8 @@ class TradeViewModel @Inject constructor(
             return
         }
 
-        val coins = currentState.compensatoryCoinsInput.toDoubleOrNull() ?: 0.0
-        if (coins > currentState.userCoinsBalance) {
+        val coins = currentState.truequeCoinsInput.toDoubleOrNull() ?: 0.0
+        if (coins > currentState.truequeCoins) {
             setState { copy(errorMessage = "Saldo insuficiente en TruequeCoins.") }
             return
         }
@@ -312,11 +315,17 @@ class TradeViewModel @Inject constructor(
         }
     }
 
-    // Listado de Propuestas (Activas vs Historial)
+    // Listado de Propuestas (Pestañas 'Activas' y 'Ofertas')
     private fun loadProposals(userId: String) {
+        // Activas: Trueques iniciados por el usuario pendientes de respuesta, o en estado RESERVADO / EN_ENTREGA
         val active = inMemoryProposals.filter {
-            (it.requesterUserId == userId || it.receiverUserId == userId) &&
-            it.status in listOf(TradeStatus.PENDIENTE, TradeStatus.CONTRAOFERTADA, TradeStatus.RESERVADO, TradeStatus.EN_ENTREGA)
+            (it.requesterUserId == userId && it.status == TradeStatus.PENDIENTE) ||
+            it.status in listOf(TradeStatus.RESERVADO, TradeStatus.EN_ENTREGA)
+        }
+        // Ofertas: Ofertas que otros usuarios te hacen respecto a tus artículos, o contraofertas recibidas sobre tu propuesta inicial
+        val offers = inMemoryProposals.filter {
+            (it.receiverUserId == userId && it.status in listOf(TradeStatus.PENDIENTE, TradeStatus.CONTRAOFERTADA)) ||
+            (it.requesterUserId == userId && it.status == TradeStatus.CONTRAOFERTADA)
         }
         val history = inMemoryProposals.filter {
             (it.requesterUserId == userId || it.receiverUserId == userId) &&
@@ -326,6 +335,7 @@ class TradeViewModel @Inject constructor(
         setState {
             copy(
                 activeProposals = active,
+                receivedOffers = offers,
                 historyProposals = history,
                 isLoading = false
             )
@@ -364,7 +374,7 @@ class TradeViewModel @Inject constructor(
                 negotiationOfferedItems = offeredItems,
                 scheduledAppointment = appointment,
                 counterOfferOfferedItemIds = proposal.offeredItemIds.toSet(),
-                counterOfferCoinsInput = proposal.compensatoryTruequeCoins.toString()
+                counterOfferTruequeCoinsInput = proposal.compensatoryTruequeCoins.toString()
             )
         }
     }
@@ -434,13 +444,13 @@ class TradeViewModel @Inject constructor(
 
     private fun updateCounterOfferCoins(coinsStr: String) {
         val sanitized = coinsStr.filter { it.isDigit() || it == '.' }
-        setState { copy(counterOfferCoinsInput = sanitized) }
+        setState { copy(counterOfferTruequeCoinsInput = sanitized) }
     }
 
     private fun submitCounterOffer() {
         val proposal = currentState.currentProposal ?: return
         val target = currentState.negotiationTargetItem ?: return
-        val newCoins = currentState.counterOfferCoinsInput.toDoubleOrNull() ?: 0.0
+        val newCoins = currentState.counterOfferTruequeCoinsInput.toDoubleOrNull() ?: 0.0
         val newOfferedItems = inMemoryItems.filter { currentState.counterOfferOfferedItemIds.contains(it.id) }
 
         try {

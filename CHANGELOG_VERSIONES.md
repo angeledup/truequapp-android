@@ -5,50 +5,37 @@ Este archivo registra el ciclo de vida de versiones activas de acuerdo a la pol�
 ---
 
 ## 🟢 Versión Activa ($V_N$)
-* **Versión:** `v0.3`
-* **Fase:** Fase 2 — *MVP Core: Usuarios, Catálogo WebP, Trueques 1:1 y Chat Transaccional*
+* **Versión:** `v0.4`
+* **Fase:** Fase 2 — *MVP Core Refinements: Moneda Única `truequeCoins`, Especificación RN-03, Límite 1 Foto WebP, Pestañas Activas/Ofertas, Persistencia Local y Guardado de Favoritos*
 * **Rama Git:** `feature/fase-2-mvp-core`
-* **Fecha:** 27 de Octubre de 2026
+* **Fecha:** 28 de Octubre de 2026
 * **Resumen:**
-  * **Módulo Autenticación y Perfil (`:feature:auth`):**
-    * Verificación SMS OTP con elevación a KYC Nivel 1 (`TELEFONO_SMS_NIVEL_1`) y activación de monedero inicial de 100 TC (CU001).
-    * Gestión de sesión, login con DataStore y cierre de sesión seguro (CU023, CU024).
-    * Perfil de usuario con cálculo de Reputación Bayesiana neutral inicial (RN-09) y difuminado geoespacial en radio de 500 metros (RN-10).
-  * **Módulo de Catálogo e Inventario WebP (`:feature:catalog`):**
-    * Pipeline asíncrono de compresión WebP Lossy garantizando tamaño estrictamente `< 80 KB` (81,920 bytes) y purga de metadatos GPS EXIF (CU005).
-    * Feed de marketplace con filtros dinámicos por radio geográfico (1 a 50 km) y taxonomía de categorías (CU008).
-    * Validación estricta contra publicación de armas, pirotecnia y sustancias ilícitas (RN-11).
-    * Protección de inventario que impide pausar o eliminar artículos en estado `RESERVADO` (RN-01).
-  * **Motor de Propuestas de Trueque (`:feature:trade`):**
-    * Propuestas directas e híbridas con obligatoriedad de al menos 1 artículo de catálogo propio más diferencial opcional en TruequeCoins (CU009 - Opción A).
-    * Validación en tiempo real de la banda mínima de equivalencia del 40% del valor del bien objetivo (RN-02).
-    * Aceptación con bloqueo atómico ACID: reserva exclusiva de artículos (`RESERVADO`) y cancelación automática de propuestas concurrentes (CU010, RN-01).
-    * Emisión de contraofertas reajustando artículos y diferencial (CU011).
-    * Cancelación con evaluación de ventana de 4 horas previas a la cita en Safe Zone, aplicando advertencia y deducción del 5% en la tasa de asistencia si es tardía (CU012, RN-07).
-  * **Módulo de Chat Privado Transaccional (`:feature:chat`):**
-    * Chat en tiempo real vía WebSockets con Socket.io (CU018).
-    * Apertura condicionada a propuestas formales activas; acceso denegado a terceros o fuera de trueques (RN-03).
-    * Indicadores visuales de doble verificación (*checks* de entrega y lectura) e indicador animado de escritura.
-    * Modo solo lectura durante una ventana de auditoría de 48 horas tras finalizar o cancelar el trueque (RN-03).
-  * **Integración y Navegación (`:app`):**
-    * Conexión fluida en `TruequappNavHost.kt` entre feed, publicación, negociación, chat y perfil.
-    * Módulo de inyección Hilt `DomainModule.kt` para conectar las reglas puras de dominio.
-    * Generación de instalador depurable `app-debug.apk` verificado.
+  * **Unificación de Moneda Virtual (`truequeCoins`):**
+    * Estandarización de la variable en contratos, estados y ViewModels (`:feature:auth`, `:feature:trade`, `:core:domain`). Eliminación de nombres heterogéneos (`walletBalanceCoins`, `compensatoryCoinsInput`, `userCoinsBalance`) a favor de `truequeCoins` y `truequeCoinsInput`, manteniendo getters retrocompatibles.
+  * **Especificación y Detalle de la Regla RN-03 (`:feature:chat`, `:feature:trade`):**
+    * Incorporación de diálogo explicativo y banner permanente de seguridad detallando los tres pilares de RN-03: (1) Apertura condicionada a propuestas formales activas, (2) Prevención de acoso y tratos fuera de plataforma suprimiendo mensajería directa libre previa, y (3) Ventana de auditoría de exactamente 48 horas en modo solo lectura para controversias tras culminar o cancelar el trueque.
+  * **Restricción de Publicación a 1 Sola Imagen (`:feature:catalog`):**
+    * Ajuste en `ItemPublishScreen` con `PickVisualMedia` limitando la subida a exactamente 1 fotografía, procesada asíncronamente a WebP lossy `< 80 KB` con eliminación de EXIF/GPS.
+  * **Zona de Trueques: Pestañas 'Activas' y 'Ofertas' (`:feature:trade`):**
+    * Reestructuración de `TradeListScreen`, `TradeContract` y `TradeViewModel`:
+      * **Activas:** Propuestas salientes enviadas por el usuario o intercambios en curso (`RESERVADO`, `EN_ENTREGA`).
+      * **Ofertas:** Ofertas entrantes recibidas de otros usuarios respecto a publicaciones propias y contraofertas recibidas sobre la propuesta inicial.
+  * **Persistencia Local de Artículos Propios Publicados (`:feature:catalog`):**
+    * Implementación de `CatalogLocalStorage` serializando `user_published_items.json` en el sandbox privado de la app para conservar las publicaciones entre sesiones.
+  * **Marcado y Guardado de Publicaciones de Otros Usuarios (`:feature:catalog`):**
+    * Marcado de favoritos persistido en `user_bookmarked_items.json` con filtro rápido en el catálogo de marketplace que solo muestra publicaciones guardadas mientras sigan activas (`ItemStatus.DISPONIBLE`).
 
 ---
 
 ## 🟡 Versión de Respaldo ($V_{N-1}$ — Punto de Restauración Fallback)
-* **Versión:** `v0.2`
-* **Fase:** Fase 0 — *Modelado de Dominio, Reglas de Negocio (RN-01 a RN-12) y Cumplimiento Google Play*
-* **Rama Git:** `feature/fase-0-business-rules`
-* **Fecha:** 26 de Octubre de 2026
+* **Versión:** `v0.3`
+* **Fase:** Fase 2 — *MVP Core: Usuarios, Catálogo WebP, Trueques 1:1 y Chat Transaccional Inicial*
+* **Rama Git:** `feature/fase-2-mvp-core`
+* **Fecha:** 27 de Octubre de 2026
 * **Resumen:**
-  * Modificación de la regla invariante **RN-12**: sustitución del mecanismo de doble ciego por **Transparencia y Visibilidad Pública Inmediata de Reseñas**.
-  * Se permite a cualquier usuario consultar el historial de reseñas de una contraparte sin requerir haber interactuado previamente con ella.
-  * Publicación inmediata de reseñas al completarse el trueque (sin ventana de ocultamiento de 7 días).
-  * Creación de `EvaluateReviewVisibilityUseCase` y actualización de contratos en `TradeReview`, `ReviewVisibilityStatus` y `EvaluateDoubleBlindReviewUseCaseTest`.
+  * Implementación inicial de KYC Nivel 1 por SMS OTP, compresión WebP, motor de trueques 1:1 e híbridos con ratio del 40% (RN-02), bloqueo ACID (RN-01), cancelación anticipada con penalización (RN-07) y chat en tiempo real Socket.io.
 
 ---
 
 ## 🔴 Versiones Purgadas ($V_{N-2}$)
-* **Versión:** `v0.1` (Fase 0 - Modelado Canónico Inicial). Reemplazada y archivada conforme a la política $N-1$.
+* **Versión:** `v0.2` (Fase 0 - Ajuste Transparencia de Reseñas RN-12) y `v0.1` (Fase 0 - Modelado Canónico Inicial). Archivadas conforme a la política $N-1$.

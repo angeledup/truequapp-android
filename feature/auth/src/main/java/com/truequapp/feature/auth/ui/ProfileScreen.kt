@@ -54,7 +54,7 @@ fun ProfileScreen(
         topBar = {
             TruequappTopAppBar(
                 title = "Mi Perfil Truequapp",
-                coinsBalance = state.walletBalanceCoins.toInt()
+                coinsBalance = state.truequeCoins.toInt()
             )
         },
         modifier = modifier.fillMaxSize()
@@ -226,7 +226,7 @@ fun ProfileScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                text = "${state.walletBalanceCoins.toInt()} TC",
+                                text = "${state.truequeCoins.toInt()} TC",
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer
