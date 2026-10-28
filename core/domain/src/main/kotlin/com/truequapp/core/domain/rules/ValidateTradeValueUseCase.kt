@@ -13,19 +13,22 @@ class ValidateTradeValueUseCase {
      *
      * @param targetItem Artículo objetivo que se desea obtener.
      * @param offeredItems Lista de 1 a N artículos propios ofertados.
-     * @param compensatoryCoins Créditos adicionales en TruequeCoins ofertados como diferencial.
+     * @param truequeCoins Créditos adicionales en TruequeCoins ofertados como diferencial (moneda única).
+     * @param compensatoryCoins Alias retrocompatible para truequeCoins.
      * @return El porcentaje calculado de valor de la propuesta (ej. 0.85 = 85%).
      * @throws BusinessRuleException.ValueRatioBelowThresholdException si la oferta es menor al 40%.
      */
     operator fun invoke(
         targetItem: TradeItem,
         offeredItems: List<TradeItem>,
-        compensatoryCoins: Double = 0.0
+        truequeCoins: Double = 0.0,
+        compensatoryCoins: Double = truequeCoins
     ): Double {
-        require(offeredItems.isNotEmpty() || compensatoryCoins > 0.0) {
+        val coins = if (truequeCoins > 0.0) truequeCoins else compensatoryCoins
+        require(offeredItems.isNotEmpty() || coins > 0.0) {
             "Una oferta debe incluir al menos un artículo o créditos en TruequeCoins."
         }
-        require(compensatoryCoins >= 0.0) {
+        require(coins >= 0.0) {
             "Los créditos compensatorios no pueden ser negativos."
         }
 
@@ -35,7 +38,7 @@ class ValidateTradeValueUseCase {
         }
 
         val offeredItemsTotalValue = offeredItems.sumOf { it.estimatedValue.medianValue }
-        val totalCombinedOfferValue = offeredItemsTotalValue + compensatoryCoins
+        val totalCombinedOfferValue = offeredItemsTotalValue + coins
 
         val valueRatio = totalCombinedOfferValue / targetMedianValue
 

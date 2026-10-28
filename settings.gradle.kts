@@ -16,4 +16,14 @@ dependencyResolutionManagement {
     }
 }
 
+include(":app")
 include(":core:domain")
+include(":core:common")
+include(":core:designsystem")
+include(":core:network")
+include(":core:datastore")
+include(":feature:auth")
+include(":feature:catalog")
+include(":feature:trade")
+include(":feature:chat")
+
