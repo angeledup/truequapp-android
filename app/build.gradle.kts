@@ -63,6 +63,10 @@ dependencies {
     implementation(project(":core:designsystem"))
     implementation(project(":core:network"))
     implementation(project(":core:datastore"))
+    implementation(project(":feature:auth"))
+    implementation(project(":feature:catalog"))
+    implementation(project(":feature:trade"))
+    implementation(project(":feature:chat"))
 
     // AndroidX & Lifecycle
     implementation(libs.androidx.core.ktx)

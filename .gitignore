@@ -10,9 +10,11 @@
 .DS_Store
 build/
 **/build/
+backups/
 
 captures
 .externalNativeBuild
 .cxx
 *.apk
 *.aab
+
