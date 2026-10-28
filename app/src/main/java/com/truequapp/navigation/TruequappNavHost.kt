@@ -38,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -47,6 +48,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.truequapp.R
 import com.truequapp.core.designsystem.component.ConditionTag
 import com.truequapp.core.designsystem.component.ItemCondition
 import com.truequapp.core.designsystem.component.KycLevel
@@ -66,7 +68,7 @@ fun TruequappNavHost(
     Scaffold(
         topBar = {
             TruequappTopAppBar(
-                title = "Truequapp",
+                title = stringResource(id = R.string.app_name),
                 coinsBalance = 150,
                 unreadNotifications = 3,
                 onCoinsClick = { /* Navigate to wallet in Phase 4 */ },
