@@ -141,8 +141,8 @@ class TradeViewModel @Inject constructor(
                     kycLevel = kyc,
                     attendanceRate = 1.0,
                     location = ObfuscatedGeoLocation(
-                        neighborhoodName = "Zona Universitaria",
-                        approximateCoordinates = GeoCoordinates(19.4326, -99.1332)
+                        neighborhoodName = "Centro, Coatzacoalcos",
+                        approximateCoordinates = GeoCoordinates(18.1486, -94.4208)
                     )
                 )
 
@@ -359,10 +359,10 @@ class TradeViewModel @Inject constructor(
                 id = "meeting_${proposal.id}",
                 tradeId = proposal.id,
                 safeZone = SafeZonePoint(
-                    id = "sz_01",
-                    name = "Punto Seguro Estación Central",
-                    addressDescription = "Módulo de vigilancia y videocámaras 24/7",
-                    coordinates = GeoCoordinates(19.4326, -99.1332)
+                    id = "sz_coatza_forum",
+                    name = "Punto Seguro Plaza Forum Coatzacoalcos",
+                    addressDescription = "Av. Universidad Veracruzana 2601, domo central frente a vigilancia 24/7",
+                    coordinates = GeoCoordinates(18.1415, -94.4852)
                 ),
                 scheduledTimeEpochMs = System.currentTimeMillis() + (2 * 60 * 60 * 1000L) // Cita en 2 horas (para prueba de RN-07)
             )

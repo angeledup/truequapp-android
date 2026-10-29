@@ -141,8 +141,9 @@ fun SafeZoneSelectionScreen(
 
     val filteredSafeZones = remember(state.safeZones, selectedCampusFilter) {
         when (selectedCampusFilter) {
-            1 -> state.safeZones.filter { it.id.contains("unam") || it.id.contains("universidad") || it.id.contains("delta") }
-            2 -> state.safeZones.filter { it.id.contains("uv") }
+            1 -> state.safeZones.filter { it.id.contains("forum") || it.id.contains("crystal") || it.id.contains("acaya") }
+            2 -> state.safeZones.filter { it.id.contains("independencia") || it.id.contains("malecon") || it.id.contains("lanchas") }
+            3 -> state.safeZones.filter { it.isCampusUniversityPartner || it.id.contains("uv") }
             else -> state.safeZones
         }
     }
@@ -153,7 +154,7 @@ fun SafeZoneSelectionScreen(
                 title = {
                     Column {
                         Text("Puntos Seguros (Safe Zones)", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        Text("Mapa oficial con API Google Maps", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Coatzacoalcos, Ver. • API Google Maps", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 },
                 navigationIcon = {
@@ -238,7 +239,7 @@ fun SafeZoneSelectionScreen(
                 }
             }
 
-            // Filtros de Región / Campus
+            // Filtros de Región / Coatzacoalcos
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -249,17 +250,22 @@ fun SafeZoneSelectionScreen(
                 FilterChip(
                     selected = selectedCampusFilter == 0,
                     onClick = { selectedCampusFilter = 0 },
-                    label = { Text("Todos los Puntos (${state.safeZones.size})") }
+                    label = { Text("Coatzacoalcos (${state.safeZones.size})") }
                 )
                 FilterChip(
                     selected = selectedCampusFilter == 1,
                     onClick = { selectedCampusFilter = 1 },
-                    label = { Text("UNAM (CDMX)") }
+                    label = { Text("Plazas Comerciales") }
                 )
                 FilterChip(
                     selected = selectedCampusFilter == 2,
                     onClick = { selectedCampusFilter = 2 },
-                    label = { Text("UV (Veracruz / Xalapa)") }
+                    label = { Text("Malecón y Centro") }
+                )
+                FilterChip(
+                    selected = selectedCampusFilter == 3,
+                    onClick = { selectedCampusFilter = 3 },
+                    label = { Text("UV Campus Coatza") }
                 )
             }
 

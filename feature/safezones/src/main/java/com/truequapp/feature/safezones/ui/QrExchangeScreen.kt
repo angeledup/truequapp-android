@@ -229,7 +229,7 @@ fun QrExchangeScreen(
                             // Simulador de llegada a SafeZone para pruebas o hardware real
                             onEvent(
                                 SafeZoneUiEvent.CheckInGpsLocation(
-                                    coordinates = state.selectedSafeZone?.coordinates ?: GeoCoordinates(19.3332, -99.1878),
+                                    coordinates = state.selectedSafeZone?.coordinates ?: GeoCoordinates(18.1415, -94.4852),
                                     isMockLocation = false
                                 )
                             )

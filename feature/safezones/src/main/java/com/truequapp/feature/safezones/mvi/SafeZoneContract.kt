@@ -18,12 +18,12 @@ data class SafeZoneUiState(
     val currentUserId: String = "",
     val counterpartUserId: String = "",
 
-    // Safe Exchange Zones & Map (CU019)
+    // Safe Exchange Zones & Map (CU019) - Coatzacoalcos, Veracruz
     val safeZones: List<SafeZonePoint> = emptyList(),
     val selectedSafeZone: SafeZonePoint? = null,
-    val userCoordinates: GeoCoordinates = GeoCoordinates(19.4326, -99.1332),
-    val counterpartCoordinates: GeoCoordinates = GeoCoordinates(19.4380, -99.1400),
-    val midpointCoordinates: GeoCoordinates = GeoCoordinates(19.4353, -99.1366),
+    val userCoordinates: GeoCoordinates = GeoCoordinates(18.1460, -94.4320), // Coatzacoalcos (Col. María de la Piedad)
+    val counterpartCoordinates: GeoCoordinates = GeoCoordinates(18.1410, -94.4550), // Coatzacoalcos (Col. Petrolera)
+    val midpointCoordinates: GeoCoordinates = GeoCoordinates(18.1435, -94.4435), // Coatzacoalcos (Punto medio equidistante)
     val scheduledTimeEpochMs: Long = System.currentTimeMillis() + (24 * 60 * 60 * 1000L),
     val appointment: MeetingAppointment? = null,
 

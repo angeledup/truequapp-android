@@ -45,8 +45,8 @@ class AuthViewModel @Inject constructor(
                         existingSumOfRatings = 58.0
                     )
                     val obfuscated = obfuscateLocationUseCase(
-                        exactCoordinates = GeoCoordinates(19.5438, -96.9102),
-                        neighborhoodName = "Centro Histórico"
+                        exactCoordinates = GeoCoordinates(18.1486, -94.4208),
+                        neighborhoodName = "Centro, Coatzacoalcos"
                     )
 
                     val loggedUserId = session.userId.orEmpty()
@@ -161,8 +161,8 @@ class AuthViewModel @Inject constructor(
 
             val rating = calculateBayesianRatingUseCase(existingRatingsCount = 10, existingSumOfRatings = 48.0)
             val obfuscated = obfuscateLocationUseCase(
-                exactCoordinates = GeoCoordinates(19.5438, -96.9102),
-                neighborhoodName = "Zona Universitaria"
+                exactCoordinates = GeoCoordinates(18.1422, -94.4760),
+                neighborhoodName = "Zona UV Campus Coatzacoalcos"
             )
 
             setState {
@@ -246,8 +246,8 @@ class AuthViewModel @Inject constructor(
             // Inicialización de Monedero con TruequeCoins iniciales y KYC Nivel 1
             val initialRating = calculateBayesianRatingUseCase(existingRatingsCount = 0, existingSumOfRatings = 0.0)
             val obfuscated = obfuscateLocationUseCase(
-                exactCoordinates = GeoCoordinates(19.5312, -96.9158),
-                neighborhoodName = "Ánimas Residencial"
+                exactCoordinates = GeoCoordinates(18.1410, -94.4550),
+                neighborhoodName = "Col. Petrolera, Coatzacoalcos"
             )
 
             setState {
@@ -288,8 +288,8 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch(dispatchers.io) {
             val rating = calculateBayesianRatingUseCase(existingRatingsCount = 15, existingSumOfRatings = 72.0)
             val obfuscated = obfuscateLocationUseCase(
-                exactCoordinates = GeoCoordinates(19.5438, -96.9102),
-                neighborhoodName = "Colonia Xalapa Centro"
+                exactCoordinates = GeoCoordinates(18.1460, -94.4320),
+                neighborhoodName = "Col. María de la Piedad, Coatzacoalcos"
             )
             setState {
                 copy(

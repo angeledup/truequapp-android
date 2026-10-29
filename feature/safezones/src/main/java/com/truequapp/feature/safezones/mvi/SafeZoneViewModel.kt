@@ -44,64 +44,74 @@ class SafeZoneViewModel @Inject constructor(
     private fun seedInitialSafeZones() {
         val zones = listOf(
             SafeZonePoint(
-                id = "sz_unam_central",
-                name = "Punto Seguro Biblioteca Central CU",
-                addressDescription = "Explanada de Rectoría y Biblioteca Central, vigilancia UNAM 24/7",
-                coordinates = GeoCoordinates(19.3332, -99.1878),
+                id = "sz_coatza_forum",
+                name = "Punto Seguro Plaza Forum Coatzacoalcos",
+                addressDescription = "Av. Universidad Veracruzana 2601, Col. El Palmar. Zona de domo central frente a vigilancia y cámaras 24/7",
+                coordinates = GeoCoordinates(18.1415, -94.4852),
+                openingHour = 10,
+                closingHour = 21,
+                hasVideoSurveillance = true,
+                isCampusUniversityPartner = false
+            ),
+            SafeZonePoint(
+                id = "sz_coatza_crystal",
+                name = "Punto Seguro Plaza Crystal Coatzacoalcos",
+                addressDescription = "Av. Universidad Veracruzana y Jacarandas, Col. Rancho Alegre. Módulo de acceso Chedraui con vigilancia",
+                coordinates = GeoCoordinates(18.1430, -94.4695),
                 openingHour = 8,
-                closingHour = 20,
-                hasVideoSurveillance = true,
-                isCampusUniversityPartner = true
-            ),
-            SafeZonePoint(
-                id = "sz_plaza_universidad",
-                name = "Punto Seguro Plaza Universidad",
-                addressDescription = "Área de bancos y módulo de seguridad interna con videocámaras",
-                coordinates = GeoCoordinates(19.3670, -99.1670),
-                openingHour = 9,
-                closingHour = 21,
+                closingHour = 22,
                 hasVideoSurveillance = true,
                 isCampusUniversityPartner = false
             ),
             SafeZonePoint(
-                id = "sz_parque_delta",
-                name = "Punto Seguro Centro Comercial Parque Delta",
-                addressDescription = "Acceso principal sobre Av. Cuauhtémoc, vigilancia activa",
-                coordinates = GeoCoordinates(19.4036, -99.1541),
-                openingHour = 9,
-                closingHour = 21,
-                hasVideoSurveillance = true,
-                isCampusUniversityPartner = false
-            ),
-            SafeZonePoint(
-                id = "sz_metro_universidad",
-                name = "Punto Seguro Estación Universidad",
-                addressDescription = "Torniquetes poniente y módulo de policía auxiliar",
-                coordinates = GeoCoordinates(19.3243, -99.1738),
+                id = "sz_coatza_independencia",
+                name = "Punto Seguro Parque Independencia - Palacio Municipal",
+                addressDescription = "Av. Ignacio Zaragoza esq. Carranza, Centro. Explanada cívica vigilada con cámaras del C4 Municipal",
+                coordinates = GeoCoordinates(18.1486, -94.4208),
                 openingHour = 7,
                 closingHour = 22,
                 hasVideoSurveillance = true,
-                isCampusUniversityPartner = true
+                isCampusUniversityPartner = false
             ),
             SafeZonePoint(
-                id = "sz_uv_rectoria",
-                name = "Punto Seguro UV Rectoría - Xalapa",
-                addressDescription = "Zona Universitaria UV, Edificio A de Rectoría, vigilancia 24/7",
-                coordinates = GeoCoordinates(19.5167, -96.9167),
+                id = "sz_coatza_malecon",
+                name = "Punto Seguro Malecón Costero - Hemiciclo",
+                addressDescription = "Paseo del Malecón Costero esq. Venustiano Carranza. Módulo turístico y patrullaje costero permanente",
+                coordinates = GeoCoordinates(18.1565, -94.4230),
                 openingHour = 8,
+                closingHour = 21,
+                hasVideoSurveillance = true,
+                isCampusUniversityPartner = false
+            ),
+            SafeZonePoint(
+                id = "sz_coatza_uv",
+                name = "Punto Seguro Universidad Veracruzana (Campus Coatzacoalcos)",
+                addressDescription = "Av. Universidad Veracruzana Km 7.5, Col. Santa Isabel. Caseta de vigilancia principal y USBI Coatzacoalcos",
+                coordinates = GeoCoordinates(18.1422, -94.4760),
+                openingHour = 7,
                 closingHour = 20,
                 hasVideoSurveillance = true,
                 isCampusUniversityPartner = true
             ),
             SafeZonePoint(
-                id = "sz_uv_mocambo",
-                name = "Punto Seguro UV Campus Mocambo - Veracruz",
-                addressDescription = "Acceso USBI Campus Mocambo, Boca del Río, cámaras y vigilancia",
-                coordinates = GeoCoordinates(19.1417, -96.1158),
-                openingHour = 8,
-                closingHour = 20,
+                id = "sz_coatza_acaya",
+                name = "Punto Seguro Plaza Acaya Coatzacoalcos",
+                addressDescription = "Carretera Coatzacoalcos-Minatitlán Km 9, Col. El Tesoro. Pasillo central y área de cines con monitoreo",
+                coordinates = GeoCoordinates(18.1448, -94.5020),
+                openingHour = 10,
+                closingHour = 21,
                 hasVideoSurveillance = true,
-                isCampusUniversityPartner = true
+                isCampusUniversityPartner = false
+            ),
+            SafeZonePoint(
+                id = "sz_coatza_paso_lanchas",
+                name = "Punto Seguro Paso de Lanchas Coatzacoalcos",
+                addressDescription = "Av. Cristóbal Colón esq. Malecón del Río, Centro. Muelle de abordaje marítimo con vigilancia de capitanía",
+                coordinates = GeoCoordinates(18.1480, -94.4170),
+                openingHour = 6,
+                closingHour = 22,
+                hasVideoSurveillance = true,
+                isCampusUniversityPartner = false
             )
         )
         inMemorySafeZones.addAll(zones)
