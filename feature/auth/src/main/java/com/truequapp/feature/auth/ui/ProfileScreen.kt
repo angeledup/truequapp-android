@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import com.truequapp.core.designsystem.component.KycLevel
 import com.truequapp.core.designsystem.component.SafeZoneChip
 import com.truequapp.core.designsystem.component.TruequappBadge
+import com.truequapp.core.designsystem.component.TruequappPrimaryButton
 import com.truequapp.core.designsystem.component.TruequappTopAppBar
 import com.truequapp.feature.auth.mvi.AuthUiEvent
 import com.truequapp.feature.auth.mvi.AuthUiState
@@ -59,6 +60,7 @@ fun ProfileScreen(
     onNavigateToSafeZones: () -> Unit = {},
     onNavigateToReports: () -> Unit = {},
     onNavigateToAccountDeletion: () -> Unit = {},
+    onNavigateToAuth: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -342,21 +344,32 @@ fun ProfileScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Botón de Cierre de Sesión (CU024)
-            OutlinedButton(
-                onClick = { onEvent(AuthUiEvent.Logout) },
-                shape = MaterialTheme.shapes.medium,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(
-                    imageVector = Icons.Default.ExitToApp,
-                    contentDescription = null,
-                    modifier = Modifier.padding(end = 8.dp)
-                )
-                Text(
-                    text = "Cerrar Sesión Segura",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold
+            if (state.isLoggedIn) {
+                // Botón de Cierre de Sesión (CU024)
+                OutlinedButton(
+                    onClick = {
+                        onEvent(AuthUiEvent.Logout)
+                        onNavigateToAuth()
+                    },
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ExitToApp,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                    Text(
+                        text = "Cerrar Sesión Segura",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            } else {
+                TruequappPrimaryButton(
+                    text = "Iniciar Sesión / Vincular Cuenta con Google",
+                    onClick = onNavigateToAuth,
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         }

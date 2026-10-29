@@ -133,6 +133,12 @@ fun AuthScreen(
         }
     }
 
+    LaunchedEffect(state.isLoggedIn) {
+        if (state.isLoggedIn) {
+            onNavigateToHome()
+        }
+    }
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
@@ -340,6 +346,20 @@ fun AuthScreen(
                             "¿No tienes cuenta aún? Regístrate gratis",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                TextButton(
+                    onClick = onNavigateToHome,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Continuar como invitado y explorar catálogo →",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium
                     )
                 }
             }

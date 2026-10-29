@@ -114,7 +114,7 @@ fun TruequappNavHost(
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = Screen.Catalog.route,
+            startDestination = Screen.Auth.route,
             modifier = Modifier.padding(innerPadding)
         ) {
             // Marketplace Feed (CU008)
@@ -362,7 +362,12 @@ fun TruequappNavHost(
                     onNavigateToWallet = { navController.navigate(Screen.Wallet.route) },
                     onNavigateToSafeZones = { navController.navigate(Screen.SafeZones.route) },
                     onNavigateToReports = { navController.navigate(Screen.Reports.route) },
-                    onNavigateToAccountDeletion = { navController.navigate(Screen.AccountDeletion.route) }
+                    onNavigateToAccountDeletion = { navController.navigate(Screen.AccountDeletion.route) },
+                    onNavigateToAuth = {
+                        navController.navigate(Screen.Auth.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
                 )
             }
 
