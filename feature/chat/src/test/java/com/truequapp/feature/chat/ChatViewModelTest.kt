@@ -85,6 +85,31 @@ class ChatViewModelTest {
     }
 
     @Test
+    @DisplayName("Chat Ejemplo 1: Concede acceso inmediato con mensajes predeterminados y permite interactuar")
+    fun chatEjemplo1_allowsImmediateAccessWithPresetMessages() = runTest(testDispatcher) {
+        advanceUntilIdle()
+
+        viewModel.onEvent(ChatUiEvent.InitChat(proposalId = "chat_ejemplo_1", currentUserId = "usr_demo_01"))
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isAccessDenied)
+        assertFalse(state.isReadOnly)
+        assertEquals(ChatAccessPermission.PERMITIDO_ESCRITURA_Y_LECTURA, state.permission)
+        assertEquals(2, state.messages.size)
+        assertTrue(state.messages.any { it.content.contains("Plaza Forum") || it.content.contains("Puntos Seguros") })
+
+        // Enviar mensaje interactivo y recibir respuesta automática
+        viewModel.onEvent(ChatUiEvent.OnMessageInputChanged("Hola Carlos, me parece perfecto vernos en Plaza Forum."))
+        viewModel.onEvent(ChatUiEvent.SendMessage)
+        advanceUntilIdle()
+
+        val stateAfterSend = viewModel.uiState.value
+        assertEquals(4, stateAfterSend.messages.size)
+        assertTrue(stateAfterSend.messages.last().content.contains("Punto Seguro"))
+    }
+
+    @Test
     @DisplayName("RN-03: Deniega acceso al chat si no existe propuesta vinculada o el usuario no participa")
     fun chatAccess_deniedForNonParticipants() = runTest(testDispatcher) {
         advanceUntilIdle()

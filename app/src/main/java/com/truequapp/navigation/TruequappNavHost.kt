@@ -208,7 +208,7 @@ fun TruequappNavHost(
                 val tradeViewModel: TradeViewModel = hiltViewModel()
                 val tradeState by tradeViewModel.uiState.collectAsStateWithLifecycle()
 
-                LaunchedEffect(targetItemId) {
+                LaunchedEffect(targetItemId, tradeState.currentUserId) {
                     tradeViewModel.onEvent(TradeUiEvent.InitTradeCreation(targetItemId, tradeState.currentUserId))
                 }
 

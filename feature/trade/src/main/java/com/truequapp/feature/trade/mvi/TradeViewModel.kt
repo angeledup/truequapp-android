@@ -28,6 +28,7 @@ import com.truequapp.core.domain.rules.ValidateTradeValueUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
@@ -206,15 +207,21 @@ class TradeViewModel @Inject constructor(
 
     // CU009: Proponer Trueque Directo o Híbrido
     private fun initTradeCreation(targetItemId: String, userId: String) {
-        val target = inMemoryItems.find { it.id == targetItemId }
-        val userItems = inMemoryItems.filter { it.ownerId == userId && it.status == ItemStatus.DISPONIBLE }
+        val effectiveUserId = when {
+            userId.isNotBlank() -> userId
+            currentState.currentUserId.isNotBlank() -> currentState.currentUserId
+            else -> "usr_current"
+        }
 
-        // Validación anti-auto-trueque: No puedes intercambiar contigo mismo
-        if (target != null && target.ownerId == userId) {
+        // 1. Buscar objetivo en memoria
+        var target = inMemoryItems.find { it.id == targetItemId }
+
+        // 2. Anti-auto-trueque: 2 partes obligatorias (no puedes intercambiar contigo mismo)
+        if (target != null && target.ownerId == effectiveUserId) {
             setState {
                 copy(
                     targetItem = target,
-                    currentUserId = userId,
+                    currentUserId = effectiveUserId,
                     availableUserItems = emptyList(),
                     selectedOfferedItemIds = emptySet(),
                     canSubmitProposal = false,
@@ -224,10 +231,27 @@ class TradeViewModel @Inject constructor(
             return
         }
 
+        // 3. Artículos disponibles del usuario
+        var userItems = inMemoryItems.filter {
+            it.ownerId == effectiveUserId && it.status == ItemStatus.DISPONIBLE && it.id != targetItemId
+        }
+
+        // Si el usuario no tiene ítems propios registrados aún, asociar ítems de inventario base al usuario activo
+        if (userItems.isEmpty() && (effectiveUserId == "usr_current" || effectiveUserId.startsWith("usr_demo"))) {
+            inMemoryItems.forEachIndexed { idx, itm ->
+                if (itm.id in listOf("item_user_01", "item_user_02")) {
+                    inMemoryItems[idx] = itm.copy(ownerId = effectiveUserId)
+                }
+            }
+            userItems = inMemoryItems.filter {
+                it.ownerId == effectiveUserId && it.status == ItemStatus.DISPONIBLE && it.id != targetItemId
+            }
+        }
+
         setState {
             copy(
                 targetItem = target,
-                currentUserId = userId,
+                currentUserId = effectiveUserId,
                 availableUserItems = userItems,
                 selectedOfferedItemIds = emptySet(),
                 truequeCoinsInput = "0",
@@ -237,6 +261,52 @@ class TradeViewModel @Inject constructor(
                 canSubmitProposal = false,
                 errorMessage = null
             )
+        }
+
+        // 4. Sincronizar en segundo plano si el artículo o nuevos ítems provienen de SQLite Room
+        if (tradeItemDao != null) {
+            viewModelScope.launch(dispatchers.io) {
+                if (target == null) {
+                    val dbTarget = tradeItemDao.getItemByIdSync(targetItemId)?.toDomainModel()
+                    if (dbTarget != null) {
+                        target = dbTarget
+                        if (inMemoryItems.none { it.id == dbTarget.id }) inMemoryItems.add(dbTarget)
+                        if (dbTarget.ownerId == effectiveUserId) {
+                            withContext(dispatchers.main) {
+                                setState {
+                                    copy(
+                                        targetItem = dbTarget,
+                                        availableUserItems = emptyList(),
+                                        canSubmitProposal = false,
+                                        errorMessage = "Esta publicación es tuya. No puedes realizar un trueque contigo mismo."
+                                    )
+                                }
+                            }
+                            return@launch
+                        }
+                    }
+                }
+
+                val dbItems = tradeItemDao.getAllItemsSync()
+                if (dbItems.isNotEmpty()) {
+                    val mapped = dbItems.map { it.toDomainModel() }
+                    mapped.forEach { m ->
+                        val idx = inMemoryItems.indexOfFirst { it.id == m.id }
+                        if (idx >= 0) inMemoryItems[idx] = m else inMemoryItems.add(m)
+                    }
+                    val updatedUserItems = inMemoryItems.filter {
+                        it.ownerId == effectiveUserId && it.status == ItemStatus.DISPONIBLE && it.id != targetItemId
+                    }
+                    withContext(dispatchers.main) {
+                        setState {
+                            copy(
+                                targetItem = target ?: targetItem,
+                                availableUserItems = updatedUserItems
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -295,6 +365,11 @@ class TradeViewModel @Inject constructor(
         val target = currentState.targetItem
         if (target == null) {
             setState { copy(errorMessage = "Artículo objetivo no encontrado.") }
+            return
+        }
+
+        if (target.ownerId == currentState.currentUserId) {
+            setState { copy(errorMessage = "Operación denegada: Un trueque requiere 2 partes distintas. No puedes ofertar por tu propio producto.") }
             return
         }
 

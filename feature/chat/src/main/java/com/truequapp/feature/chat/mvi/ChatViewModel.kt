@@ -16,8 +16,10 @@ import com.truequapp.core.domain.rules.ValidateDirectChatAccessUseCase
 import com.truequapp.core.network.websocket.SocketConnectionState
 import com.truequapp.core.network.websocket.SocketManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
@@ -114,8 +116,61 @@ class ChatViewModel @Inject constructor(
             val session = userSessionDataStore.sessionFlow.first()
             val effectiveUserId = if (currentUserId.isNotBlank()) currentUserId else (session.userId ?: "usr_current")
 
+            // Chat de Ejemplo 1 interactivo con mensajes predeterminados
+            if (proposalId == "chat_ejemplo_1" || proposalId.contains("ejemplo")) {
+                val demoMessages = listOf(
+                    ChatMessageItem(
+                        id = "msg_ex_01",
+                        proposalId = proposalId,
+                        senderId = "usr_alpha",
+                        senderName = "Carlos R. (Chat Ejemplo 1)",
+                        content = "¡Hola! Vi tu publicación y me interesa hacer el trueque. ¿Te parece si coordinamos la entrega?",
+                        timestampEpochMs = System.currentTimeMillis() - 120000,
+                        isDelivered = true,
+                        isRead = true,
+                        isFromMe = false
+                    ),
+                    ChatMessageItem(
+                        id = "msg_ex_02",
+                        proposalId = proposalId,
+                        senderId = "usr_alpha",
+                        senderName = "Carlos R. (Chat Ejemplo 1)",
+                        content = "Podemos acordar en uno de los Puntos Seguros de Coatzacoalcos, como Plaza Forum o el Hemiciclo a los Niños Héroes en el Malecón.",
+                        timestampEpochMs = System.currentTimeMillis() - 60000,
+                        isDelivered = true,
+                        isRead = true,
+                        isFromMe = false
+                    )
+                )
+
+                withContext(dispatchers.main) {
+                    setState {
+                        copy(
+                            proposalId = proposalId,
+                            currentUserId = effectiveUserId,
+                            otherUserId = "usr_alpha",
+                            otherUserName = "Carlos R. (Chat Ejemplo 1)",
+                            permission = ChatAccessPermission.PERMITIDO_ESCRITURA_Y_LECTURA,
+                            isReadOnly = false,
+                            isAccessDenied = false,
+                            messages = demoMessages,
+                            errorMessage = null
+                        )
+                    }
+                }
+                return@launch
+            }
+
             val proposalFromDb = tradeProposalDao?.getProposalByIdSync(proposalId)?.toDomainModel()
-            val proposal = proposalFromDb ?: inMemoryProposals.find { it.id == proposalId }
+            val rawProposal = proposalFromDb ?: inMemoryProposals.find { it.id == proposalId }
+
+            // Si la propuesta tiene "usr_current", mapearla al usuario activo de la sesión para evitar falsos rechazos de RN-03
+            val proposal = when {
+                rawProposal == null -> null
+                rawProposal.requesterUserId == "usr_current" -> rawProposal.copy(requesterUserId = effectiveUserId)
+                rawProposal.receiverUserId == "usr_current" -> rawProposal.copy(receiverUserId = effectiveUserId)
+                else -> rawProposal
+            }
 
             try {
                 // Regla RN-03: Validación canónica de acceso al chat
@@ -135,7 +190,7 @@ class ChatViewModel @Inject constructor(
                         proposalId = proposalId,
                         senderId = otherUserId,
                         senderName = otherUserName,
-                        content = "¡Hola! Vi tu oferta de trueque. ¿Te parece si coordinamos?",
+                        content = "¡Hola! Vi tu oferta de trueque. ¿Te parece si coordinamos la entrega?",
                         timestampEpochMs = System.currentTimeMillis() - 120000,
                         isDelivered = true,
                         isRead = true,
@@ -143,18 +198,20 @@ class ChatViewModel @Inject constructor(
                     )
                 )
 
-                setState {
-                    copy(
-                        proposalId = proposalId,
-                        currentUserId = effectiveUserId,
-                        otherUserId = otherUserId,
-                        otherUserName = otherUserName,
-                        permission = permission,
-                        isReadOnly = isReadOnly,
-                        isAccessDenied = false,
-                        messages = initialMessages,
-                        errorMessage = null
-                    )
+                withContext(dispatchers.main) {
+                    setState {
+                        copy(
+                            proposalId = proposalId,
+                            currentUserId = effectiveUserId,
+                            otherUserId = otherUserId,
+                            otherUserName = otherUserName,
+                            permission = permission,
+                            isReadOnly = isReadOnly,
+                            isAccessDenied = false,
+                            messages = initialMessages,
+                            errorMessage = null
+                        )
+                    }
                 }
 
                 // Unirse a sala de chat si no está denegado
@@ -162,13 +219,15 @@ class ChatViewModel @Inject constructor(
                 listenToChatEvents(proposalId)
 
             } catch (e: BusinessRuleException.UnauthorizedChatAccessException) {
-                setState {
-                    copy(
-                        proposalId = proposalId,
-                        currentUserId = effectiveUserId,
-                        isAccessDenied = true,
-                        errorMessage = e.message ?: "Acceso restringido por la regla RN-03."
-                    )
+                withContext(dispatchers.main) {
+                    setState {
+                        copy(
+                            proposalId = proposalId,
+                            currentUserId = effectiveUserId,
+                            isAccessDenied = true,
+                            errorMessage = e.message ?: "Acceso restringido por la regla RN-03."
+                        )
+                    }
                 }
                 sendEffect(ChatUiEffect.ShowToast("RN-03: No tienes autorización para acceder a este chat."))
             }
@@ -246,9 +305,33 @@ class ChatViewModel @Inject constructor(
                 messageInput = ""
             )
         }
+        sendEffect(ChatUiEffect.ScrollToBottom)
+
+        // Respuesta interactiva automática para Chat Ejemplo 1
+        if (state.proposalId == "chat_ejemplo_1" || state.proposalId.contains("ejemplo")) {
+            viewModelScope.launch(dispatchers.io) {
+                delay(1200)
+                val autoReply = ChatMessageItem(
+                    id = "msg_reply_${System.currentTimeMillis()}",
+                    proposalId = state.proposalId,
+                    senderId = state.otherUserId,
+                    senderName = state.otherUserName,
+                    content = "¡Enterado! Me parece perfecto. Puedes pulsar arriba en el botón de 'Punto Seguro / Mapa' para ver las ubicaciones vigiladas en Coatzacoalcos.",
+                    timestampEpochMs = System.currentTimeMillis(),
+                    isDelivered = true,
+                    isRead = true,
+                    isFromMe = false
+                )
+                withContext(dispatchers.main) {
+                    setState { copy(messages = messages + autoReply) }
+                    sendEffect(ChatUiEffect.ScrollToBottom)
+                }
+            }
+            return
+        }
 
         socketManager.emitEvent("send_message", text)
-        sendEffect(ChatUiEffect.ScrollToBottom)
+        handleSendTypingStatus(false)
     }
 
     private fun handleReceiveMessage(message: ChatMessageItem) {

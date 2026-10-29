@@ -46,8 +46,17 @@ class ChatListViewModel @Inject constructor(
                 it.initiatorUserId == "usr_current" || it.receiverUserId == "usr_current"
             }
 
-            val list = if (userProposals.isNotEmpty()) {
-                userProposals.map { p ->
+            val demoChat = ChatConversationSummary(
+                proposalId = "chat_ejemplo_1",
+                otherUserName = "Chat Ejemplo 1 (Carlos R.)",
+                lastMessagePreview = "¡Hola! Vi tu publicación y me interesa hacer el trueque...",
+                statusLabel = "Interactivo / Punto Seguro",
+                statusColor = Color(0xFF00897B)
+            )
+
+            val list = mutableListOf(demoChat)
+            if (userProposals.isNotEmpty()) {
+                val dbList = userProposals.map { p ->
                     val otherId = if (p.initiatorUserId == userId) p.receiverUserId else p.initiatorUserId
                     val otherUser = if (otherId.isNotBlank()) userDao.getUserByIdSync(otherId) else null
                     val name = otherUser?.name ?: if (otherId == "usr_alpha") "Carlos R. - Petrolera" else "Colega Truequero"
@@ -65,15 +74,18 @@ class ChatListViewModel @Inject constructor(
                         statusColor = statusColor
                     )
                 }
+                list.addAll(dbList)
             } else {
-                listOf(
+                list.add(
                     ChatConversationSummary(
                         proposalId = "prop_active_01",
                         otherUserName = "Carlos R. - Petrolera",
                         lastMessagePreview = "¡Hola! Vi tu oferta de trueque. ¿Te parece si coordinamos?",
                         statusLabel = "Propuesta Activa",
                         statusColor = Color(0xFFE65100)
-                    ),
+                    )
+                )
+                list.add(
                     ChatConversationSummary(
                         proposalId = "prop_reserved_02",
                         otherUserName = "Lucía M. - María de la Piedad",
