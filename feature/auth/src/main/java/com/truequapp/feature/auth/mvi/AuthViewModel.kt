@@ -221,6 +221,30 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Resultado de validación estricta de cuenta contra la base de datos local SQLite Room.
+     */
+    sealed interface AccountValidationResult {
+        data class Success(val user: UserEntity) : AccountValidationResult
+        data object UserNotFound : AccountValidationResult
+        data object IncorrectPassword : AccountValidationResult
+    }
+
+    /**
+     * Valida si el correo y la contraseña coinciden con un registro existente en la base de datos.
+     * En caso contrario, deniega el acceso identificando si falta el correo o la contraseña es inválida.
+     */
+    private suspend fun validateAccountWithDatabase(email: String, password: String): AccountValidationResult {
+        val user = userDao?.getUserByEmailSync(email)
+            ?: return AccountValidationResult.UserNotFound
+
+        if (user.passwordHash != password) {
+            return AccountValidationResult.IncorrectPassword
+        }
+
+        return AccountValidationResult.Success(user)
+    }
+
     private fun executeLogin() {
         val email = currentState.emailInput.trim()
         val password = currentState.passwordInput
@@ -238,118 +262,68 @@ class AuthViewModel @Inject constructor(
             setState { copy(isLoading = true, errorMessage = null) }
             delay(200)
 
-            // 1. Buscar si el usuario ya existe en SQLite Room
-            val existingUser = userDao?.getUserByEmailSync(email)
-
-            if (existingUser != null) {
-                // Validación de contraseña si fue registrado con email/password
-                if (existingUser.passwordHash != null && existingUser.passwordHash != password) {
+            // Validación estricta con la base de datos
+            when (val validation = validateAccountWithDatabase(email, password)) {
+                is AccountValidationResult.UserNotFound -> {
                     setState {
                         copy(
                             isLoading = false,
-                            errorMessage = "Contraseña incorrecta. Por favor verifica tus credenciales."
+                            errorMessage = "No hay una cuenta vinculada con el correo"
                         )
                     }
-                    return@launch
+                    sendEffect(AuthUiEffect.ShowSnackbar("No hay una cuenta vinculada con el correo"))
                 }
+                is AccountValidationResult.IncorrectPassword -> {
+                    setState {
+                        copy(
+                            isLoading = false,
+                            errorMessage = "Contraseña incorrecta"
+                        )
+                    }
+                    sendEffect(AuthUiEffect.ShowSnackbar("Contraseña incorrecta"))
+                }
+                is AccountValidationResult.Success -> {
+                    val user = validation.user
+                    val userId = user.id
 
-                // Usuario validado con sus datos REALES de la base de datos Room
-                val userId = existingUser.id
-                userSessionDataStore.saveUser(
-                    userId = userId,
-                    email = existingUser.email,
-                    isKycVerified = existingUser.isKycVerified,
-                    name = existingUser.name,
-                    photoUrl = existingUser.photoUrl,
-                    authProvider = existingUser.authProvider
-                )
-                userSessionDataStore.saveTokens(
-                    accessToken = "jwt_token_$userId",
-                    refreshToken = "refresh_$userId"
-                )
-
-                setState {
-                    copy(
-                        isLoading = false,
-                        isLoggedIn = true,
-                        currentUserId = userId,
-                        userName = existingUser.name,
-                        userEmail = existingUser.email,
-                        userPhone = existingUser.phoneNumber.orEmpty(),
-                        nameInput = existingUser.name,
-                        emailInput = existingUser.email,
-                        userNeighborhood = existingUser.obfuscatedNeighborhood,
-                        obfuscatedNeighborhood = existingUser.obfuscatedNeighborhood,
-                        kycLevel = if (existingUser.isKycVerified) KycLevel.TELEFONO_SMS_NIVEL_1 else KycLevel.BASICO_NIVEL_0,
-                        truequeCoins = existingUser.truequeCoins,
-                        authProvider = existingUser.authProvider,
-                        bayesianRating = existingUser.bayesianRating,
-                        attendanceRate = existingUser.attendanceRate
+                    // Persistir sesión y tokens en DataStore
+                    userSessionDataStore.saveUser(
+                        userId = userId,
+                        email = user.email,
+                        isKycVerified = user.isKycVerified,
+                        name = user.name,
+                        photoUrl = user.photoUrl,
+                        authProvider = user.authProvider
                     )
-                }
-                sendEffect(AuthUiEffect.ShowSnackbar("¡Bienvenido de nuevo, ${existingUser.name}!"))
-                sendEffect(AuthUiEffect.NavigateToHome)
-            } else {
-                // Si el usuario no existe aún, se registra automáticamente con sus datos
-                val generatedUserId = "usr_" + email.hashCode().toString().takeLast(6)
-                val userName = currentState.nameInput.trim().ifBlank {
-                    email.substringBefore("@")
-                        .replace('.', ' ')
-                        .replace('_', ' ')
-                        .replaceFirstChar { it.uppercase() }
-                }
-                val neighborhood = currentState.neighborhoodInput.ifBlank { "Centro, Coatzacoalcos" }
-
-                val newUser = UserEntity(
-                    id = generatedUserId,
-                    email = email,
-                    name = userName,
-                    passwordHash = password,
-                    authProvider = "EMAIL",
-                    isKycVerified = true,
-                    kycLevel = "TELEFONO_SMS_NIVEL_1",
-                    truequeCoins = 100.0,
-                    obfuscatedNeighborhood = neighborhood,
-                    city = "Coatzacoalcos",
-                    lastLoginEpochMs = System.currentTimeMillis()
-                )
-
-                // Guardar en SQLite Room
-                userDao?.insertUser(newUser)
-
-                // Guardar en DataStore
-                userSessionDataStore.saveUser(
-                    userId = generatedUserId,
-                    email = email,
-                    isKycVerified = true,
-                    name = userName,
-                    authProvider = "EMAIL"
-                )
-                userSessionDataStore.saveTokens(
-                    accessToken = "jwt_token_$generatedUserId",
-                    refreshToken = "refresh_$generatedUserId"
-                )
-
-                setState {
-                    copy(
-                        isLoading = false,
-                        isLoggedIn = true,
-                        currentUserId = generatedUserId,
-                        userName = userName,
-                        userEmail = email,
-                        nameInput = userName,
-                        emailInput = email,
-                        userNeighborhood = neighborhood,
-                        obfuscatedNeighborhood = neighborhood,
-                        kycLevel = KycLevel.TELEFONO_SMS_NIVEL_1,
-                        truequeCoins = 100.0,
-                        authProvider = "EMAIL",
-                        bayesianRating = 4.8,
-                        attendanceRate = 1.0
+                    userSessionDataStore.saveTokens(
+                        accessToken = "jwt_token_$userId",
+                        refreshToken = "refresh_$userId"
                     )
+                    userSessionDataStore.updateTruequeCoins(user.truequeCoins, user.escrowCoins)
+
+                    setState {
+                        copy(
+                            isLoading = false,
+                            isLoggedIn = true,
+                            currentUserId = userId,
+                            userName = user.name,
+                            userEmail = user.email,
+                            userPhone = user.phoneNumber.orEmpty(),
+                            nameInput = user.name,
+                            emailInput = user.email,
+                            userNeighborhood = user.obfuscatedNeighborhood,
+                            obfuscatedNeighborhood = user.obfuscatedNeighborhood,
+                            kycLevel = if (user.isKycVerified) KycLevel.TELEFONO_SMS_NIVEL_1 else KycLevel.BASICO_NIVEL_0,
+                            truequeCoins = user.truequeCoins,
+                            authProvider = user.authProvider,
+                            bayesianRating = user.bayesianRating,
+                            attendanceRate = user.attendanceRate,
+                            errorMessage = null
+                        )
+                    }
+                    sendEffect(AuthUiEffect.ShowSnackbar("¡Bienvenido de nuevo, ${user.name}!"))
+                    sendEffect(AuthUiEffect.NavigateToHome)
                 }
-                sendEffect(AuthUiEffect.ShowSnackbar("Bienvenido a Truequapp, $userName"))
-                sendEffect(AuthUiEffect.NavigateToHome)
             }
         }
     }

@@ -175,6 +175,19 @@ class AuthViewModelTest {
     @Test
     @DisplayName("CU023: Login con credenciales válidas inicia sesión y carga reputación bayesiana")
     fun shouldLoginSuccessfully_whenCredentialsAreValid() = runTest(testDispatcher) {
+        val user = UserEntity(
+            id = "usr_veterano",
+            email = "veterano@example.com",
+            name = "Veterano Truequapp",
+            passwordHash = "segura123",
+            authProvider = "EMAIL",
+            truequeCoins = 100.0,
+            isKycVerified = true,
+            city = "Coatzacoalcos",
+            obfuscatedNeighborhood = "Centro, Coatzacoalcos"
+        )
+        fakeUserDao.insertUser(user)
+
         viewModel.onEvent(AuthUiEvent.EmailChanged("veterano@example.com"))
         viewModel.onEvent(AuthUiEvent.PasswordChanged("segura123"))
 
@@ -193,6 +206,17 @@ class AuthViewModelTest {
     @Test
     @DisplayName("CU024: Logout limpia la sesión en DataStore y reinicia el estado a no logueado")
     fun shouldClearSession_whenLogoutIsTriggered() = runTest(testDispatcher) {
+        val user = UserEntity(
+            id = "usr_test",
+            email = "test@example.com",
+            name = "Usuario Test",
+            passwordHash = "123456",
+            authProvider = "EMAIL",
+            truequeCoins = 100.0,
+            isKycVerified = true
+        )
+        fakeUserDao.insertUser(user)
+
         // Primero loguear
         viewModel.onEvent(AuthUiEvent.EmailChanged("test@example.com"))
         viewModel.onEvent(AuthUiEvent.PasswordChanged("123456"))
@@ -330,10 +354,20 @@ class AuthViewModelTest {
     @Test
     @DisplayName("Room SQLite: Editar perfil persiste cambios en la base de datos y actualiza UI")
     fun shouldUpdateProfileInDatabaseAndState_whenSaveEditedProfile() = runTest(testDispatcher) {
-        // Primero registrar o iniciar sesión
+        val initialUser = UserEntity(
+            id = "usr_nuevo",
+            email = "usuario.nuevo@gmail.com",
+            name = "Nombre Inicial",
+            passwordHash = "pass12345",
+            authProvider = "EMAIL",
+            truequeCoins = 100.0,
+            city = "Coatzacoalcos"
+        )
+        fakeUserDao.insertUser(initialUser)
+
+        // Primero iniciar sesión con cuenta existente
         viewModel.onEvent(AuthUiEvent.EmailChanged("usuario.nuevo@gmail.com"))
         viewModel.onEvent(AuthUiEvent.PasswordChanged("pass12345"))
-        viewModel.onEvent(AuthUiEvent.NameChanged("Nombre Inicial"))
         viewModel.onEvent(AuthUiEvent.SubmitLogin)
         advanceUntilIdle()
 
@@ -358,5 +392,46 @@ class AuthViewModelTest {
         assertEquals("Angel Eduardo", userInDb?.name)
         assertEquals("+529217654321", userInDb?.phoneNumber)
         assertEquals("Puerto México, Coatzacoalcos", userInDb?.obfuscatedNeighborhood)
+    }
+
+    @Test
+    @DisplayName("Validación BD: Denegar acceso y mostrar mensaje cuando el correo no existe en la base de datos")
+    fun shouldDenyAccessAndShowError_whenEmailIsNotInDatabase() = runTest(testDispatcher) {
+        viewModel.onEvent(AuthUiEvent.EmailChanged("no.registrado@gmail.com"))
+        viewModel.onEvent(AuthUiEvent.PasswordChanged("clave123456"))
+        viewModel.onEvent(AuthUiEvent.SubmitLogin)
+
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isLoggedIn)
+        assertEquals("No hay una cuenta vinculada con el correo", state.errorMessage)
+        assertFalse(fakeDataStore.sessionFlow.first().isAuthenticated)
+    }
+
+    @Test
+    @DisplayName("Validación BD: Denegar acceso y mostrar 'Contraseña incorrecta' si la clave no coincide")
+    fun shouldDenyAccessAndShowError_whenPasswordIsIncorrect() = runTest(testDispatcher) {
+        val user = UserEntity(
+            id = "usr_valido",
+            email = "cuenta.existente@gmail.com",
+            name = "Usuario Registrado",
+            passwordHash = "contraseniaCorrecta",
+            authProvider = "EMAIL",
+            truequeCoins = 100.0,
+            city = "Coatzacoalcos"
+        )
+        fakeUserDao.insertUser(user)
+
+        viewModel.onEvent(AuthUiEvent.EmailChanged("cuenta.existente@gmail.com"))
+        viewModel.onEvent(AuthUiEvent.PasswordChanged("contraseniaEquivocada"))
+        viewModel.onEvent(AuthUiEvent.SubmitLogin)
+
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isLoggedIn)
+        assertEquals("Contraseña incorrecta", state.errorMessage)
+        assertFalse(fakeDataStore.sessionFlow.first().isAuthenticated)
     }
 }
