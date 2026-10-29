@@ -34,7 +34,8 @@ data class CatalogUiState(
     val newWishlistTags: List<String> = emptyList(),
     val selectedImageUri: String? = null, // Estrictamente 1 sola imagen
     val isPublishing: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val truequeCoins: Double = 100.0 // Variable canónica unificada
 ) : UiState
 
 /**

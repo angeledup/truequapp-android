@@ -16,6 +16,7 @@ android {
         targetSdk = 34
         versionCode = 1001
         versionName = "1.1"
+        manifestPlaceholders["MAPS_API_KEY"] = project.findProperty("MAPS_API_KEY") as? String ?: "AIzaSy_Truequapp_DevMapsKey_Placeholder"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -63,10 +64,15 @@ dependencies {
     implementation(project(":core:designsystem"))
     implementation(project(":core:network"))
     implementation(project(":core:datastore"))
+    implementation(project(":core:database"))
     implementation(project(":feature:auth"))
     implementation(project(":feature:catalog"))
     implementation(project(":feature:trade"))
     implementation(project(":feature:chat"))
+    implementation(project(":feature:safezones"))
+    implementation(project(":feature:swipe"))
+    implementation(project(":feature:wallet"))
+    implementation(project(":feature:reports"))
 
     // AndroidX & Lifecycle
     implementation(libs.androidx.core.ktx)

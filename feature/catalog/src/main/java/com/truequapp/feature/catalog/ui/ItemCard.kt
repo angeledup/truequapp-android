@@ -147,7 +147,7 @@ fun ItemCard(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // Distancia aproximada protegiendo la dirección real (RN-10)
+                // Distancia aproximada protegiendo la dirección real (RN-10) en Coatzacoalcos
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         imageVector = Icons.Default.LocationOn,
@@ -157,7 +157,7 @@ fun ItemCard(
                     )
                     Spacer(modifier = Modifier.width(3.dp))
                     Text(
-                        text = "~3.5 km (Área Protegida)",
+                        text = "~3.5 km • Coatzacoalcos, Ver.",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

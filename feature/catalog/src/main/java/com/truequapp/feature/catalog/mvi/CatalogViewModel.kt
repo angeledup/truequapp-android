@@ -3,6 +3,9 @@ package com.truequapp.feature.catalog.mvi
 import androidx.lifecycle.viewModelScope
 import com.truequapp.core.common.dispatcher.DispatcherProvider
 import com.truequapp.core.common.mvi.BaseViewModel
+import com.truequapp.core.database.dao.TradeItemDao
+import com.truequapp.core.database.mapper.toDomainModel
+import com.truequapp.core.database.mapper.toEntity
 import com.truequapp.core.datastore.UserSessionDataStore
 import com.truequapp.core.domain.model.ItemCondition
 import com.truequapp.core.domain.model.ItemStatus
@@ -19,7 +22,7 @@ import java.util.UUID
 import javax.inject.Inject
 
 /**
- * ViewModel para la gestión de catálogo, filtrado geolocalizado, publicaciones persistentes con 1 imagen WebP (< 80KB)
+ * ViewModel para la gestión de catálogo, filtrado geolocalizado, publicaciones persistentes en SQLite Room
  * y marcadores/favoritos para encontrar publicaciones activas rápidamente.
  */
 @HiltViewModel
@@ -27,12 +30,14 @@ class CatalogViewModel @Inject constructor(
     private val validateProhibitedItemUseCase: ValidateProhibitedItemUseCase = ValidateProhibitedItemUseCase(),
     private val webPImageCompressor: WebPImageCompressor = WebPImageCompressor(),
     private val catalogLocalStorage: CatalogLocalStorage? = null,
+    private val tradeItemDao: TradeItemDao? = null,
     private val userSessionDataStore: UserSessionDataStore,
     private val dispatchers: DispatcherProvider
 ) : BaseViewModel<CatalogUiState, CatalogUiEvent, CatalogUiEffect>(CatalogUiState()) {
 
     private val inMemoryItems = mutableListOf<TradeItem>()
     private var currentUserId: String = "usr_current"
+    private var currentUserName: String = "Usuario Truequapp"
 
     init {
         loadSessionAndCatalog()
@@ -40,9 +45,21 @@ class CatalogViewModel @Inject constructor(
 
     private fun loadSessionAndCatalog() {
         viewModelScope.launch(dispatchers.io) {
-            val session = userSessionDataStore.sessionFlow.first()
-            currentUserId = session.userId ?: "usr_current"
+            userSessionDataStore.sessionFlow.collect { session ->
+                currentUserId = session.userId ?: "usr_current"
+                currentUserName = session.userName ?: "Usuario Truequapp"
+                setState { copy(truequeCoins = session.truequeCoins) }
+                syncCatalogWithDatabase()
+            }
+        }
+    }
 
+    private suspend fun syncCatalogWithDatabase() {
+        // Cargar artículos guardados de SQLite Room
+        val dbEntities = tradeItemDao?.getAllItemsSync().orEmpty()
+        val loadedItems = if (dbEntities.isNotEmpty()) {
+            dbEntities.map { it.toDomainModel() }
+        } else {
             val seedItems = listOf(
                 TradeItem(
                     id = "item_001",
@@ -62,7 +79,7 @@ class CatalogViewModel @Inject constructor(
                     id = "item_002",
                     ownerId = "usr_beta",
                     title = "Cálculo de Stewart 8va Edición",
-                    description = "Libro universitario para ingeniería, pasta dura sin rayones.",
+                    description = "Libro universitario para ingeniería UV, pasta dura sin rayones.",
                     categoryId = 3,
                     type = ItemType.BIEN_FISICO,
                     condition = ItemCondition.USADO,
@@ -76,7 +93,7 @@ class CatalogViewModel @Inject constructor(
                     id = "item_003",
                     ownerId = "usr_gamma",
                     title = "Bicicleta de Montaña R29 Alum",
-                    description = "Frenos de disco hidráulicos, 21 velocidades Shimano.",
+                    description = "Frenos de disco hidráulicos, 21 velocidades Shimano para rodar en Malecón.",
                     categoryId = 7,
                     type = ItemType.BIEN_FISICO,
                     condition = ItemCondition.USADO,
@@ -87,26 +104,32 @@ class CatalogViewModel @Inject constructor(
                     isAvailable = true
                 )
             )
+            tradeItemDao?.insertItems(seedItems.map { it.toEntity(ownerName = "Usuario Truequapp") })
+            seedItems
+        }
 
-            // Cargar artículos guardados de forma persistente
-            val savedItems = catalogLocalStorage?.loadPublishedItems().orEmpty()
-            val bookmarkedIds = catalogLocalStorage?.loadBookmarkedIds().orEmpty()
+        val savedItems = catalogLocalStorage?.loadPublishedItems().orEmpty()
+        val bookmarkedIds = catalogLocalStorage?.loadBookmarkedIds().orEmpty()
 
-            inMemoryItems.clear()
-            inMemoryItems.addAll(seedItems)
-            inMemoryItems.addAll(savedItems.filter { saved -> inMemoryItems.none { it.id == saved.id } })
-
-            val myItems = inMemoryItems.filter { it.ownerId == currentUserId }
-
-            setState {
-                copy(
-                    items = inMemoryItems,
-                    filteredItems = inMemoryItems.filter { it.status == ItemStatus.DISPONIBLE },
-                    myInventory = myItems,
-                    bookmarkedItemIds = bookmarkedIds
-                )
+        inMemoryItems.clear()
+        inMemoryItems.addAll(loadedItems)
+        savedItems.forEach { saved ->
+            if (inMemoryItems.none { it.id == saved.id }) {
+                inMemoryItems.add(saved)
+                tradeItemDao?.insertItem(saved.toEntity(ownerName = currentUserName))
             }
         }
+
+        val myItems = inMemoryItems.filter { it.ownerId == currentUserId }
+
+        setState {
+            copy(
+                items = inMemoryItems,
+                myInventory = myItems,
+                bookmarkedItemIds = bookmarkedIds
+            )
+        }
+        applyFilters()
     }
 
     override fun onEvent(event: CatalogUiEvent) {
@@ -187,15 +210,16 @@ class CatalogViewModel @Inject constructor(
         val state = currentState
         var result = state.items
 
-        // Filtro de solo marcados/favoritos (únicamente si siguen activas en ItemStatus.DISPONIBLE)
+        // Filtro de solo marcados/favoritos
         if (state.filterOnlyBookmarked) {
-            result = result.filter { state.bookmarkedItemIds.contains(it.id) && it.status == ItemStatus.DISPONIBLE }
+            result = result.filter { state.bookmarkedItemIds.contains(it.id) && it.status == ItemStatus.DISPONIBLE && it.ownerId != currentUserId }
         } else if (state.filterOnlyMyPublications) {
             // Filtro de solo mis publicaciones guardadas
             result = result.filter { it.ownerId == currentUserId }
         } else {
-            // Feed general: solo mostrar artículos disponibles
-            result = result.filter { it.status == ItemStatus.DISPONIBLE }
+            // Feed general de exploración: Solo mostrar artículos disponibles de OTROS usuarios
+            // Evita que aparezcan tus propias publicaciones como opción para intercambiar contigo mismo
+            result = result.filter { it.status == ItemStatus.DISPONIBLE && it.ownerId != currentUserId }
         }
 
         if (state.searchQuery.isNotBlank()) {
@@ -260,9 +284,18 @@ class CatalogViewModel @Inject constructor(
                 isAvailable = true
             )
 
+            // 1. Guardar de forma persistente en SQLite Room
+            tradeItemDao?.insertItem(
+                newItem.toEntity(
+                    ownerName = currentUserName,
+                    neighborhood = "Centro, Coatzacoalcos",
+                    city = "Coatzacoalcos"
+                )
+            )
+
             inMemoryItems.add(0, newItem)
 
-            // Guardar persistentemente las publicaciones del usuario (Punto 5)
+            // 2. Guardar en almacenamiento secundario sandbox
             val mySavedPublications = inMemoryItems.filter { it.ownerId == currentUserId }
             catalogLocalStorage?.savePublishedItems(mySavedPublications)
 
@@ -279,7 +312,7 @@ class CatalogViewModel @Inject constructor(
             }
 
             applyFilters()
-            sendEffect(CatalogUiEffect.ShowSnackbar("¡Publicación guardada exitosamente con imagen WebP!"))
+            sendEffect(CatalogUiEffect.ShowSnackbar("¡Publicación guardada exitosamente en la base de datos!"))
             sendEffect(CatalogUiEffect.ItemPublishedSuccess)
         }
     }
@@ -310,8 +343,18 @@ class CatalogViewModel @Inject constructor(
         val index = inMemoryItems.indexOfFirst { it.id == updated.id }
         if (index != -1) {
             inMemoryItems[index] = updated
+            viewModelScope.launch(dispatchers.io) {
+                tradeItemDao?.updateItem(
+                    updated.toEntity(
+                        ownerName = currentUserName,
+                        neighborhood = "Centro, Coatzacoalcos",
+                        city = "Coatzacoalcos"
+                    )
+                )
+                val mySaved = inMemoryItems.filter { it.ownerId == currentUserId }
+                catalogLocalStorage?.savePublishedItems(mySaved)
+            }
             val mySaved = inMemoryItems.filter { it.ownerId == currentUserId }
-            catalogLocalStorage?.savePublishedItems(mySaved)
             setState {
                 copy(
                     items = inMemoryItems,
