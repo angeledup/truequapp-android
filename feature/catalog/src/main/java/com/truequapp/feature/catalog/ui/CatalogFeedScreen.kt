@@ -87,7 +87,7 @@ fun CatalogFeedScreen(
         topBar = {
             TruequappTopAppBar(
                 title = "Explorar Trueques",
-                coinsBalance = 100,
+                coinsBalance = state.truequeCoins.toInt(),
                 unreadNotifications = 0,
                 onCoinsClick = onCoinsClick
             )

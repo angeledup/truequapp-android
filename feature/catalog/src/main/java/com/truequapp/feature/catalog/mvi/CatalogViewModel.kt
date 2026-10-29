@@ -40,6 +40,13 @@ class CatalogViewModel @Inject constructor(
 
     private fun loadSessionAndCatalog() {
         viewModelScope.launch(dispatchers.io) {
+            userSessionDataStore.sessionFlow.collect { session ->
+                currentUserId = session.userId ?: "usr_current"
+                setState { copy(truequeCoins = session.truequeCoins) }
+            }
+        }
+
+        viewModelScope.launch(dispatchers.io) {
             val session = userSessionDataStore.sessionFlow.first()
             currentUserId = session.userId ?: "usr_current"
 

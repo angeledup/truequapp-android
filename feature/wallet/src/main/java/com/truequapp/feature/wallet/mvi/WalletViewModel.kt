@@ -3,6 +3,7 @@ package com.truequapp.feature.wallet.mvi
 import androidx.lifecycle.viewModelScope
 import com.truequapp.core.common.dispatcher.DispatcherProvider
 import com.truequapp.core.common.mvi.BaseViewModel
+import com.truequapp.core.datastore.UserSessionDataStore
 import com.truequapp.core.domain.model.*
 import com.truequapp.core.domain.rules.BusinessRuleException
 import com.truequapp.core.domain.rules.EscrowHoldAndReleaseUseCase
@@ -22,11 +23,30 @@ class WalletViewModel @Inject constructor(
     private val escrowUseCase: EscrowHoldAndReleaseUseCase = EscrowHoldAndReleaseUseCase(),
     private val ledgerUseCase: LedgerDoubleEntryValidatorUseCase = LedgerDoubleEntryValidatorUseCase(),
     private val triangularUseCase: TriangularCycleRulesUseCase = TriangularCycleRulesUseCase(),
+    private val userSessionDataStore: UserSessionDataStore,
     private val dispatchers: DispatcherProvider
 ) : BaseViewModel<WalletUiState, WalletUiEvent, WalletUiEffect>(WalletUiState()) {
 
     init {
+        observeSession()
         initializeSampleLedgerAndCycle()
+    }
+
+    private fun observeSession() {
+        if (userSessionDataStore == null) return
+        viewModelScope.launch(dispatchers.io) {
+            userSessionDataStore.sessionFlow.collect { session ->
+                setState {
+                    copy(
+                        wallet = wallet.copy(
+                            userId = session.userId ?: wallet.userId,
+                            availableBalance = session.truequeCoins,
+                            escrowBalance = session.escrowCoins
+                        )
+                    )
+                }
+            }
+        }
     }
 
     override fun onEvent(event: WalletUiEvent) {
@@ -121,6 +141,12 @@ class WalletViewModel @Inject constructor(
                     successMessage = "Se han retenido \$${amount.toInt()} TC en custodia segura (Escrow)."
                 )
             }
+            viewModelScope.launch(dispatchers.io) {
+                userSessionDataStore?.updateTruequeCoins(
+                    available = holdResult.updatedBuyerWallet.availableBalance,
+                    escrow = holdResult.updatedBuyerWallet.escrowBalance
+                )
+            }
             sendEffect(WalletUiEffect.ShowToast("Retención en Escrow completada"))
         } catch (e: BusinessRuleException.EscrowViolationException) {
             setState { copy(errorMessage = e.message) }
@@ -159,6 +185,12 @@ class WalletViewModel @Inject constructor(
                     wallet = releaseResult.updatedBuyerWallet,
                     ledgerHistory = updatedHistory,
                     successMessage = "Se han liberado con éxito \$${amount.toInt()} TC hacia la contraparte."
+                )
+            }
+            viewModelScope.launch(dispatchers.io) {
+                userSessionDataStore?.updateTruequeCoins(
+                    available = releaseResult.updatedBuyerWallet.availableBalance,
+                    escrow = releaseResult.updatedBuyerWallet.escrowBalance
                 )
             }
             sendEffect(WalletUiEffect.ShowToast("TruequeCoins liberadas exitosamente"))

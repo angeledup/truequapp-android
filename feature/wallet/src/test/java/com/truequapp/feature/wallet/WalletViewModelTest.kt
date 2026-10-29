@@ -1,6 +1,8 @@
 package com.truequapp.feature.wallet
 
 import com.truequapp.core.common.dispatcher.DispatcherProvider
+import com.truequapp.core.datastore.UserSessionDataStore
+import com.truequapp.core.datastore.model.UserSession
 import com.truequapp.core.domain.model.TriangularCycleStatus
 import com.truequapp.core.domain.rules.EscrowHoldAndReleaseUseCase
 import com.truequapp.core.domain.rules.LedgerDoubleEntryValidatorUseCase
@@ -11,13 +13,30 @@ import com.truequapp.feature.wallet.mvi.WalletViewModel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.*
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+
+class FakeWalletDataStore : UserSessionDataStore {
+    private val _session = MutableStateFlow(UserSession())
+    override val sessionFlow: Flow<UserSession> = _session
+    override suspend fun saveTokens(accessToken: String, refreshToken: String) {}
+    override suspend fun saveUser(userId: String, email: String, isKycVerified: Boolean, name: String, photoUrl: String?, authProvider: String) {}
+    override suspend fun updateTruequeCoins(available: Double, escrow: Double?) {
+        _session.update { it.copy(truequeCoins = available, escrowCoins = escrow ?: it.escrowCoins) }
+    }
+    override suspend fun getAccessToken(): String? = null
+    override suspend fun getRefreshToken(): String? = null
+    override suspend fun getTruequeCoins(): Double = _session.value.truequeCoins
+    override suspend fun clearSession() {}
+}
 
 class TestWalletDispatcherProvider(private val dispatcher: TestDispatcher) : DispatcherProvider {
     override val main: CoroutineDispatcher get() = dispatcher
@@ -31,6 +50,7 @@ class WalletViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var viewModel: WalletViewModel
+    private val fakeDataStore = FakeWalletDataStore()
 
     @BeforeEach
     fun setUp() {
@@ -39,6 +59,7 @@ class WalletViewModelTest {
             escrowUseCase = EscrowHoldAndReleaseUseCase(),
             ledgerUseCase = LedgerDoubleEntryValidatorUseCase(),
             triangularUseCase = TriangularCycleRulesUseCase(),
+            userSessionDataStore = fakeDataStore,
             dispatchers = TestWalletDispatcherProvider(testDispatcher)
         )
         testDispatcher.scheduler.advanceUntilIdle()
@@ -91,7 +112,7 @@ class WalletViewModelTest {
         val initialAvailable = viewModel.uiState.value.wallet.availableBalance
         val initialEscrow = viewModel.uiState.value.wallet.escrowBalance
         val initialTotal = viewModel.uiState.value.totalBalance
-        val holdAmount = 200.0
+        val holdAmount = 50.0
 
         viewModel.onEvent(WalletUiEvent.RequestEscrowHold(holdAmount, "trade-test-01"))
         advanceUntilIdle()
@@ -115,8 +136,12 @@ class WalletViewModelTest {
 
     @Test
     fun `requestEscrowRelease decreases escrow balance and updates ledger`() = runTest(testDispatcher) {
+        // Hold funds first so escrow has a balance to release (RN-04)
+        viewModel.onEvent(WalletUiEvent.RequestEscrowHold(50.0, "trade-test-setup"))
+        advanceUntilIdle()
+
         val initialEscrow = viewModel.uiState.value.wallet.escrowBalance
-        val releaseAmount = 100.0
+        val releaseAmount = 50.0
 
         viewModel.onEvent(WalletUiEvent.RequestEscrowRelease(releaseAmount, "wallet-counterpart", "trade-test-03"))
         advanceUntilIdle()

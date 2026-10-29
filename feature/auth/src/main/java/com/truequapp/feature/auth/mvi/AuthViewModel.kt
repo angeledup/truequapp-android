@@ -15,6 +15,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.util.UUID
 import javax.inject.Inject
 
 /**
@@ -37,28 +38,39 @@ class AuthViewModel @Inject constructor(
 
     private fun checkCurrentSession() {
         viewModelScope.launch(dispatchers.io) {
-            val session = userSessionDataStore.sessionFlow.first()
-            if (session.isAuthenticated && !session.userId.isNullOrBlank()) {
-                val rating = calculateBayesianRatingUseCase(
-                    existingRatingsCount = 12,
-                    existingSumOfRatings = 58.0
-                )
-                val obfuscated = obfuscateLocationUseCase(
-                    exactCoordinates = GeoCoordinates(19.5438, -96.9102),
-                    neighborhoodName = "Centro Histórico"
-                )
-
-                val loggedUserId = session.userId.orEmpty()
-                setState {
-                    copy(
-                        isLoggedIn = true,
-                        currentUserId = loggedUserId,
-                        emailInput = session.userEmail.orEmpty(),
-                        kycLevel = if (session.isKycVerified) KycLevel.TELEFONO_SMS_NIVEL_1 else KycLevel.BASICO_NIVEL_0,
-                        truequeCoins = 100.0,
-                        bayesianRating = rating,
-                        obfuscatedNeighborhood = obfuscated.neighborhoodName
+            userSessionDataStore.sessionFlow.collect { session ->
+                if (session.isAuthenticated && !session.userId.isNullOrBlank()) {
+                    val rating = calculateBayesianRatingUseCase(
+                        existingRatingsCount = 12,
+                        existingSumOfRatings = 58.0
                     )
+                    val obfuscated = obfuscateLocationUseCase(
+                        exactCoordinates = GeoCoordinates(19.5438, -96.9102),
+                        neighborhoodName = "Centro Histórico"
+                    )
+
+                    val loggedUserId = session.userId.orEmpty()
+                    setState {
+                        copy(
+                            isLoggedIn = true,
+                            currentUserId = loggedUserId,
+                            nameInput = session.userName ?: nameInput,
+                            emailInput = session.userEmail.orEmpty(),
+                            kycLevel = if (session.isKycVerified) KycLevel.TELEFONO_SMS_NIVEL_1 else KycLevel.BASICO_NIVEL_0,
+                            truequeCoins = session.truequeCoins,
+                            authProvider = session.authProvider,
+                            googleEmail = if (session.authProvider == "GOOGLE") session.userEmail else null,
+                            userPhotoUrl = session.userPhotoUrl,
+                            bayesianRating = rating,
+                            obfuscatedNeighborhood = obfuscated.neighborhoodName
+                        )
+                    }
+                } else {
+                    setState {
+                        copy(
+                            truequeCoins = session.truequeCoins
+                        )
+                    }
                 }
             }
         }
@@ -82,6 +94,40 @@ class AuthViewModel @Inject constructor(
             }
             is AuthUiEvent.Logout -> executeLogout()
             is AuthUiEvent.LoadProfile -> loadUserProfile(event.userId)
+            is AuthUiEvent.SignInWithGoogleSuccess -> handleGoogleSignIn(event)
+        }
+    }
+
+    private fun handleGoogleSignIn(event: AuthUiEvent.SignInWithGoogleSuccess) {
+        viewModelScope.launch(dispatchers.io) {
+            setState { copy(isLoading = true, errorMessage = null) }
+            val generatedToken = "jwt_google_${UUID.randomUUID()}"
+            userSessionDataStore.saveTokens(generatedToken, "refresh_$generatedToken")
+            userSessionDataStore.saveUser(
+                userId = event.googleId,
+                email = event.email,
+                isKycVerified = true,
+                name = event.displayName,
+                photoUrl = event.photoUrl,
+                authProvider = "GOOGLE"
+            )
+            val currentCoins = userSessionDataStore.getTruequeCoins()
+            setState {
+                copy(
+                    isLoading = false,
+                    isLoggedIn = true,
+                    currentUserId = event.googleId,
+                    nameInput = event.displayName,
+                    emailInput = event.email,
+                    authProvider = "GOOGLE",
+                    googleEmail = event.email,
+                    userPhotoUrl = event.photoUrl,
+                    truequeCoins = currentCoins,
+                    kycLevel = KycLevel.TELEFONO_SMS_NIVEL_1
+                )
+            }
+            sendEffect(AuthUiEffect.ShowSnackbar("¡Bienvenido, ${event.displayName}! Sesión iniciada con Google."))
+            sendEffect(AuthUiEffect.NavigateToHome)
         }
     }
 

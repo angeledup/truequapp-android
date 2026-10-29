@@ -129,29 +129,30 @@ class TradeViewModel @Inject constructor(
 
     private fun loadSessionUser() {
         viewModelScope.launch(dispatchers.io) {
-            val session = userSessionDataStore.sessionFlow.first()
-            val userId = session.userId ?: "usr_current"
-            val kyc = if (session.isKycVerified) KycLevel.TELEFONO_SMS_NIVEL_1 else KycLevel.BASICO_NIVEL_0
-            val userProfile = UserProfile(
-                id = userId,
-                fullName = "Usuario Truequapp",
-                username = "truequero_${userId.takeLast(4)}",
-                email = session.userEmail ?: "user_${userId}@truequapp.com",
-                phoneNumber = "+525500000000",
-                kycLevel = kyc,
-                attendanceRate = 1.0,
-                location = ObfuscatedGeoLocation(
-                    neighborhoodName = "Zona Universitaria",
-                    approximateCoordinates = GeoCoordinates(19.4326, -99.1332)
+            userSessionDataStore.sessionFlow.collect { session ->
+                val userId = session.userId ?: "usr_current"
+                val kyc = if (session.isKycVerified) KycLevel.TELEFONO_SMS_NIVEL_1 else KycLevel.BASICO_NIVEL_0
+                val userProfile = UserProfile(
+                    id = userId,
+                    fullName = session.userName ?: "Usuario Truequapp",
+                    username = "truequero_${userId.takeLast(4)}",
+                    email = session.userEmail ?: "user_${userId}@truequapp.com",
+                    phoneNumber = "+525500000000",
+                    kycLevel = kyc,
+                    attendanceRate = 1.0,
+                    location = ObfuscatedGeoLocation(
+                        neighborhoodName = "Zona Universitaria",
+                        approximateCoordinates = GeoCoordinates(19.4326, -99.1332)
+                    )
                 )
-            )
 
-            setState {
-                copy(
-                    currentUserId = userId,
-                    truequeCoins = 100.0,
-                    currentUserProfile = userProfile
-                )
+                setState {
+                    copy(
+                        currentUserId = userId,
+                        truequeCoins = session.truequeCoins,
+                        currentUserProfile = userProfile
+                    )
+                }
             }
         }
     }

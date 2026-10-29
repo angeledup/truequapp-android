@@ -28,6 +28,9 @@ data class AuthUiState(
     val bayesianRating: Double = 3.0,
     val attendanceRate: Double = 1.0,
     val obfuscatedNeighborhood: String = "",
+    val authProvider: String = "EMAIL",
+    val googleEmail: String? = null,
+    val userPhotoUrl: String? = null,
     val errorMessage: String? = null
 ) : UiState {
     // Compatibilidad retroactiva
@@ -52,6 +55,12 @@ sealed interface AuthUiEvent : UiEvent {
     data object DismissOtpDialog : AuthUiEvent
     data object Logout : AuthUiEvent
     data class LoadProfile(val userId: String) : AuthUiEvent
+    data class SignInWithGoogleSuccess(
+        val googleId: String,
+        val email: String,
+        val displayName: String,
+        val photoUrl: String?
+    ) : AuthUiEvent
 }
 
 /**

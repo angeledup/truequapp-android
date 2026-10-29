@@ -42,6 +42,7 @@ dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:designsystem"))
     implementation(project(":core:datastore"))
+    implementation(libs.play.services.auth)
 
     // Compose BOM & UI
     val composeBom = platform(libs.compose.bom)

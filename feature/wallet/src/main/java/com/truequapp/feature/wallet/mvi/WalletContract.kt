@@ -14,8 +14,8 @@ data class WalletUiState(
     val wallet: WalletAccount = WalletAccount(
         id = "wallet-demo-01",
         userId = "usr-demo",
-        availableBalance = 1500.0,
-        escrowBalance = 350.0,
+        availableBalance = 100.0,
+        escrowBalance = 0.0,
         isPinConfigured = true,
         isBiometricsEnabled = false
     ),

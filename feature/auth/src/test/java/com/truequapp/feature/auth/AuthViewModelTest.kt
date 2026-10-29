@@ -38,8 +38,24 @@ class FakeUserSessionDataStore : UserSessionDataStore {
         _session.update { it.copy(accessToken = accessToken, refreshToken = refreshToken) }
     }
 
-    override suspend fun saveUser(userId: String, email: String, isKycVerified: Boolean) {
-        _session.update { it.copy(userId = userId, userEmail = email, isKycVerified = isKycVerified) }
+    override suspend fun saveUser(
+        userId: String,
+        email: String,
+        isKycVerified: Boolean,
+        name: String,
+        photoUrl: String?,
+        authProvider: String
+    ) {
+        _session.update {
+            it.copy(
+                userId = userId,
+                userEmail = email,
+                isKycVerified = isKycVerified,
+                userName = name,
+                userPhotoUrl = photoUrl,
+                authProvider = authProvider
+            )
+        }
     }
 
     override suspend fun getAccessToken(): String? = _session.value.accessToken
@@ -168,5 +184,27 @@ class AuthViewModelTest {
         val state = viewModel.uiState.value
         assertFalse(state.isLoggedIn)
         assertFalse(fakeDataStore.sessionFlow.first().isAuthenticated)
+    }
+
+    @Test
+    @DisplayName("Google Sign-In: Inicia sesión correctamente con cuenta de Google y persiste sesión")
+    fun shouldLoginSuccessfully_whenGoogleSignInSucceeds() = runTest(testDispatcher) {
+        viewModel.onEvent(
+            AuthUiEvent.SignInWithGoogleSuccess(
+                googleId = "goog_12345",
+                email = "estudiante.unam@gmail.com",
+                displayName = "Estudiante UNAM",
+                photoUrl = "https://lh3.googleusercontent.com/photo"
+            )
+        )
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.isLoggedIn)
+        assertEquals("GOOGLE", state.authProvider)
+        assertEquals("estudiante.unam@gmail.com", state.emailInput)
+        assertEquals("Estudiante UNAM", state.nameInput)
+        assertEquals(100.0, state.truequeCoins)
+        assertTrue(fakeDataStore.sessionFlow.first().isAuthenticated)
     }
 }

@@ -24,6 +24,7 @@ coroutines = "1.8.1"
 mapsCompose = "6.1.2"
 playServicesMaps = "19.0.0"
 biometric = "1.2.0-alpha05"
+playServicesAuth = "21.2.0"
 
 [libraries]
 # AndroidX Core & Lifecycle
@@ -79,6 +80,7 @@ camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", versi
 camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "cameraX" }
 maps-compose = { group = "com.google.maps.android", name = "maps-compose", version.ref = "mapsCompose" }
 play-services-maps = { group = "com.google.android.gms", name = "play-services-maps", version.ref = "playServicesMaps" }
+play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "playServicesAuth" }
 androidx-biometric = { group = "androidx.biometric", name = "biometric", version.ref = "biometric" }
 
 [plugins]
