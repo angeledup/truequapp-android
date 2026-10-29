@@ -6,6 +6,7 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -61,9 +62,9 @@ fun TruequappNavHost(
 
     val topLevelRoutes = listOf(
         Screen.Catalog.route,
+        Screen.SafeZones.route,
         Screen.Swipe.route,
         Screen.Trades.route,
-        Screen.Wallet.route,
         Screen.Profile.route
     )
     val shouldShowBottomBar = currentRoute in topLevelRoutes
@@ -77,9 +78,9 @@ fun TruequappNavHost(
                 ) {
                     val items = listOf(
                         Triple(Screen.Catalog, Icons.Default.Home, "Catálogo"),
+                        Triple(Screen.SafeZones, Icons.Default.Place, "Mapa"),
                         Triple(Screen.Swipe, Icons.Default.AutoAwesome, "Swipe"),
                         Triple(Screen.Trades, Icons.Default.SwapHoriz, "Trueques"),
-                        Triple(Screen.Wallet, Icons.Default.AccountBalanceWallet, "Monedero"),
                         Triple(Screen.Profile, Icons.Default.AccountCircle, "Perfil")
                     )
 
@@ -130,6 +131,9 @@ fun TruequappNavHost(
                     },
                     onNavigateToPublish = {
                         navController.navigate(Screen.PublishItem.route)
+                    },
+                    onCoinsClick = {
+                        navController.navigate(Screen.Wallet.route)
                     }
                 )
             }
@@ -173,7 +177,8 @@ fun TruequappNavHost(
             // Monedero Digital TruequeCoins y Custodia Escrow (CU013, CU014, CU015, CU016 / Fase 4)
             composable(Screen.Wallet.route) {
                 WalletScreen(
-                    onNavigateBack = { navController.popBackStack() }
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToTrades = { navController.navigate(Screen.Trades.route) }
                 )
             }
 
@@ -220,6 +225,12 @@ fun TruequappNavHost(
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToChat = { pId ->
                         navController.navigate(Screen.Chat.createRoute(pId))
+                    },
+                    onNavigateToSafeZone = { _ ->
+                        navController.navigate(Screen.SafeZones.route)
+                    },
+                    onNavigateToQr = { tradeId ->
+                        navController.navigate(Screen.QrExchange.createRoute(tradeId))
                     }
                 )
             }
@@ -297,6 +308,7 @@ fun TruequappNavHost(
                 TradeReviewScreen(
                     tradeId = tradeId,
                     state = safeZoneState,
+                    effectFlow = safeZoneViewModel.uiEffect,
                     onEvent = safeZoneViewModel::onEvent,
                     onNavigateBack = { navController.popBackStack() }
                 )
@@ -314,6 +326,7 @@ fun TruequappNavHost(
                 DisputeReportScreen(
                     tradeId = tradeId,
                     state = safeZoneState,
+                    effectFlow = safeZoneViewModel.uiEffect,
                     onEvent = safeZoneViewModel::onEvent,
                     onNavigateBack = { navController.popBackStack() }
                 )

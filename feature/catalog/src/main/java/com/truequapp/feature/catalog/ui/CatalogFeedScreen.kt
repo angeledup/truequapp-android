@@ -67,6 +67,7 @@ fun CatalogFeedScreen(
     onEvent: (CatalogUiEvent) -> Unit,
     onNavigateToItemDetail: (String) -> Unit,
     onNavigateToPublish: () -> Unit,
+    onCoinsClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -87,7 +88,8 @@ fun CatalogFeedScreen(
             TruequappTopAppBar(
                 title = "Explorar Trueques",
                 coinsBalance = 100,
-                unreadNotifications = 0
+                unreadNotifications = 0,
+                onCoinsClick = onCoinsClick
             )
         },
         floatingActionButton = {

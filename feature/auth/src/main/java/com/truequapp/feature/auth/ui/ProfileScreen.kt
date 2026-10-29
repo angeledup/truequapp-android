@@ -64,7 +64,8 @@ fun ProfileScreen(
         topBar = {
             TruequappTopAppBar(
                 title = "Mi Perfil Truequapp",
-                coinsBalance = state.truequeCoins.toInt()
+                coinsBalance = state.truequeCoins.toInt(),
+                onCoinsClick = onNavigateToWallet
             )
         },
         modifier = modifier.fillMaxSize()

@@ -24,6 +24,8 @@ import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CompareArrows
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -76,6 +78,8 @@ fun TradeNegotiationScreen(
     onEvent: (TradeUiEvent) -> Unit,
     onNavigateBack: () -> Unit,
     onNavigateToChat: (String) -> Unit,
+    onNavigateToSafeZone: (String) -> Unit = {},
+    onNavigateToQr: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -262,6 +266,22 @@ fun TradeNegotiationScreen(
                                 )
                             }
                         }
+
+                        // Botones de acción directa para completar el flujo
+                        TruequappPrimaryButton(
+                            text = "Coordinar Punto Seguro (Mapa)",
+                            onClick = { onNavigateToSafeZone(proposal.id) }
+                        )
+
+                        TruequappOutlinedButton(
+                            text = "Ver Código QR de Entrega Presencial",
+                            onClick = { onNavigateToQr(proposal.id) }
+                        )
+
+                        TruequappOutlinedButton(
+                            text = "Abrir Chat Transaccional (RN-03)",
+                            onClick = { onNavigateToChat(proposal.id) }
+                        )
 
                         // CU012: Cancelar con RN-07
                         TextButton(

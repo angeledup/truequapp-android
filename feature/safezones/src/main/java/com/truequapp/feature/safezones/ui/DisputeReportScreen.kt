@@ -34,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,20 +49,31 @@ import com.truequapp.core.designsystem.component.TruequappOutlinedButton
 import com.truequapp.core.designsystem.component.TruequappPrimaryButton
 import com.truequapp.core.domain.model.DisputeReason
 import com.truequapp.core.domain.model.GeoCoordinates
+import com.truequapp.feature.safezones.mvi.SafeZoneUiEffect
 import com.truequapp.feature.safezones.mvi.SafeZoneUiEvent
 import com.truequapp.feature.safezones.mvi.SafeZoneUiState
+import kotlinx.coroutines.flow.Flow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DisputeReportScreen(
     tradeId: String,
     state: SafeZoneUiState,
+    effectFlow: Flow<SafeZoneUiEffect>? = null,
     onEvent: (SafeZoneUiEvent) -> Unit,
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var selectedReason by remember { mutableStateOf(DisputeReason.INASISTENCIA_A_CITA_PACTADA) }
     var disputeDetails by remember { mutableStateOf("") }
+
+    LaunchedEffect(effectFlow) {
+        effectFlow?.collect { effect ->
+            if (effect is SafeZoneUiEffect.NavigateBack) {
+                onNavigateBack()
+            }
+        }
+    }
 
     Scaffold(
         topBar = {

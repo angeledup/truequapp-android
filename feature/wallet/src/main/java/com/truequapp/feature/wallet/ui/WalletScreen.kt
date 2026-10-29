@@ -39,7 +39,8 @@ import java.util.Locale
 @Composable
 fun WalletScreen(
     viewModel: WalletViewModel = hiltViewModel(),
-    onNavigateBack: () -> Unit = {}
+    onNavigateBack: () -> Unit = {},
+    onNavigateToTrades: () -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -168,8 +169,7 @@ fun WalletScreen(
                     availableBalance = state.wallet.availableBalance,
                     escrowBalance = state.wallet.escrowBalance,
                     totalBalance = state.totalBalance,
-                    onSimulateHold = { viewModel.onEvent(WalletUiEvent.RequestEscrowHold(100.0, "trade-demo-100")) },
-                    onSimulateRelease = { viewModel.onEvent(WalletUiEvent.RequestEscrowRelease(50.0, "wallet-vendor-b", "trade-demo-100")) }
+                    onNavigateToTrades = onNavigateToTrades
                 )
             }
 
@@ -265,8 +265,7 @@ fun WalletBalancesCard(
     availableBalance: Double,
     escrowBalance: Double,
     totalBalance: Double,
-    onSimulateHold: () -> Unit,
-    onSimulateRelease: () -> Unit
+    onNavigateToTrades: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -319,7 +318,7 @@ fun WalletBalancesCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 // Disponible
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(shape = CircleShape, color = PaletteConfig.PrimaryDefault, modifier = Modifier.size(10.dp)) {}
                         Spacer(modifier = Modifier.width(6.dp))
@@ -329,15 +328,22 @@ fun WalletBalancesCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "\$${availableBalance.toInt()} TC",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = PaletteConfig.PrimaryDefault
                     )
+                    Text(
+                        text = "Listo para ofrecer en trueques",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.outline
+                    )
                 }
 
                 // En Custodia Escrow
-                Column(horizontalAlignment = Alignment.End) {
+                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(shape = CircleShape, color = PaletteConfig.SecondaryDefault, modifier = Modifier.size(10.dp)) {}
                         Spacer(modifier = Modifier.width(6.dp))
@@ -347,38 +353,55 @@ fun WalletBalancesCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "\$${escrowBalance.toInt()} TC",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = PaletteConfig.SecondaryDefault
+                    )
+                    Text(
+                        text = "Retenido en intercambios",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.outline
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Botones de Operación de Escrow
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // Información Educativa de Custodia Escrow (RN-04 / RN-05)
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                OutlinedButton(
-                    onClick = onSimulateHold,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Retener 100", fontSize = 12.sp)
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(
+                        text = "¿Cómo funciona la Custodia Escrow (RN-04/05)?",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Las TruequeCoins (TC) sirven para compensar diferencias de valor en intercambios. Al acordar un trueque con diferencia, las monedas se retienen en garantía segura (Escrow) y se liberan a la contraparte solo cuando ambos validan la entrega en un Punto Seguro mediante código QR o PIN.",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
-                Button(
-                    onClick = onSimulateRelease,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = PaletteConfig.PrimaryDefault)
-                ) {
-                    Icon(Icons.Default.LockOpen, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Liberar 50", fontSize = 12.sp)
-                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Button(
+                onClick = onNavigateToTrades,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = PaletteConfig.PrimaryDefault)
+            ) {
+                Icon(Icons.Default.SwapHoriz, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Ver Mis Trueques con Garantía")
             }
         }
     }

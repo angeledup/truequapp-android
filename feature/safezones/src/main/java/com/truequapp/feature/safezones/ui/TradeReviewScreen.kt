@@ -31,6 +31,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -44,14 +45,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.truequapp.core.designsystem.component.TruequappPrimaryButton
 import com.truequapp.core.designsystem.theme.TruequappTheme
+import com.truequapp.feature.safezones.mvi.SafeZoneUiEffect
 import com.truequapp.feature.safezones.mvi.SafeZoneUiEvent
 import com.truequapp.feature.safezones.mvi.SafeZoneUiState
+import kotlinx.coroutines.flow.Flow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TradeReviewScreen(
     tradeId: String,
     state: SafeZoneUiState,
+    effectFlow: Flow<SafeZoneUiEffect>? = null,
     onEvent: (SafeZoneUiEvent) -> Unit,
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier
@@ -60,6 +64,14 @@ fun TradeReviewScreen(
     var wasPunctual by remember { mutableStateOf(true) }
     var matchedPhotos by remember { mutableStateOf(true) }
     var comment by remember { mutableStateOf("") }
+
+    LaunchedEffect(effectFlow) {
+        effectFlow?.collect { effect ->
+            if (effect is SafeZoneUiEffect.NavigateBack) {
+                onNavigateBack()
+            }
+        }
+    }
 
     Scaffold(
         topBar = {

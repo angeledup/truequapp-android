@@ -82,9 +82,35 @@ class SafeZoneViewModel @Inject constructor(
                 closingHour = 22,
                 hasVideoSurveillance = true,
                 isCampusUniversityPartner = true
+            ),
+            SafeZonePoint(
+                id = "sz_uv_rectoria",
+                name = "Punto Seguro UV Rectoría - Xalapa",
+                addressDescription = "Zona Universitaria UV, Edificio A de Rectoría, vigilancia 24/7",
+                coordinates = GeoCoordinates(19.5167, -96.9167),
+                openingHour = 8,
+                closingHour = 20,
+                hasVideoSurveillance = true,
+                isCampusUniversityPartner = true
+            ),
+            SafeZonePoint(
+                id = "sz_uv_mocambo",
+                name = "Punto Seguro UV Campus Mocambo - Veracruz",
+                addressDescription = "Acceso USBI Campus Mocambo, Boca del Río, cámaras y vigilancia",
+                coordinates = GeoCoordinates(19.1417, -96.1158),
+                openingHour = 8,
+                closingHour = 20,
+                hasVideoSurveillance = true,
+                isCampusUniversityPartner = true
             )
         )
         inMemorySafeZones.addAll(zones)
+        setState {
+            copy(
+                safeZones = inMemorySafeZones,
+                selectedSafeZone = inMemorySafeZones.firstOrNull()
+            )
+        }
     }
 
     override fun onEvent(event: SafeZoneUiEvent) {
