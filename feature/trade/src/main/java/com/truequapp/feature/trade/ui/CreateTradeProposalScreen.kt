@@ -51,6 +51,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.truequapp.core.designsystem.component.ConditionTag
@@ -86,6 +87,10 @@ fun CreateTradeProposalScreen(
             }
         }
     }
+
+    val isSelfTrade = state.targetItem != null &&
+        state.currentUserId.isNotBlank() &&
+        state.targetItem.ownerId == state.currentUserId
 
     Scaffold(
         topBar = {
@@ -143,96 +148,138 @@ fun CreateTradeProposalScreen(
                 }
             }
 
-            // Sección 2: Selección de tus artículos (Opción A: Al menos 1)
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Ofrece de tu Catálogo",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "${state.selectedOfferedItemIds.size} seleccionados",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (state.hasMinimumItemsSelected) TruequappTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-                    )
-                }
-                if (!state.hasMinimumItemsSelected) {
-                    Text(
-                        text = "Obligatorio (Opción A): Debes seleccionar al menos un artículo propio.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
-            }
-
-            if (state.availableUserItems.isEmpty()) {
+            if (isSelfTrade) {
+                // Validación Anti-Auto-Trueque: 2 partes obligatorias
                 item {
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                        shape = RoundedCornerShape(16.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            text = "No tienes artículos disponibles en tu catálogo para ofrecer. Publica un artículo primero.",
-                            modifier = Modifier.padding(16.dp),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+                        Column(
+                            modifier = Modifier.padding(20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "Publicación Propia (Intercambio Inválido)",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Esta publicación te pertenece. En un trueque debe haber 2 partes distintas: una tú, y la otra un usuario interesado diferente. No puedes ser ambas partes a la vez ni intercambiar contigo mismo.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            TruequappPrimaryButton(
+                                text = "Regresar al Catálogo",
+                                onClick = onNavigateBack
+                            )
+                        }
                     }
                 }
             } else {
-                items(state.availableUserItems, key = { it.id }) { userItem ->
-                    SelectableItemRow(
-                        item = userItem,
-                        isSelected = state.selectedOfferedItemIds.contains(userItem.id),
-                        onToggle = { onEvent(TradeUiEvent.ToggleOfferedItemSelection(userItem.id)) }
+                // Sección 2: Selección de tus artículos (Opción A: Al menos 1)
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Ofrece de tu Catálogo",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "${state.selectedOfferedItemIds.size} seleccionados",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (state.hasMinimumItemsSelected) TruequappTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                        )
+                    }
+                    if (!state.hasMinimumItemsSelected) {
+                        Text(
+                            text = "Obligatorio (Opción A): Debes seleccionar al menos un artículo propio.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                }
+
+                if (state.availableUserItems.isEmpty()) {
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "No tienes artículos disponibles en tu catálogo para ofrecer. Publica un artículo primero.",
+                                modifier = Modifier.padding(16.dp),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                } else {
+                    items(state.availableUserItems, key = { it.id }) { userItem ->
+                        SelectableItemRow(
+                            item = userItem,
+                            isSelected = state.selectedOfferedItemIds.contains(userItem.id),
+                            onToggle = { onEvent(TradeUiEvent.ToggleOfferedItemSelection(userItem.id)) }
+                        )
+                    }
+                }
+
+                // Sección 3: Compensación en TruequeCoins opcional
+                item {
+                    Text(
+                        text = "Diferencial en TruequeCoins (Opcional)",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = state.truequeCoinsInput,
+                        onValueChange = { onEvent(TradeUiEvent.OnTruequeCoinsChanged(it)) },
+                        label = { Text("Monto de TruequeCoins") },
+                        supportingText = {
+                            Text("Saldo disponible: ${String.format("%.0f", state.truequeCoins)} TC")
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
                     )
                 }
-            }
 
-            // Sección 3: Compensación en TruequeCoins opcional
-            item {
-                Text(
-                    text = "Diferencial en TruequeCoins (Opcional)",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = state.truequeCoinsInput,
-                    onValueChange = { onEvent(TradeUiEvent.OnTruequeCoinsChanged(it)) },
-                    label = { Text("Monto de TruequeCoins") },
-                    supportingText = {
-                        Text("Saldo disponible: ${String.format("%.0f", state.truequeCoins)} TC")
-                    },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-            }
+                // Sección 4: Validador en tiempo real de la Regla RN-02 (Banda de Equivalencia del 40%)
+                item {
+                    EquivalenceRatioBadge(
+                        ratio = state.calculatedRatio,
+                        isValid = state.isRatioValid,
+                        hasMinimumItems = state.hasMinimumItemsSelected
+                    )
+                }
 
-            // Sección 4: Validador en tiempo real de la Regla RN-02 (Banda de Equivalencia del 40%)
-            item {
-                EquivalenceRatioBadge(
-                    ratio = state.calculatedRatio,
-                    isValid = state.isRatioValid,
-                    hasMinimumItems = state.hasMinimumItemsSelected
-                )
-            }
-
-            // Sección 5: Botón de envío
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-                TruequappPrimaryButton(
-                    text = if (state.isSubmitting) "Enviando..." else "Enviar Propuesta Formal",
-                    onClick = { onEvent(TradeUiEvent.SubmitProposal) },
-                    enabled = state.canSubmitProposal && !state.isSubmitting
-                )
-                Spacer(modifier = Modifier.height(24.dp))
+                // Sección 5: Botón de envío
+                item {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TruequappPrimaryButton(
+                        text = if (state.isSubmitting) "Enviando..." else "Enviar Propuesta Formal",
+                        onClick = { onEvent(TradeUiEvent.SubmitProposal) },
+                        enabled = state.canSubmitProposal && !state.isSubmitting
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
             }
         }
     }

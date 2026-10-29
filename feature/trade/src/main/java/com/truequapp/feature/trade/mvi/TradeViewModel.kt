@@ -17,6 +17,10 @@ import com.truequapp.core.domain.model.TradeModality
 import com.truequapp.core.domain.model.TradeProposal
 import com.truequapp.core.domain.model.TradeStatus
 import com.truequapp.core.domain.model.UserProfile
+import com.truequapp.core.database.dao.TradeItemDao
+import com.truequapp.core.database.dao.TradeProposalDao
+import com.truequapp.core.database.mapper.toDomainModel
+import com.truequapp.core.database.mapper.toEntity
 import com.truequapp.core.domain.rules.BusinessRuleException
 import com.truequapp.core.domain.rules.EvaluateCancellationWindowUseCase
 import com.truequapp.core.domain.rules.LockInventoryForTradeUseCase
@@ -24,14 +28,12 @@ import com.truequapp.core.domain.rules.ValidateTradeValueUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
  * ViewModel que orquesta el Motor de Propuestas de Trueque de la Fase 2 (CU009, CU010, CU011, CU012).
- * Aplica con rigor las reglas de negocio canónicas:
- * - RN-01: Exclusividad y bloqueo atómico ACID de inventario.
- * - RN-02: Umbral mínimo de valor del 40% (Banda de equivalencia).
- * - RN-07: Ventana de cancelación y penalización de asistencia ante imprevistos (< 4h).
+ * Aplica con rigor las reglas de negocio canónicas y persiste las propuestas en SQLite Room.
  */
 @HiltViewModel
 class TradeViewModel @Inject constructor(
@@ -39,6 +41,8 @@ class TradeViewModel @Inject constructor(
     private val lockInventoryForTradeUseCase: LockInventoryForTradeUseCase = LockInventoryForTradeUseCase(),
     private val evaluateCancellationWindowUseCase: EvaluateCancellationWindowUseCase = EvaluateCancellationWindowUseCase(),
     private val userSessionDataStore: UserSessionDataStore,
+    private val tradeItemDao: TradeItemDao? = null,
+    private val tradeProposalDao: TradeProposalDao? = null,
     private val dispatchers: DispatcherProvider
 ) : BaseViewModel<TradeUiState, TradeUiEvent, TradeUiEffect>(TradeUiState()) {
 
@@ -129,31 +133,51 @@ class TradeViewModel @Inject constructor(
 
     private fun loadSessionUser() {
         viewModelScope.launch(dispatchers.io) {
-            val session = userSessionDataStore.sessionFlow.first()
-            val userId = session.userId ?: "usr_current"
-            val kyc = if (session.isKycVerified) KycLevel.TELEFONO_SMS_NIVEL_1 else KycLevel.BASICO_NIVEL_0
-            val userProfile = UserProfile(
-                id = userId,
-                fullName = "Usuario Truequapp",
-                username = "truequero_${userId.takeLast(4)}",
-                email = session.userEmail ?: "user_${userId}@truequapp.com",
-                phoneNumber = "+525500000000",
-                kycLevel = kyc,
-                attendanceRate = 1.0,
-                location = ObfuscatedGeoLocation(
-                    neighborhoodName = "Zona Universitaria",
-                    approximateCoordinates = GeoCoordinates(19.4326, -99.1332)
+            userSessionDataStore.sessionFlow.collect { session ->
+                val userId = session.userId ?: "usr_current"
+                val kyc = if (session.isKycVerified) KycLevel.TELEFONO_SMS_NIVEL_1 else KycLevel.BASICO_NIVEL_0
+                val userProfile = UserProfile(
+                    id = userId,
+                    fullName = session.userName ?: "Usuario Truequapp",
+                    username = "truequero_${userId.takeLast(4)}",
+                    email = session.userEmail ?: "user_${userId}@truequapp.com",
+                    phoneNumber = "+525500000000",
+                    kycLevel = kyc,
+                    attendanceRate = 1.0,
+                    location = ObfuscatedGeoLocation(
+                        neighborhoodName = "Centro, Coatzacoalcos",
+                        approximateCoordinates = GeoCoordinates(18.1486, -94.4208)
+                    )
                 )
-            )
 
-            setState {
-                copy(
-                    currentUserId = userId,
-                    truequeCoins = 100.0,
-                    currentUserProfile = userProfile
-                )
+                setState {
+                    copy(
+                        currentUserId = userId,
+                        truequeCoins = session.truequeCoins,
+                        currentUserProfile = userProfile
+                    )
+                }
+                syncDataFromDatabase(userId)
             }
         }
+    }
+
+    private suspend fun syncDataFromDatabase(userId: String) {
+        // Cargar ítems de SQLite Room para que los artículos publicados por el usuario aparezcan disponibles
+        val dbItems = tradeItemDao?.getAllItemsSync().orEmpty()
+        if (dbItems.isNotEmpty()) {
+            inMemoryItems.clear()
+            inMemoryItems.addAll(dbItems.map { it.toDomainModel() })
+        }
+
+        // Cargar propuestas desde SQLite Room
+        val dbProposals = tradeProposalDao?.getAllProposalsSync().orEmpty()
+        if (dbProposals.isNotEmpty()) {
+            inMemoryProposals.clear()
+            inMemoryProposals.addAll(dbProposals.map { it.toDomainModel() })
+        }
+
+        loadProposals(userId)
     }
 
     override fun onEvent(event: TradeUiEvent) {
@@ -183,13 +207,51 @@ class TradeViewModel @Inject constructor(
 
     // CU009: Proponer Trueque Directo o Híbrido
     private fun initTradeCreation(targetItemId: String, userId: String) {
-        val target = inMemoryItems.find { it.id == targetItemId }
-        val userItems = inMemoryItems.filter { it.ownerId == userId && it.status == ItemStatus.DISPONIBLE }
+        val effectiveUserId = when {
+            userId.isNotBlank() -> userId
+            currentState.currentUserId.isNotBlank() -> currentState.currentUserId
+            else -> "usr_current"
+        }
+
+        // 1. Buscar objetivo en memoria
+        var target = inMemoryItems.find { it.id == targetItemId }
+
+        // 2. Anti-auto-trueque: 2 partes obligatorias (no puedes intercambiar contigo mismo)
+        if (target != null && target.ownerId == effectiveUserId) {
+            setState {
+                copy(
+                    targetItem = target,
+                    currentUserId = effectiveUserId,
+                    availableUserItems = emptyList(),
+                    selectedOfferedItemIds = emptySet(),
+                    canSubmitProposal = false,
+                    errorMessage = "Esta publicación es tuya. No puedes realizar un trueque contigo mismo."
+                )
+            }
+            return
+        }
+
+        // 3. Artículos disponibles del usuario
+        var userItems = inMemoryItems.filter {
+            it.ownerId == effectiveUserId && it.status == ItemStatus.DISPONIBLE && it.id != targetItemId
+        }
+
+        // Si el usuario no tiene ítems propios registrados aún, asociar ítems de inventario base al usuario activo
+        if (userItems.isEmpty() && (effectiveUserId == "usr_current" || effectiveUserId.startsWith("usr_demo"))) {
+            inMemoryItems.forEachIndexed { idx, itm ->
+                if (itm.id in listOf("item_user_01", "item_user_02")) {
+                    inMemoryItems[idx] = itm.copy(ownerId = effectiveUserId)
+                }
+            }
+            userItems = inMemoryItems.filter {
+                it.ownerId == effectiveUserId && it.status == ItemStatus.DISPONIBLE && it.id != targetItemId
+            }
+        }
 
         setState {
             copy(
                 targetItem = target,
-                currentUserId = userId,
+                currentUserId = effectiveUserId,
                 availableUserItems = userItems,
                 selectedOfferedItemIds = emptySet(),
                 truequeCoinsInput = "0",
@@ -199,6 +261,52 @@ class TradeViewModel @Inject constructor(
                 canSubmitProposal = false,
                 errorMessage = null
             )
+        }
+
+        // 4. Sincronizar en segundo plano si el artículo o nuevos ítems provienen de SQLite Room
+        if (tradeItemDao != null) {
+            viewModelScope.launch(dispatchers.io) {
+                if (target == null) {
+                    val dbTarget = tradeItemDao.getItemByIdSync(targetItemId)?.toDomainModel()
+                    if (dbTarget != null) {
+                        target = dbTarget
+                        if (inMemoryItems.none { it.id == dbTarget.id }) inMemoryItems.add(dbTarget)
+                        if (dbTarget.ownerId == effectiveUserId) {
+                            withContext(dispatchers.main) {
+                                setState {
+                                    copy(
+                                        targetItem = dbTarget,
+                                        availableUserItems = emptyList(),
+                                        canSubmitProposal = false,
+                                        errorMessage = "Esta publicación es tuya. No puedes realizar un trueque contigo mismo."
+                                    )
+                                }
+                            }
+                            return@launch
+                        }
+                    }
+                }
+
+                val dbItems = tradeItemDao.getAllItemsSync()
+                if (dbItems.isNotEmpty()) {
+                    val mapped = dbItems.map { it.toDomainModel() }
+                    mapped.forEach { m ->
+                        val idx = inMemoryItems.indexOfFirst { it.id == m.id }
+                        if (idx >= 0) inMemoryItems[idx] = m else inMemoryItems.add(m)
+                    }
+                    val updatedUserItems = inMemoryItems.filter {
+                        it.ownerId == effectiveUserId && it.status == ItemStatus.DISPONIBLE && it.id != targetItemId
+                    }
+                    withContext(dispatchers.main) {
+                        setState {
+                            copy(
+                                targetItem = target ?: targetItem,
+                                availableUserItems = updatedUserItems
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -260,6 +368,11 @@ class TradeViewModel @Inject constructor(
             return
         }
 
+        if (target.ownerId == currentState.currentUserId) {
+            setState { copy(errorMessage = "Operación denegada: Un trueque requiere 2 partes distintas. No puedes ofertar por tu propio producto.") }
+            return
+        }
+
         if (!currentState.hasMinimumItemsSelected) {
             setState { copy(errorMessage = "Debes seleccionar al menos un artículo de tu catálogo (Opción A).") }
             return
@@ -300,6 +413,11 @@ class TradeViewModel @Inject constructor(
             )
 
             inMemoryProposals.add(newProposal)
+
+            // Persistir la propuesta en SQLite Room
+            viewModelScope.launch(dispatchers.io) {
+                tradeProposalDao?.insertProposal(newProposal.toEntity())
+            }
 
             sendEffect(TradeUiEffect.ShowToast("¡Propuesta enviada exitosamente!"))
             // Opción A: Redirección inmediata a la pantalla de negociación
@@ -358,10 +476,10 @@ class TradeViewModel @Inject constructor(
                 id = "meeting_${proposal.id}",
                 tradeId = proposal.id,
                 safeZone = SafeZonePoint(
-                    id = "sz_01",
-                    name = "Punto Seguro Estación Central",
-                    addressDescription = "Módulo de vigilancia y videocámaras 24/7",
-                    coordinates = GeoCoordinates(19.4326, -99.1332)
+                    id = "sz_coatza_forum",
+                    name = "Punto Seguro Plaza Forum Coatzacoalcos",
+                    addressDescription = "Av. Universidad Veracruzana 2601, domo central frente a vigilancia 24/7",
+                    coordinates = GeoCoordinates(18.1415, -94.4852)
                 ),
                 scheduledTimeEpochMs = System.currentTimeMillis() + (2 * 60 * 60 * 1000L) // Cita en 2 horas (para prueba de RN-07)
             )
@@ -412,6 +530,17 @@ class TradeViewModel @Inject constructor(
                 val itemIndex = inMemoryItems.indexOfFirst { it.id == lockedItem.id }
                 if (itemIndex != -1) {
                     inMemoryItems[itemIndex] = lockedItem
+                }
+            }
+
+            // Persistir aceptación y bloqueo en SQLite Room
+            viewModelScope.launch(dispatchers.io) {
+                tradeProposalDao?.updateProposal(lockResult.acceptedProposal.toEntity())
+                lockResult.affectedPendingProposalsToCancelOrPause.forEach { conflicting ->
+                    tradeProposalDao?.updateProposal(conflicting.toEntity())
+                }
+                lockResult.lockedItems.forEach { lockedItem ->
+                    tradeItemDao?.updateItem(lockedItem.toEntity())
                 }
             }
 
@@ -468,6 +597,11 @@ class TradeViewModel @Inject constructor(
                 inMemoryProposals[index] = updatedProposal
             }
 
+            // Persistir contraoferta en SQLite Room
+            viewModelScope.launch(dispatchers.io) {
+                tradeProposalDao?.updateProposal(updatedProposal.toEntity())
+            }
+
             setState {
                 copy(
                     currentProposal = updatedProposal,
@@ -492,6 +626,9 @@ class TradeViewModel @Inject constructor(
         if (index != -1) {
             val rejected = inMemoryProposals[index].copy(status = TradeStatus.RECHAZADO)
             inMemoryProposals[index] = rejected
+            viewModelScope.launch(dispatchers.io) {
+                tradeProposalDao?.updateProposal(rejected.toEntity())
+            }
             setState { copy(currentProposal = rejected) }
             sendEffect(TradeUiEffect.ShowToast("Propuesta rechazada formalmente."))
             sendEffect(TradeUiEffect.NavigateBack)
@@ -557,6 +694,13 @@ class TradeViewModel @Inject constructor(
         val pIndex = inMemoryProposals.indexOfFirst { it.id == proposal.id }
         if (pIndex != -1) {
             inMemoryProposals[pIndex] = updatedProposal
+        }
+
+        viewModelScope.launch(dispatchers.io) {
+            tradeProposalDao?.updateProposal(updatedProposal.toEntity())
+            if (targetItem?.status == ItemStatus.RESERVADO) {
+                tradeItemDao?.updateItem(targetItem.copy(status = ItemStatus.DISPONIBLE).toEntity())
+            }
         }
 
         setState {

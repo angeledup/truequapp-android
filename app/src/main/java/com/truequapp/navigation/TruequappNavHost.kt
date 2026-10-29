@@ -1,15 +1,11 @@
 package com.truequapp.navigation
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.GppGood
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.SwapHoriz
@@ -22,10 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -45,12 +38,22 @@ import com.truequapp.feature.catalog.mvi.CatalogViewModel
 import com.truequapp.feature.catalog.ui.CatalogFeedScreen
 import com.truequapp.feature.catalog.ui.ItemPublishScreen
 import com.truequapp.feature.chat.mvi.ChatViewModel
+import com.truequapp.feature.chat.ui.ChatListScreen
 import com.truequapp.feature.chat.ui.ChatScreen
+import com.truequapp.feature.reports.ui.LiquidityDashboardScreen
+import com.truequapp.feature.safezones.mvi.SafeZoneViewModel
+import com.truequapp.feature.safezones.ui.AccountDeletionScreen
+import com.truequapp.feature.safezones.ui.DisputeReportScreen
+import com.truequapp.feature.safezones.ui.QrExchangeScreen
+import com.truequapp.feature.safezones.ui.SafeZoneSelectionScreen
+import com.truequapp.feature.safezones.ui.TradeReviewScreen
+import com.truequapp.feature.swipe.ui.SwipeScreen
 import com.truequapp.feature.trade.mvi.TradeUiEvent
 import com.truequapp.feature.trade.mvi.TradeViewModel
 import com.truequapp.feature.trade.ui.CreateTradeProposalScreen
 import com.truequapp.feature.trade.ui.TradeListScreen
 import com.truequapp.feature.trade.ui.TradeNegotiationScreen
+import com.truequapp.feature.wallet.ui.WalletScreen
 
 @Composable
 fun TruequappNavHost(
@@ -61,8 +64,9 @@ fun TruequappNavHost(
 
     val topLevelRoutes = listOf(
         Screen.Catalog.route,
+        Screen.Swipe.route,
         Screen.Trades.route,
-        Screen.SafeZones.route,
+        Screen.ChatList.route,
         Screen.Profile.route
     )
     val shouldShowBottomBar = currentRoute in topLevelRoutes
@@ -76,8 +80,9 @@ fun TruequappNavHost(
                 ) {
                     val items = listOf(
                         Triple(Screen.Catalog, Icons.Default.Home, "Catálogo"),
+                        Triple(Screen.Swipe, Icons.Default.AutoAwesome, "Swipe"),
                         Triple(Screen.Trades, Icons.Default.SwapHoriz, "Trueques"),
-                        Triple(Screen.SafeZones, Icons.Default.Place, "Zonas"),
+                        Triple(Screen.ChatList, Icons.AutoMirrored.Filled.Chat, "Chats"),
                         Triple(Screen.Profile, Icons.Default.AccountCircle, "Perfil")
                     )
 
@@ -85,7 +90,7 @@ fun TruequappNavHost(
                         val selected = currentRoute == screen.route
                         NavigationBarItem(
                             icon = { Icon(icon, contentDescription = label) },
-                            label = { Text(label, fontSize = 11.sp) },
+                            label = { Text(label, fontSize = 10.sp) },
                             selected = selected,
                             onClick = {
                                 if (currentRoute != screen.route) {
@@ -111,7 +116,7 @@ fun TruequappNavHost(
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = Screen.Catalog.route,
+            startDestination = Screen.Auth.route,
             modifier = Modifier.padding(innerPadding)
         ) {
             // Marketplace Feed (CU008)
@@ -128,6 +133,19 @@ fun TruequappNavHost(
                     },
                     onNavigateToPublish = {
                         navController.navigate(Screen.PublishItem.route)
+                    },
+                    onCoinsClick = {
+                        navController.navigate(Screen.Wallet.route)
+                    }
+                )
+            }
+
+            // Modo Exploración Swipe (CU017 / Fase 4)
+            composable(Screen.Swipe.route) {
+                SwipeScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToProposal = { targetItemId ->
+                        navController.navigate(Screen.CreateTrade.createRoute(targetItemId))
                     }
                 )
             }
@@ -154,7 +172,30 @@ fun TruequappNavHost(
                     onEvent = tradeViewModel::onEvent,
                     onSelectProposal = { proposalId ->
                         navController.navigate(Screen.TradeNegotiation.createRoute(proposalId))
+                    },
+                    onNavigateToChat = { proposalId ->
+                        navController.navigate(Screen.Chat.createRoute(proposalId))
                     }
+                )
+            }
+
+            // Bandeja de Chats Transaccionales entre Usuarios (CU018)
+            composable(Screen.ChatList.route) {
+                ChatListScreen(
+                    onNavigateToChat = { proposalId ->
+                        navController.navigate(Screen.Chat.createRoute(proposalId))
+                    },
+                    onNavigateToCatalog = {
+                        navController.navigate(Screen.Catalog.route)
+                    }
+                )
+            }
+
+            // Monedero Digital TruequeCoins y Custodia Escrow (CU013, CU014, CU015, CU016 / Fase 4)
+            composable(Screen.Wallet.route) {
+                WalletScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToTrades = { navController.navigate(Screen.Trades.route) }
                 )
             }
 
@@ -167,7 +208,7 @@ fun TruequappNavHost(
                 val tradeViewModel: TradeViewModel = hiltViewModel()
                 val tradeState by tradeViewModel.uiState.collectAsStateWithLifecycle()
 
-                LaunchedEffect(targetItemId) {
+                LaunchedEffect(targetItemId, tradeState.currentUserId) {
                     tradeViewModel.onEvent(TradeUiEvent.InitTradeCreation(targetItemId, tradeState.currentUserId))
                 }
 
@@ -201,6 +242,12 @@ fun TruequappNavHost(
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToChat = { pId ->
                         navController.navigate(Screen.Chat.createRoute(pId))
+                    },
+                    onNavigateToSafeZone = { _ ->
+                        navController.navigate(Screen.SafeZones.route)
+                    },
+                    onNavigateToQr = { tradeId ->
+                        navController.navigate(Screen.QrExchange.createRoute(tradeId))
                     }
                 )
             }
@@ -219,6 +266,107 @@ fun TruequappNavHost(
                     state = chatState,
                     effectFlow = chatViewModel.uiEffect,
                     onEvent = chatViewModel::onEvent,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToSafeZone = {
+                        navController.navigate(Screen.SafeZones.route)
+                    }
+                )
+            }
+
+            // Puntos Seguros Geoespaciales Google Maps (CU019 / Fase 3)
+            composable(Screen.SafeZones.route) {
+                val safeZoneViewModel: SafeZoneViewModel = hiltViewModel()
+                val safeZoneState by safeZoneViewModel.uiState.collectAsStateWithLifecycle()
+
+                SafeZoneSelectionScreen(
+                    tradeId = "trade-default-01",
+                    currentUserId = "usr-demo",
+                    counterpartUserId = "usr-counterpart",
+                    state = safeZoneState,
+                    effectFlow = safeZoneViewModel.uiEffect,
+                    onEvent = safeZoneViewModel::onEvent,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToQr = { tradeId ->
+                        navController.navigate(Screen.QrExchange.createRoute(tradeId))
+                    }
+                )
+            }
+
+            // Confirmación Presencial QR y OTP Fallback (CU020 / Fase 3)
+            composable(
+                route = Screen.QrExchange.route,
+                arguments = listOf(navArgument("tradeId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val tradeId = backStackEntry.arguments?.getString("tradeId").orEmpty()
+                val safeZoneViewModel: SafeZoneViewModel = hiltViewModel()
+                val safeZoneState by safeZoneViewModel.uiState.collectAsStateWithLifecycle()
+
+                QrExchangeScreen(
+                    tradeId = tradeId,
+                    state = safeZoneState,
+                    effectFlow = safeZoneViewModel.uiEffect,
+                    onEvent = safeZoneViewModel::onEvent,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToReview = { tId ->
+                        navController.navigate(Screen.TradeReview.createRoute(tId))
+                    },
+                    onNavigateToDispute = { tId ->
+                        navController.navigate(Screen.Dispute.createRoute(tId))
+                    }
+                )
+            }
+
+            // Calificación Doble Ciega Pública (CU020, RN-12 / Fase 3)
+            composable(
+                route = Screen.TradeReview.route,
+                arguments = listOf(navArgument("tradeId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val tradeId = backStackEntry.arguments?.getString("tradeId").orEmpty()
+                val safeZoneViewModel: SafeZoneViewModel = hiltViewModel()
+                val safeZoneState by safeZoneViewModel.uiState.collectAsStateWithLifecycle()
+
+                TradeReviewScreen(
+                    tradeId = tradeId,
+                    state = safeZoneState,
+                    effectFlow = safeZoneViewModel.uiEffect,
+                    onEvent = safeZoneViewModel::onEvent,
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
+            // Gestión de Disputas y Anti-Spoofing (CU022, RN-08 / Fase 3)
+            composable(
+                route = Screen.Dispute.route,
+                arguments = listOf(navArgument("tradeId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val tradeId = backStackEntry.arguments?.getString("tradeId").orEmpty()
+                val safeZoneViewModel: SafeZoneViewModel = hiltViewModel()
+                val safeZoneState by safeZoneViewModel.uiState.collectAsStateWithLifecycle()
+
+                DisputeReportScreen(
+                    tradeId = tradeId,
+                    state = safeZoneState,
+                    effectFlow = safeZoneViewModel.uiEffect,
+                    onEvent = safeZoneViewModel::onEvent,
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
+            // Baja de Cuenta y Supresión de Datos GDPR (CU002 / Fase 3)
+            composable(Screen.AccountDeletion.route) {
+                val safeZoneViewModel: SafeZoneViewModel = hiltViewModel()
+                val safeZoneState by safeZoneViewModel.uiState.collectAsStateWithLifecycle()
+
+                AccountDeletionScreen(
+                    state = safeZoneState,
+                    onEvent = safeZoneViewModel::onEvent,
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
+            // Panel de Liquidez & Exportación PDF (CU021 / Fase 5)
+            composable(Screen.Reports.route) {
+                LiquidityDashboardScreen(
                     onNavigateBack = { navController.popBackStack() }
                 )
             }
@@ -230,7 +378,16 @@ fun TruequappNavHost(
 
                 ProfileScreen(
                     state = authState,
-                    onEvent = authViewModel::onEvent
+                    onEvent = authViewModel::onEvent,
+                    onNavigateToWallet = { navController.navigate(Screen.Wallet.route) },
+                    onNavigateToSafeZones = { navController.navigate(Screen.SafeZones.route) },
+                    onNavigateToReports = { navController.navigate(Screen.Reports.route) },
+                    onNavigateToAccountDeletion = { navController.navigate(Screen.AccountDeletion.route) },
+                    onNavigateToAuth = {
+                        navController.navigate(Screen.Auth.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
                 )
             }
 
@@ -250,45 +407,6 @@ fun TruequappNavHost(
                     }
                 )
             }
-
-            // Safe Zones (Fase 3 Placeholder)
-            composable(Screen.SafeZones.route) {
-                PlaceholderSectionScreen(
-                    title = "Safe Zones Geoespaciales",
-                    subtitle = "Módulo de Puntos Seguros con geofencing (Fase 3)"
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun PlaceholderSectionScreen(title: String, subtitle: String) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                imageVector = Icons.Default.GppGood,
-                contentDescription = null,
-                tint = TruequappTheme.colors.primary,
-                modifier = Modifier.size(56.dp)
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = title,
-                style = TruequappTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = subtitle,
-                style = TruequappTheme.typography.bodyMedium,
-                color = TruequappTheme.colorScheme.onSurfaceVariant
-            )
         }
     }
 }

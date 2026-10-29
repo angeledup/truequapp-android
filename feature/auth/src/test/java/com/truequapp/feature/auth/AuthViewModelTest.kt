@@ -3,6 +3,8 @@ package com.truequapp.feature.auth
 import com.truequapp.core.common.dispatcher.DispatcherProvider
 import com.truequapp.core.datastore.UserSessionDataStore
 import com.truequapp.core.datastore.model.UserSession
+import com.truequapp.core.database.dao.UserDao
+import com.truequapp.core.database.entity.UserEntity
 import com.truequapp.core.domain.model.KycLevel
 import com.truequapp.feature.auth.mvi.AuthUiEffect
 import com.truequapp.feature.auth.mvi.AuthUiEvent
@@ -38,13 +40,47 @@ class FakeUserSessionDataStore : UserSessionDataStore {
         _session.update { it.copy(accessToken = accessToken, refreshToken = refreshToken) }
     }
 
-    override suspend fun saveUser(userId: String, email: String, isKycVerified: Boolean) {
-        _session.update { it.copy(userId = userId, userEmail = email, isKycVerified = isKycVerified) }
+    override suspend fun saveUser(
+        userId: String,
+        email: String,
+        isKycVerified: Boolean,
+        name: String,
+        photoUrl: String?,
+        authProvider: String
+    ) {
+        _session.update {
+            it.copy(
+                userId = userId,
+                userEmail = email,
+                isKycVerified = isKycVerified,
+                userName = name,
+                userPhotoUrl = photoUrl,
+                authProvider = authProvider
+            )
+        }
     }
 
     override suspend fun getAccessToken(): String? = _session.value.accessToken
     override suspend fun getRefreshToken(): String? = _session.value.refreshToken
     override suspend fun clearSession() { _session.value = UserSession() }
+}
+
+class FakeUserDao : UserDao {
+    val users = mutableMapOf<String, UserEntity>()
+
+    override fun getUserById(id: String): Flow<UserEntity?> = MutableStateFlow(users[id])
+    override suspend fun getUserByIdSync(id: String): UserEntity? = users[id]
+    override fun getUserByEmail(email: String): Flow<UserEntity?> = MutableStateFlow(users.values.find { it.email.equals(email, ignoreCase = true) })
+    override suspend fun getUserByEmailSync(email: String): UserEntity? = users.values.find { it.email.equals(email, ignoreCase = true) }
+    override suspend fun authenticate(email: String, passwordHash: String): UserEntity? = users.values.find { it.email == email && it.passwordHash == passwordHash }
+    override suspend fun insertUser(user: UserEntity) { users[user.id] = user }
+    override suspend fun updateUser(user: UserEntity) { users[user.id] = user }
+    override suspend fun updateTruequeCoins(userId: String, availableCoins: Double, escrowCoins: Double) {
+        users[userId]?.let { users[userId] = it.copy(truequeCoins = availableCoins, escrowCoins = escrowCoins) }
+    }
+    override suspend fun getTruequeCoins(userId: String): Double? = users[userId]?.truequeCoins
+    override fun getAllUsers(): Flow<List<UserEntity>> = MutableStateFlow(users.values.toList())
+    override suspend fun deleteUser(userId: String) { users.remove(userId) }
 }
 
 class TestDispatcherProvider(private val dispatcher: TestDispatcher) : DispatcherProvider {
@@ -59,6 +95,7 @@ class AuthViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
     private val fakeDataStore = FakeUserSessionDataStore()
+    private val fakeUserDao = FakeUserDao()
     private val testDispatcherProvider = TestDispatcherProvider(testDispatcher)
 
     private lateinit var viewModel: AuthViewModel
@@ -68,6 +105,7 @@ class AuthViewModelTest {
         Dispatchers.setMain(testDispatcher)
         viewModel = AuthViewModel(
             userSessionDataStore = fakeDataStore,
+            userDao = fakeUserDao,
             dispatchers = testDispatcherProvider
         )
     }
@@ -137,6 +175,19 @@ class AuthViewModelTest {
     @Test
     @DisplayName("CU023: Login con credenciales válidas inicia sesión y carga reputación bayesiana")
     fun shouldLoginSuccessfully_whenCredentialsAreValid() = runTest(testDispatcher) {
+        val user = UserEntity(
+            id = "usr_veterano",
+            email = "veterano@example.com",
+            name = "Veterano Truequapp",
+            passwordHash = "segura123",
+            authProvider = "EMAIL",
+            truequeCoins = 100.0,
+            isKycVerified = true,
+            city = "Coatzacoalcos",
+            obfuscatedNeighborhood = "Centro, Coatzacoalcos"
+        )
+        fakeUserDao.insertUser(user)
+
         viewModel.onEvent(AuthUiEvent.EmailChanged("veterano@example.com"))
         viewModel.onEvent(AuthUiEvent.PasswordChanged("segura123"))
 
@@ -155,6 +206,17 @@ class AuthViewModelTest {
     @Test
     @DisplayName("CU024: Logout limpia la sesión en DataStore y reinicia el estado a no logueado")
     fun shouldClearSession_whenLogoutIsTriggered() = runTest(testDispatcher) {
+        val user = UserEntity(
+            id = "usr_test",
+            email = "test@example.com",
+            name = "Usuario Test",
+            passwordHash = "123456",
+            authProvider = "EMAIL",
+            truequeCoins = 100.0,
+            isKycVerified = true
+        )
+        fakeUserDao.insertUser(user)
+
         // Primero loguear
         viewModel.onEvent(AuthUiEvent.EmailChanged("test@example.com"))
         viewModel.onEvent(AuthUiEvent.PasswordChanged("123456"))
@@ -167,6 +229,209 @@ class AuthViewModelTest {
 
         val state = viewModel.uiState.value
         assertFalse(state.isLoggedIn)
+        assertFalse(fakeDataStore.sessionFlow.first().isAuthenticated)
+    }
+
+    @Test
+    @DisplayName("Google Sign-In: Inicia sesión correctamente con cuenta de Google y persiste en SQLite Room")
+    fun shouldLoginSuccessfully_whenGoogleSignInSucceeds() = runTest(testDispatcher) {
+        viewModel.onEvent(
+            AuthUiEvent.SignInWithGoogleSuccess(
+                googleId = "goog_12345",
+                email = "estudiante.unam@gmail.com",
+                displayName = "Estudiante UNAM",
+                photoUrl = "https://lh3.googleusercontent.com/photo"
+            )
+        )
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.isLoggedIn)
+        assertEquals("GOOGLE", state.authProvider)
+        assertEquals("estudiante.unam@gmail.com", state.userEmail)
+        assertEquals("Estudiante UNAM", state.userName)
+        assertEquals("https://lh3.googleusercontent.com/photo", state.userPhotoUrl)
+        assertEquals(100.0, state.truequeCoins)
+        assertTrue(fakeDataStore.sessionFlow.first().isAuthenticated)
+
+        // Verificar que el usuario se guardó en Room DAO
+        val userInDb = fakeUserDao.getUserByIdSync("goog_12345")
+        assertNotNull(userInDb)
+        assertEquals("estudiante.unam@gmail.com", userInDb?.email)
+        assertEquals("Estudiante UNAM", userInDb?.name)
+        assertEquals("GOOGLE", userInDb?.authProvider)
+    }
+
+    @Test
+    @DisplayName("Google Sign-In: Re-acceso del mismo usuario actualiza datos sin generar duplicados")
+    fun shouldUpdateExistingUserWithoutDuplicates_whenGoogleUserLogsInAgain() = runTest(testDispatcher) {
+        // 1. Usuario previamente registrado en la BD con balance ganado de 250 TC
+        val initialUser = UserEntity(
+            id = "goog_99999",
+            email = "mariana.coatza@gmail.com",
+            name = "Mariana Original",
+            authProvider = "GOOGLE",
+            truequeCoins = 250.0,
+            city = "Coatzacoalcos",
+            obfuscatedNeighborhood = "Col. Petrolera, Coatzacoalcos"
+        )
+        fakeUserDao.insertUser(initialUser)
+
+        // 2. Acceso posterior del mismo usuario con nombre actualizado en Google y nueva foto
+        viewModel.onEvent(
+            AuthUiEvent.SignInWithGoogleSuccess(
+                googleId = "goog_99999",
+                email = "mariana.coatza@gmail.com",
+                displayName = "Mariana López Coatzacoalcos",
+                photoUrl = "https://lh3.googleusercontent.com/mariana_nueva"
+            )
+        )
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.isLoggedIn)
+        assertEquals("Mariana López Coatzacoalcos", state.userName)
+        assertEquals("mariana.coatza@gmail.com", state.userEmail)
+        assertEquals("https://lh3.googleusercontent.com/mariana_nueva", state.userPhotoUrl)
+        // El balance de TruequeCoins DEBE preservarse intacto (250 TC)
+        assertEquals(250.0, state.truequeCoins)
+
+        // Verificar que en la base de datos sigue existiendo un único registro (sin duplicados)
+        val usersInDb = fakeUserDao.users.values.filter { it.email == "mariana.coatza@gmail.com" }
+        assertEquals(1, usersInDb.size)
+        assertEquals("Mariana López Coatzacoalcos", usersInDb.first().name)
+        assertEquals(250.0, usersInDb.first().truequeCoins)
+    }
+
+    @Test
+    @DisplayName("Google Sign-In: Falla o cancelación no inventa datos ni simula login")
+    fun shouldNotAuthenticate_whenGoogleSignInFails() = runTest(testDispatcher) {
+        viewModel.onEvent(
+            AuthUiEvent.SignInWithGoogleFailure(
+                "Error 10 (DEVELOPER_ERROR): Falta registrar la huella SHA-1 en Google Cloud Console."
+            )
+        )
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isLoggedIn)
+        assertNotNull(state.errorMessage)
+        assertTrue(state.errorMessage!!.contains("Error 10"))
+        assertFalse(fakeDataStore.sessionFlow.first().isAuthenticated)
+    }
+
+    @Test
+    @DisplayName("Room SQLite: Login con usuario existente carga sus datos reales y no strings genéricos")
+    fun shouldLoadExistingUserFromDatabase_whenLoggingIn() = runTest(testDispatcher) {
+        val existingUser = UserEntity(
+            id = "usr_coatza_99",
+            email = "carlos.mendoza@coatza.com",
+            name = "Carlos Mendoza Coatzacoalcos",
+            passwordHash = "segura123",
+            phoneNumber = "+529211112233",
+            authProvider = "EMAIL",
+            truequeCoins = 150.0,
+            obfuscatedNeighborhood = "Col. Petrolera, Coatzacoalcos",
+            city = "Coatzacoalcos"
+        )
+        fakeUserDao.insertUser(existingUser)
+
+        viewModel.onEvent(AuthUiEvent.EmailChanged("carlos.mendoza@coatza.com"))
+        viewModel.onEvent(AuthUiEvent.PasswordChanged("segura123"))
+        viewModel.onEvent(AuthUiEvent.SubmitLogin)
+
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.isLoggedIn)
+        assertEquals("Carlos Mendoza Coatzacoalcos", state.userName)
+        assertEquals("carlos.mendoza@coatza.com", state.userEmail)
+        assertEquals("+529211112233", state.userPhone)
+        assertEquals(150.0, state.truequeCoins)
+        assertEquals("Col. Petrolera, Coatzacoalcos", state.userNeighborhood)
+    }
+
+    @Test
+    @DisplayName("Room SQLite: Editar perfil persiste cambios en la base de datos y actualiza UI")
+    fun shouldUpdateProfileInDatabaseAndState_whenSaveEditedProfile() = runTest(testDispatcher) {
+        val initialUser = UserEntity(
+            id = "usr_nuevo",
+            email = "usuario.nuevo@gmail.com",
+            name = "Nombre Inicial",
+            passwordHash = "pass12345",
+            authProvider = "EMAIL",
+            truequeCoins = 100.0,
+            city = "Coatzacoalcos"
+        )
+        fakeUserDao.insertUser(initialUser)
+
+        // Primero iniciar sesión con cuenta existente
+        viewModel.onEvent(AuthUiEvent.EmailChanged("usuario.nuevo@gmail.com"))
+        viewModel.onEvent(AuthUiEvent.PasswordChanged("pass12345"))
+        viewModel.onEvent(AuthUiEvent.SubmitLogin)
+        advanceUntilIdle()
+
+        // Abrir diálogo y modificar datos
+        viewModel.onEvent(AuthUiEvent.OpenEditProfileDialog)
+        viewModel.onEvent(AuthUiEvent.EditNameChanged("Angel Eduardo"))
+        viewModel.onEvent(AuthUiEvent.EditPhoneChanged("+529217654321"))
+        viewModel.onEvent(AuthUiEvent.EditNeighborhoodChanged("Puerto México, Coatzacoalcos"))
+        viewModel.onEvent(AuthUiEvent.SaveEditedProfile)
+
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals("Angel Eduardo", state.userName)
+        assertEquals("+529217654321", state.userPhone)
+        assertEquals("Puerto México, Coatzacoalcos", state.userNeighborhood)
+        assertFalse(state.isEditProfileDialogVisible)
+
+        // Verificar persistencia en Room DAO
+        val userInDb = fakeUserDao.getUserByEmailSync("usuario.nuevo@gmail.com")
+        assertNotNull(userInDb)
+        assertEquals("Angel Eduardo", userInDb?.name)
+        assertEquals("+529217654321", userInDb?.phoneNumber)
+        assertEquals("Puerto México, Coatzacoalcos", userInDb?.obfuscatedNeighborhood)
+    }
+
+    @Test
+    @DisplayName("Validación BD: Denegar acceso y mostrar mensaje cuando el correo no existe en la base de datos")
+    fun shouldDenyAccessAndShowError_whenEmailIsNotInDatabase() = runTest(testDispatcher) {
+        viewModel.onEvent(AuthUiEvent.EmailChanged("no.registrado@gmail.com"))
+        viewModel.onEvent(AuthUiEvent.PasswordChanged("clave123456"))
+        viewModel.onEvent(AuthUiEvent.SubmitLogin)
+
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isLoggedIn)
+        assertEquals("No hay una cuenta vinculada con el correo", state.errorMessage)
+        assertFalse(fakeDataStore.sessionFlow.first().isAuthenticated)
+    }
+
+    @Test
+    @DisplayName("Validación BD: Denegar acceso y mostrar 'Contraseña incorrecta' si la clave no coincide")
+    fun shouldDenyAccessAndShowError_whenPasswordIsIncorrect() = runTest(testDispatcher) {
+        val user = UserEntity(
+            id = "usr_valido",
+            email = "cuenta.existente@gmail.com",
+            name = "Usuario Registrado",
+            passwordHash = "contraseniaCorrecta",
+            authProvider = "EMAIL",
+            truequeCoins = 100.0,
+            city = "Coatzacoalcos"
+        )
+        fakeUserDao.insertUser(user)
+
+        viewModel.onEvent(AuthUiEvent.EmailChanged("cuenta.existente@gmail.com"))
+        viewModel.onEvent(AuthUiEvent.PasswordChanged("contraseniaEquivocada"))
+        viewModel.onEvent(AuthUiEvent.SubmitLogin)
+
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isLoggedIn)
+        assertEquals("Contraseña incorrecta", state.errorMessage)
         assertFalse(fakeDataStore.sessionFlow.first().isAuthenticated)
     }
 }

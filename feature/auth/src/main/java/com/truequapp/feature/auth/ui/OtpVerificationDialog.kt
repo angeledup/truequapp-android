@@ -104,6 +104,16 @@ fun OtpVerificationDialog(
                     shape = RoundedCornerShape(12.dp)
                 )
 
+                androidx.compose.material3.OutlinedButton(
+                    onClick = { onOtpChanged("123456") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 6.dp),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Usar código de prueba (123456)", style = MaterialTheme.typography.bodySmall)
+                }
+
                 if (!errorMessage.isNullOrBlank()) {
                     Text(
                         text = errorMessage,
