@@ -65,6 +65,9 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.Place
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
@@ -73,6 +76,7 @@ fun ChatScreen(
     effectFlow: Flow<ChatUiEffect>,
     onEvent: (ChatUiEvent) -> Unit,
     onNavigateBack: () -> Unit,
+    onNavigateToSafeZone: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
@@ -126,6 +130,13 @@ fun ChatScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onNavigateToSafeZone) {
+                        Icon(
+                            imageVector = Icons.Default.Place,
+                            contentDescription = "Punto Seguro / Mapa",
+                            tint = TruequappTheme.colorScheme.primary
+                        )
+                    }
                     IconButton(onClick = { showRn03InfoDialog = true }) {
                         Icon(
                             imageVector = Icons.Default.Info,
@@ -215,6 +226,47 @@ fun ChatScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                }
+
+                // Botón integrado para coordinar Punto Seguro en Mapa (CU019 dentro del chat)
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = TruequappTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 2.dp)
+                        .clickable { onNavigateToSafeZone() }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Place,
+                                contentDescription = null,
+                                tint = TruequappTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = "📍 Puntos Seguros Coatzacoalcos",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TruequappTheme.colorScheme.onPrimaryContainer
+                                )
+                                Text(
+                                    text = "Toca para abrir el mapa y elegir lugar de encuentro",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TruequappTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                )
+                            }
+                        }
                     }
                 }
 

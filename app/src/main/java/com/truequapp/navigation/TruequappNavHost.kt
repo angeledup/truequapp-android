@@ -2,6 +2,7 @@ package com.truequapp.navigation
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -37,6 +38,7 @@ import com.truequapp.feature.catalog.mvi.CatalogViewModel
 import com.truequapp.feature.catalog.ui.CatalogFeedScreen
 import com.truequapp.feature.catalog.ui.ItemPublishScreen
 import com.truequapp.feature.chat.mvi.ChatViewModel
+import com.truequapp.feature.chat.ui.ChatListScreen
 import com.truequapp.feature.chat.ui.ChatScreen
 import com.truequapp.feature.reports.ui.LiquidityDashboardScreen
 import com.truequapp.feature.safezones.mvi.SafeZoneViewModel
@@ -62,9 +64,9 @@ fun TruequappNavHost(
 
     val topLevelRoutes = listOf(
         Screen.Catalog.route,
-        Screen.SafeZones.route,
         Screen.Swipe.route,
         Screen.Trades.route,
+        Screen.ChatList.route,
         Screen.Profile.route
     )
     val shouldShowBottomBar = currentRoute in topLevelRoutes
@@ -78,9 +80,9 @@ fun TruequappNavHost(
                 ) {
                     val items = listOf(
                         Triple(Screen.Catalog, Icons.Default.Home, "Catálogo"),
-                        Triple(Screen.SafeZones, Icons.Default.Place, "Mapa"),
                         Triple(Screen.Swipe, Icons.Default.AutoAwesome, "Swipe"),
                         Triple(Screen.Trades, Icons.Default.SwapHoriz, "Trueques"),
+                        Triple(Screen.ChatList, Icons.AutoMirrored.Filled.Chat, "Chats"),
                         Triple(Screen.Profile, Icons.Default.AccountCircle, "Perfil")
                     )
 
@@ -170,6 +172,21 @@ fun TruequappNavHost(
                     onEvent = tradeViewModel::onEvent,
                     onSelectProposal = { proposalId ->
                         navController.navigate(Screen.TradeNegotiation.createRoute(proposalId))
+                    },
+                    onNavigateToChat = { proposalId ->
+                        navController.navigate(Screen.Chat.createRoute(proposalId))
+                    }
+                )
+            }
+
+            // Bandeja de Chats Transaccionales entre Usuarios (CU018)
+            composable(Screen.ChatList.route) {
+                ChatListScreen(
+                    onNavigateToChat = { proposalId ->
+                        navController.navigate(Screen.Chat.createRoute(proposalId))
+                    },
+                    onNavigateToCatalog = {
+                        navController.navigate(Screen.Catalog.route)
                     }
                 )
             }
@@ -249,7 +266,10 @@ fun TruequappNavHost(
                     state = chatState,
                     effectFlow = chatViewModel.uiEffect,
                     onEvent = chatViewModel::onEvent,
-                    onNavigateBack = { navController.popBackStack() }
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToSafeZone = {
+                        navController.navigate(Screen.SafeZones.route)
+                    }
                 )
             }
 

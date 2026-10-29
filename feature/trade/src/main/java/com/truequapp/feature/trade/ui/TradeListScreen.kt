@@ -45,16 +45,20 @@ import com.truequapp.core.domain.model.TradeStatus
 import com.truequapp.feature.trade.mvi.TradeUiEvent
 import com.truequapp.feature.trade.mvi.TradeUiState
 
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material3.IconButton
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TradeListScreen(
     state: TradeUiState,
     onEvent: (TradeUiEvent) -> Unit,
     onSelectProposal: (String) -> Unit,
+    onNavigateToChat: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Activas (${state.activeProposals.size})", "Ofertas (${state.receivedOffers.size})")
+    val tabs = listOf("Mis Propuestas (${state.activeProposals.size})", "Ofertas Recibidas (${state.receivedOffers.size})")
 
     LaunchedEffect(state.currentUserId) {
         if (state.currentUserId.isNotBlank()) {
@@ -127,7 +131,8 @@ fun TradeListScreen(
                             proposal = proposal,
                             currentUserId = state.currentUserId,
                             isOfferTab = selectedTab == 1,
-                            onClick = { onSelectProposal(proposal.id) }
+                            onClick = { onSelectProposal(proposal.id) },
+                            onChatClick = { onNavigateToChat(proposal.id) }
                         )
                     }
                 }
@@ -141,13 +146,16 @@ private fun ProposalCard(
     proposal: TradeProposal,
     currentUserId: String,
     isOfferTab: Boolean = false,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onChatClick: () -> Unit
 ) {
     val isProposer = proposal.requesterUserId == currentUserId
     val offerRoleLabel = when {
-        proposal.status == TradeStatus.CONTRAOFERTADA && isProposer -> "Contraoferta a tu propuesta inicial"
-        proposal.receiverUserId == currentUserId -> "Oferta recibida de otro usuario"
-        else -> "Propuesta enviada"
+        proposal.status == TradeStatus.CONTRAOFERTADA && isProposer -> "🔄 Contraoferta recibida de la contraparte"
+        proposal.status == TradeStatus.CONTRAOFERTADA && !isProposer -> "🔄 Tu contraoferta enviada"
+        proposal.receiverUserId == currentUserId -> "📥 Oferta recibida de otro usuario"
+        isProposer -> "📤 Tu propuesta enviada (Propia)"
+        else -> "Propuesta de intercambio"
     }
     val (statusText, statusColor) = when (proposal.status) {
         TradeStatus.PENDIENTE -> "Pendiente" to Color(0xFFE65100)
@@ -205,11 +213,20 @@ private fun ProposalCard(
                     )
                 }
             }
-            Icon(
-                Icons.AutoMirrored.Filled.ArrowForward,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onChatClick) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.Chat,
+                        contentDescription = "Abrir Chat",
+                        tint = TruequappTheme.colorScheme.primary
+                    )
+                }
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }

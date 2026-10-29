@@ -3,6 +3,9 @@ package com.truequapp.feature.chat.mvi
 import androidx.lifecycle.viewModelScope
 import com.truequapp.core.common.dispatcher.DispatcherProvider
 import com.truequapp.core.common.mvi.BaseViewModel
+import com.truequapp.core.database.dao.TradeProposalDao
+import com.truequapp.core.database.dao.UserDao
+import com.truequapp.core.database.mapper.toDomainModel
 import com.truequapp.core.datastore.UserSessionDataStore
 import com.truequapp.core.domain.model.TradeModality
 import com.truequapp.core.domain.model.TradeProposal
@@ -26,6 +29,8 @@ class ChatViewModel @Inject constructor(
     private val validateDirectChatAccessUseCase: ValidateDirectChatAccessUseCase = ValidateDirectChatAccessUseCase(),
     private val socketManager: SocketManager,
     private val userSessionDataStore: UserSessionDataStore,
+    private val tradeProposalDao: TradeProposalDao? = null,
+    private val userDao: UserDao? = null,
     private val dispatchers: DispatcherProvider
 ) : BaseViewModel<ChatUiState, ChatUiEvent, ChatUiEffect>(ChatUiState()) {
 
@@ -105,61 +110,68 @@ class ChatViewModel @Inject constructor(
     }
 
     private fun initChat(proposalId: String, currentUserId: String) {
-        val proposal = inMemoryProposals.find { it.id == proposalId }
+        viewModelScope.launch(dispatchers.io) {
+            val session = userSessionDataStore.sessionFlow.first()
+            val effectiveUserId = if (currentUserId.isNotBlank()) currentUserId else (session.userId ?: "usr_current")
 
-        try {
-            // Regla RN-03: Validación canónica de acceso al chat
-            val permission = validateDirectChatAccessUseCase(
-                userId = currentUserId,
-                activeProposal = proposal
-            )
+            val proposalFromDb = tradeProposalDao?.getProposalByIdSync(proposalId)?.toDomainModel()
+            val proposal = proposalFromDb ?: inMemoryProposals.find { it.id == proposalId }
 
-            val isReadOnly = permission == ChatAccessPermission.SOLO_LECTURA_HISTORIAL
-            val otherUserId = if (proposal?.requesterUserId == currentUserId) proposal.receiverUserId else proposal?.requesterUserId.orEmpty()
-            val otherUserName = if (otherUserId == "usr_alpha") "GamerAlpha" else "ColegaTruequero"
-
-            val initialMessages = listOf(
-                ChatMessageItem(
-                    id = "msg_seed_01",
-                    proposalId = proposalId,
-                    senderId = otherUserId,
-                    senderName = otherUserName,
-                    content = "¡Hola! Vi tu oferta de trueque. ¿Te parece si coordinamos?",
-                    timestampEpochMs = System.currentTimeMillis() - 120000,
-                    isDelivered = true,
-                    isRead = true,
-                    isFromMe = false
+            try {
+                // Regla RN-03: Validación canónica de acceso al chat
+                val permission = validateDirectChatAccessUseCase(
+                    userId = effectiveUserId,
+                    activeProposal = proposal
                 )
-            )
 
-            setState {
-                copy(
-                    proposalId = proposalId,
-                    currentUserId = currentUserId,
-                    otherUserId = otherUserId,
-                    otherUserName = otherUserName,
-                    permission = permission,
-                    isReadOnly = isReadOnly,
-                    isAccessDenied = false,
-                    messages = initialMessages,
-                    errorMessage = null
+                val isReadOnly = permission == ChatAccessPermission.SOLO_LECTURA_HISTORIAL
+                val otherUserId = if (proposal?.requesterUserId == effectiveUserId) proposal.receiverUserId else proposal?.requesterUserId.orEmpty()
+                val otherUserEntity = if (otherUserId.isNotBlank()) userDao?.getUserByIdSync(otherUserId) else null
+                val otherUserName = otherUserEntity?.name ?: if (otherUserId == "usr_alpha") "Carlos R. - Petrolera" else "Colega Truequero"
+
+                val initialMessages = listOf(
+                    ChatMessageItem(
+                        id = "msg_seed_01",
+                        proposalId = proposalId,
+                        senderId = otherUserId,
+                        senderName = otherUserName,
+                        content = "¡Hola! Vi tu oferta de trueque. ¿Te parece si coordinamos?",
+                        timestampEpochMs = System.currentTimeMillis() - 120000,
+                        isDelivered = true,
+                        isRead = true,
+                        isFromMe = false
+                    )
                 )
+
+                setState {
+                    copy(
+                        proposalId = proposalId,
+                        currentUserId = effectiveUserId,
+                        otherUserId = otherUserId,
+                        otherUserName = otherUserName,
+                        permission = permission,
+                        isReadOnly = isReadOnly,
+                        isAccessDenied = false,
+                        messages = initialMessages,
+                        errorMessage = null
+                    )
+                }
+
+                // Unirse a sala de chat si no está denegado
+                socketManager.joinRoom("trade_chat_$proposalId")
+                listenToChatEvents(proposalId)
+
+            } catch (e: BusinessRuleException.UnauthorizedChatAccessException) {
+                setState {
+                    copy(
+                        proposalId = proposalId,
+                        currentUserId = effectiveUserId,
+                        isAccessDenied = true,
+                        errorMessage = e.message ?: "Acceso restringido por la regla RN-03."
+                    )
+                }
+                sendEffect(ChatUiEffect.ShowToast("RN-03: No tienes autorización para acceder a este chat."))
             }
-
-            // Unirse a sala de chat si no está denegado
-            socketManager.joinRoom("trade_chat_$proposalId")
-            listenToChatEvents(proposalId)
-
-        } catch (e: BusinessRuleException.UnauthorizedChatAccessException) {
-            setState {
-                copy(
-                    proposalId = proposalId,
-                    currentUserId = currentUserId,
-                    isAccessDenied = true,
-                    errorMessage = e.message ?: "Acceso restringido por la regla RN-03."
-                )
-            }
-            sendEffect(ChatUiEffect.ShowToast("RN-03: No tienes autorización para acceder a este chat."))
         }
     }
 

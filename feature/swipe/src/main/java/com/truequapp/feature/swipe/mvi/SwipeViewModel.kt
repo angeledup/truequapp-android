@@ -3,10 +3,15 @@ package com.truequapp.feature.swipe.mvi
 import androidx.lifecycle.viewModelScope
 import com.truequapp.core.common.dispatcher.DispatcherProvider
 import com.truequapp.core.common.mvi.BaseViewModel
+import com.truequapp.core.database.dao.TradeItemDao
+import com.truequapp.core.database.mapper.toDomainModel
+import com.truequapp.core.datastore.UserSessionDataStore
 import com.truequapp.core.domain.model.ItemCondition
+import com.truequapp.core.domain.model.ItemStatus
 import com.truequapp.core.domain.model.ItemType
 import com.truequapp.core.domain.model.TradeItem
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -16,11 +21,25 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class SwipeViewModel @Inject constructor(
-    private val dispatchers: DispatcherProvider
+    private val dispatchers: DispatcherProvider,
+    private val userSessionDataStore: UserSessionDataStore? = null,
+    private val tradeItemDao: TradeItemDao? = null
 ) : BaseViewModel<SwipeUiState, SwipeUiEvent, SwipeUiEffect>(SwipeUiState()) {
 
     init {
         loadInitialDeck()
+        observeUserSession()
+    }
+
+    private fun observeUserSession() {
+        if (userSessionDataStore != null) {
+            viewModelScope.launch(dispatchers.io) {
+                userSessionDataStore.sessionFlow.collect { session ->
+                    val userId = session.userId ?: "usr_current"
+                    loadFeedForUser(userId)
+                }
+            }
+        }
     }
 
     override fun onEvent(event: SwipeUiEvent) {
@@ -42,9 +61,19 @@ class SwipeViewModel @Inject constructor(
     private fun loadFeedForUser(userId: String) {
         setState { copy(currentUserId = userId, isLoading = true) }
         viewModelScope.launch(dispatchers.io) {
-            // Filtrar artículos que no pertenezcan al usuario activo y no hayan sido deslizados previamente
-            val filtered = DEFAULT_SWIPE_ITEMS.filter {
+            val dbItems = tradeItemDao?.getAllItemsSync().orEmpty().map { it.toDomainModel() }
+            val combinedDeck = mutableListOf<TradeItem>()
+            combinedDeck.addAll(DEFAULT_SWIPE_ITEMS)
+            dbItems.forEach { dbItem ->
+                if (combinedDeck.none { it.id == dbItem.id }) {
+                    combinedDeck.add(dbItem)
+                }
+            }
+
+            // Filtrar estrictamente artículos que pertenezcan a OTROS usuarios (no mostrar publicaciones propias)
+            val filtered = combinedDeck.filter {
                 it.ownerId != userId &&
+                it.status == ItemStatus.DISPONIBLE &&
                 it.id !in currentState.likedItemIds &&
                 it.id !in currentState.passedItemIds
             }

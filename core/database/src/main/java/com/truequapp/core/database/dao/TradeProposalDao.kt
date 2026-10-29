@@ -17,11 +17,20 @@ interface TradeProposalDao {
     @Query("SELECT * FROM trade_proposals ORDER BY updatedAtEpochMs DESC")
     fun getAllProposals(): Flow<List<TradeProposalEntity>>
 
+    @Query("SELECT * FROM trade_proposals ORDER BY updatedAtEpochMs DESC")
+    suspend fun getAllProposalsSync(): List<TradeProposalEntity>
+
     @Query("SELECT * FROM trade_proposals WHERE id = :id LIMIT 1")
     fun getProposalById(id: String): Flow<TradeProposalEntity?>
 
+    @Query("SELECT * FROM trade_proposals WHERE id = :id LIMIT 1")
+    suspend fun getProposalByIdSync(id: String): TradeProposalEntity?
+
     @Query("SELECT * FROM trade_proposals WHERE initiatorUserId = :userId OR receiverUserId = :userId ORDER BY updatedAtEpochMs DESC")
     fun getProposalsForUser(userId: String): Flow<List<TradeProposalEntity>>
+
+    @Query("SELECT * FROM trade_proposals WHERE initiatorUserId = :userId OR receiverUserId = :userId ORDER BY updatedAtEpochMs DESC")
+    suspend fun getProposalsForUserSync(userId: String): List<TradeProposalEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertProposal(proposal: TradeProposalEntity)

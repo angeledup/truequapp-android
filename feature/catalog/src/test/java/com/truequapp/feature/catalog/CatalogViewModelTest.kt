@@ -187,4 +187,24 @@ class CatalogViewModelTest {
     fun shouldEnforce80KbThreshold() {
         assertEquals(81920L, WebPImageCompressor.MAX_IMAGE_SIZE_BYTES)
     }
+
+    @Test
+    @DisplayName("Anti-auto-trueque: Artículos propios no deben aparecer en el feed de exploración para no intercambiar contigo mismo")
+    fun shouldNotShowOwnItemsInGeneralExploreFeed() = runTest(testDispatcher) {
+        viewModel.onEvent(CatalogUiEvent.TitleChanged("Mi Artículo Propio"))
+        viewModel.onEvent(CatalogUiEvent.DescriptionChanged("Descripción de prueba."))
+        viewModel.onEvent(CatalogUiEvent.SubmitPublication)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        // En el feed general de exploración NO debe aparecer
+        assertFalse(state.filteredItems.any { it.title == "Mi Artículo Propio" })
+        // Pero en mi inventario de publicaciones SÍ debe estar registrado
+        assertTrue(state.myInventory.any { it.title == "Mi Artículo Propio" })
+
+        // Al activar filtro de 'Mis Publicaciones' sí debe aparecer
+        viewModel.onEvent(CatalogUiEvent.ToggleMyPublicationsFilter)
+        val filteredState = viewModel.uiState.value
+        assertTrue(filteredState.filteredItems.any { it.title == "Mi Artículo Propio" })
+    }
 }

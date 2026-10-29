@@ -307,4 +307,18 @@ class TradeViewModelTest {
         assertEquals(TradeStatus.CANCELADO, viewModel.uiState.value.currentProposal?.status)
         assertEquals(0.95, viewModel.uiState.value.currentUserProfile?.attendanceRate ?: 1.0, 0.001)
     }
+
+    @Test
+    @DisplayName("Anti-auto-trueque: Denegar propuesta si el artículo objetivo pertenece al mismo usuario")
+    fun shouldDenyTradeProposal_whenTargetItemBelongsToSameUser() = runTest(testDispatcher) {
+        advanceUntilIdle()
+
+        // item_user_01 pertenece a "usr_current"
+        viewModel.onEvent(TradeUiEvent.InitTradeCreation("item_user_01", "usr_current"))
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.canSubmitProposal)
+        assertEquals("Esta publicación es tuya. No puedes realizar un trueque contigo mismo.", state.errorMessage)
+    }
 }

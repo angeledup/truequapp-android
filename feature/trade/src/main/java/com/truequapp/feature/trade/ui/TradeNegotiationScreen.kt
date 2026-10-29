@@ -217,17 +217,21 @@ fun TradeNegotiationScreen(
                 // Acciones según Máquina de Estados y Rol
                 when (proposal.status) {
                     TradeStatus.PENDIENTE, TradeStatus.CONTRAOFERTADA -> {
-                        if (isReceiver) {
+                        if (isReceiver || proposal.status == TradeStatus.CONTRAOFERTADA) {
                             // CU010: Aceptar con Bloqueo ACID RN-01
                             TruequappPrimaryButton(
                                 text = "Aceptar Propuesta (Bloqueo Firme)",
                                 onClick = { onEvent(TradeUiEvent.AcceptProposal(proposal.id)) }
                             )
-                            // CU011: Contraofertar
-                            TruequappOutlinedButton(
-                                text = "Emitir Contraoferta (CU011)",
-                                onClick = { onEvent(TradeUiEvent.OpenCounterOfferDialog) }
-                            )
+                        }
+
+                        // CU011: Contraofertar siempre disponible para negociar antes de aceptar
+                        TruequappOutlinedButton(
+                            text = "Emitir Contraoferta (CU011)",
+                            onClick = { onEvent(TradeUiEvent.OpenCounterOfferDialog) }
+                        )
+
+                        if (isReceiver) {
                             // CU012: Rechazar
                             TextButton(
                                 onClick = { onEvent(TradeUiEvent.RejectProposal(proposal.id)) },
@@ -236,16 +240,6 @@ fun TradeNegotiationScreen(
                                 Text("Rechazar Propuesta", color = MaterialTheme.colorScheme.error)
                             }
                         } else {
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    "Esperando respuesta de la contraparte...",
-                                    modifier = Modifier.padding(14.dp),
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
                             TruequappOutlinedButton(
                                 text = "Cancelar Propuesta",
                                 onClick = { onEvent(TradeUiEvent.RequestCancelProposal(proposal.id)) }

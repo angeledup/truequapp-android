@@ -17,11 +17,23 @@ interface TradeItemDao {
     @Query("SELECT * FROM items WHERE status = 'DISPONIBLE' ORDER BY createdAtEpochMs DESC")
     fun getAllAvailableItems(): Flow<List<TradeItemEntity>>
 
+    @Query("SELECT * FROM items WHERE status = 'DISPONIBLE' ORDER BY createdAtEpochMs DESC")
+    suspend fun getAllAvailableItemsSync(): List<TradeItemEntity>
+
+    @Query("SELECT * FROM items ORDER BY createdAtEpochMs DESC")
+    suspend fun getAllItemsSync(): List<TradeItemEntity>
+
     @Query("SELECT * FROM items WHERE id = :id LIMIT 1")
     fun getItemById(id: String): Flow<TradeItemEntity?>
 
+    @Query("SELECT * FROM items WHERE id = :id LIMIT 1")
+    suspend fun getItemByIdSync(id: String): TradeItemEntity?
+
     @Query("SELECT * FROM items WHERE ownerId = :ownerId ORDER BY createdAtEpochMs DESC")
     fun getItemsByOwner(ownerId: String): Flow<List<TradeItemEntity>>
+
+    @Query("SELECT * FROM items WHERE ownerId = :ownerId ORDER BY createdAtEpochMs DESC")
+    suspend fun getItemsByOwnerSync(ownerId: String): List<TradeItemEntity>
 
     @Query("SELECT * FROM items WHERE isBookmarked = 1 AND status = 'DISPONIBLE'")
     fun getBookmarkedItems(): Flow<List<TradeItemEntity>>

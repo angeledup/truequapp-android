@@ -17,6 +17,10 @@ import com.truequapp.core.domain.model.TradeModality
 import com.truequapp.core.domain.model.TradeProposal
 import com.truequapp.core.domain.model.TradeStatus
 import com.truequapp.core.domain.model.UserProfile
+import com.truequapp.core.database.dao.TradeItemDao
+import com.truequapp.core.database.dao.TradeProposalDao
+import com.truequapp.core.database.mapper.toDomainModel
+import com.truequapp.core.database.mapper.toEntity
 import com.truequapp.core.domain.rules.BusinessRuleException
 import com.truequapp.core.domain.rules.EvaluateCancellationWindowUseCase
 import com.truequapp.core.domain.rules.LockInventoryForTradeUseCase
@@ -28,10 +32,7 @@ import javax.inject.Inject
 
 /**
  * ViewModel que orquesta el Motor de Propuestas de Trueque de la Fase 2 (CU009, CU010, CU011, CU012).
- * Aplica con rigor las reglas de negocio canónicas:
- * - RN-01: Exclusividad y bloqueo atómico ACID de inventario.
- * - RN-02: Umbral mínimo de valor del 40% (Banda de equivalencia).
- * - RN-07: Ventana de cancelación y penalización de asistencia ante imprevistos (< 4h).
+ * Aplica con rigor las reglas de negocio canónicas y persiste las propuestas en SQLite Room.
  */
 @HiltViewModel
 class TradeViewModel @Inject constructor(
@@ -39,6 +40,8 @@ class TradeViewModel @Inject constructor(
     private val lockInventoryForTradeUseCase: LockInventoryForTradeUseCase = LockInventoryForTradeUseCase(),
     private val evaluateCancellationWindowUseCase: EvaluateCancellationWindowUseCase = EvaluateCancellationWindowUseCase(),
     private val userSessionDataStore: UserSessionDataStore,
+    private val tradeItemDao: TradeItemDao? = null,
+    private val tradeProposalDao: TradeProposalDao? = null,
     private val dispatchers: DispatcherProvider
 ) : BaseViewModel<TradeUiState, TradeUiEvent, TradeUiEffect>(TradeUiState()) {
 
@@ -153,8 +156,27 @@ class TradeViewModel @Inject constructor(
                         currentUserProfile = userProfile
                     )
                 }
+                syncDataFromDatabase(userId)
             }
         }
+    }
+
+    private suspend fun syncDataFromDatabase(userId: String) {
+        // Cargar ítems de SQLite Room para que los artículos publicados por el usuario aparezcan disponibles
+        val dbItems = tradeItemDao?.getAllItemsSync().orEmpty()
+        if (dbItems.isNotEmpty()) {
+            inMemoryItems.clear()
+            inMemoryItems.addAll(dbItems.map { it.toDomainModel() })
+        }
+
+        // Cargar propuestas desde SQLite Room
+        val dbProposals = tradeProposalDao?.getAllProposalsSync().orEmpty()
+        if (dbProposals.isNotEmpty()) {
+            inMemoryProposals.clear()
+            inMemoryProposals.addAll(dbProposals.map { it.toDomainModel() })
+        }
+
+        loadProposals(userId)
     }
 
     override fun onEvent(event: TradeUiEvent) {
@@ -186,6 +208,21 @@ class TradeViewModel @Inject constructor(
     private fun initTradeCreation(targetItemId: String, userId: String) {
         val target = inMemoryItems.find { it.id == targetItemId }
         val userItems = inMemoryItems.filter { it.ownerId == userId && it.status == ItemStatus.DISPONIBLE }
+
+        // Validación anti-auto-trueque: No puedes intercambiar contigo mismo
+        if (target != null && target.ownerId == userId) {
+            setState {
+                copy(
+                    targetItem = target,
+                    currentUserId = userId,
+                    availableUserItems = emptyList(),
+                    selectedOfferedItemIds = emptySet(),
+                    canSubmitProposal = false,
+                    errorMessage = "Esta publicación es tuya. No puedes realizar un trueque contigo mismo."
+                )
+            }
+            return
+        }
 
         setState {
             copy(
@@ -302,6 +339,11 @@ class TradeViewModel @Inject constructor(
 
             inMemoryProposals.add(newProposal)
 
+            // Persistir la propuesta en SQLite Room
+            viewModelScope.launch(dispatchers.io) {
+                tradeProposalDao?.insertProposal(newProposal.toEntity())
+            }
+
             sendEffect(TradeUiEffect.ShowToast("¡Propuesta enviada exitosamente!"))
             // Opción A: Redirección inmediata a la pantalla de negociación
             sendEffect(TradeUiEffect.NavigateToNegotiation(newProposal.id))
@@ -416,6 +458,17 @@ class TradeViewModel @Inject constructor(
                 }
             }
 
+            // Persistir aceptación y bloqueo en SQLite Room
+            viewModelScope.launch(dispatchers.io) {
+                tradeProposalDao?.updateProposal(lockResult.acceptedProposal.toEntity())
+                lockResult.affectedPendingProposalsToCancelOrPause.forEach { conflicting ->
+                    tradeProposalDao?.updateProposal(conflicting.toEntity())
+                }
+                lockResult.lockedItems.forEach { lockedItem ->
+                    tradeItemDao?.updateItem(lockedItem.toEntity())
+                }
+            }
+
             setState {
                 copy(
                     currentProposal = lockResult.acceptedProposal,
@@ -469,6 +522,11 @@ class TradeViewModel @Inject constructor(
                 inMemoryProposals[index] = updatedProposal
             }
 
+            // Persistir contraoferta en SQLite Room
+            viewModelScope.launch(dispatchers.io) {
+                tradeProposalDao?.updateProposal(updatedProposal.toEntity())
+            }
+
             setState {
                 copy(
                     currentProposal = updatedProposal,
@@ -493,6 +551,9 @@ class TradeViewModel @Inject constructor(
         if (index != -1) {
             val rejected = inMemoryProposals[index].copy(status = TradeStatus.RECHAZADO)
             inMemoryProposals[index] = rejected
+            viewModelScope.launch(dispatchers.io) {
+                tradeProposalDao?.updateProposal(rejected.toEntity())
+            }
             setState { copy(currentProposal = rejected) }
             sendEffect(TradeUiEffect.ShowToast("Propuesta rechazada formalmente."))
             sendEffect(TradeUiEffect.NavigateBack)
@@ -558,6 +619,13 @@ class TradeViewModel @Inject constructor(
         val pIndex = inMemoryProposals.indexOfFirst { it.id == proposal.id }
         if (pIndex != -1) {
             inMemoryProposals[pIndex] = updatedProposal
+        }
+
+        viewModelScope.launch(dispatchers.io) {
+            tradeProposalDao?.updateProposal(updatedProposal.toEntity())
+            if (targetItem?.status == ItemStatus.RESERVADO) {
+                tradeItemDao?.updateItem(targetItem.copy(status = ItemStatus.DISPONIBLE).toEntity())
+            }
         }
 
         setState {
