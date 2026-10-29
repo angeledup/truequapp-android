@@ -3,6 +3,8 @@ package com.truequapp.feature.wallet.mvi
 import androidx.lifecycle.viewModelScope
 import com.truequapp.core.common.dispatcher.DispatcherProvider
 import com.truequapp.core.common.mvi.BaseViewModel
+import com.truequapp.core.database.dao.LedgerEntryDao
+import com.truequapp.core.database.entity.LedgerEntryEntity
 import com.truequapp.core.datastore.UserSessionDataStore
 import com.truequapp.core.domain.model.*
 import com.truequapp.core.domain.rules.BusinessRuleException
@@ -23,7 +25,8 @@ class WalletViewModel @Inject constructor(
     private val escrowUseCase: EscrowHoldAndReleaseUseCase = EscrowHoldAndReleaseUseCase(),
     private val ledgerUseCase: LedgerDoubleEntryValidatorUseCase = LedgerDoubleEntryValidatorUseCase(),
     private val triangularUseCase: TriangularCycleRulesUseCase = TriangularCycleRulesUseCase(),
-    private val userSessionDataStore: UserSessionDataStore,
+    private val userSessionDataStore: UserSessionDataStore? = null,
+    private val ledgerEntryDao: LedgerEntryDao? = null,
     private val dispatchers: DispatcherProvider
 ) : BaseViewModel<WalletUiState, WalletUiEvent, WalletUiEffect>(WalletUiState()) {
 
@@ -146,6 +149,18 @@ class WalletViewModel @Inject constructor(
                     available = holdResult.updatedBuyerWallet.availableBalance,
                     escrow = holdResult.updatedBuyerWallet.escrowBalance
                 )
+                ledgerEntryDao?.insertEntry(
+                    LedgerEntryEntity(
+                        id = debitEntry.id,
+                        walletId = debitEntry.walletId,
+                        tradeId = debitEntry.tradeId,
+                        entryType = "DEBITO",
+                        amount = debitEntry.amount,
+                        concept = debitEntry.concept.name,
+                        counterpartWalletId = debitEntry.counterpartWalletId,
+                        timestampEpochMs = System.currentTimeMillis()
+                    )
+                )
             }
             sendEffect(WalletUiEffect.ShowToast("Retención en Escrow completada"))
         } catch (e: BusinessRuleException.EscrowViolationException) {
@@ -191,6 +206,18 @@ class WalletViewModel @Inject constructor(
                 userSessionDataStore?.updateTruequeCoins(
                     available = releaseResult.updatedBuyerWallet.availableBalance,
                     escrow = releaseResult.updatedBuyerWallet.escrowBalance
+                )
+                ledgerEntryDao?.insertEntry(
+                    LedgerEntryEntity(
+                        id = doubleEntry.debitEntry.id,
+                        walletId = doubleEntry.debitEntry.walletId,
+                        tradeId = doubleEntry.debitEntry.tradeId,
+                        entryType = "DEBITO",
+                        amount = doubleEntry.debitEntry.amount,
+                        concept = doubleEntry.debitEntry.concept.name,
+                        counterpartWalletId = doubleEntry.debitEntry.counterpartWalletId,
+                        timestampEpochMs = System.currentTimeMillis()
+                    )
                 )
             }
             sendEffect(WalletUiEffect.ShowToast("TruequeCoins liberadas exitosamente"))

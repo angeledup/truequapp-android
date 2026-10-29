@@ -64,6 +64,7 @@ dependencies {
     implementation(project(":core:designsystem"))
     implementation(project(":core:network"))
     implementation(project(":core:datastore"))
+    implementation(project(":core:database"))
     implementation(project(":feature:auth"))
     implementation(project(":feature:catalog"))
     implementation(project(":feature:trade"))

@@ -42,6 +42,7 @@ dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:designsystem"))
     implementation(project(":core:datastore"))
+    implementation(project(":core:database"))
 
     // Biometric Authentication (CU014 / Fase 4)
     implementation(libs.androidx.biometric)

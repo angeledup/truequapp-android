@@ -3,6 +3,8 @@ package com.truequapp.feature.auth.mvi
 import androidx.lifecycle.viewModelScope
 import com.truequapp.core.common.dispatcher.DispatcherProvider
 import com.truequapp.core.common.mvi.BaseViewModel
+import com.truequapp.core.database.dao.UserDao
+import com.truequapp.core.database.entity.UserEntity
 import com.truequapp.core.datastore.UserSessionDataStore
 import com.truequapp.core.datastore.model.UserSession
 import com.truequapp.core.domain.model.GeoCoordinates
@@ -25,6 +27,7 @@ import javax.inject.Inject
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val userSessionDataStore: UserSessionDataStore,
+    private val userDao: UserDao? = null,
     private val calculateBayesianRatingUseCase: CalculateBayesianRatingUseCase = CalculateBayesianRatingUseCase(),
     private val obfuscateLocationUseCase: ObfuscateLocationUseCase = ObfuscateLocationUseCase(),
     private val dispatchers: DispatcherProvider
@@ -112,6 +115,24 @@ class AuthViewModel @Inject constructor(
                 authProvider = "GOOGLE"
             )
             val currentCoins = userSessionDataStore.getTruequeCoins()
+
+            // Persistencia en Base de Datos SQLite Room
+            userDao?.insertUser(
+                UserEntity(
+                    id = event.googleId,
+                    email = event.email,
+                    name = event.displayName,
+                    passwordHash = null, // Sin contraseña (proveedor Google)
+                    authProvider = "GOOGLE",
+                    photoUrl = event.photoUrl,
+                    isKycVerified = true,
+                    kycLevel = "TELEFONO_SMS_NIVEL_1",
+                    truequeCoins = currentCoins,
+                    city = "Coatzacoalcos",
+                    lastLoginEpochMs = System.currentTimeMillis()
+                )
+            )
+
             setState {
                 copy(
                     isLoading = false,
@@ -146,17 +167,37 @@ class AuthViewModel @Inject constructor(
 
         viewModelScope.launch(dispatchers.io) {
             setState { copy(isLoading = true, errorMessage = null) }
-            // Simulación autenticación segura
-            delay(400)
+            // Autenticación y registro persistente
+            delay(300)
             val generatedUserId = "usr_" + email.hashCode().toString().takeLast(6)
+            val userName = currentState.nameInput.ifBlank { "Usuario Truequapp" }
+
             userSessionDataStore.saveUser(
                 userId = generatedUserId,
                 email = email,
-                isKycVerified = true
+                isKycVerified = true,
+                name = userName,
+                authProvider = "EMAIL"
             )
             userSessionDataStore.saveTokens(
                 accessToken = "jwt_token_$generatedUserId",
                 refreshToken = "refresh_$generatedUserId"
+            )
+
+            // Persistencia en Base de Datos SQLite Room con correo, nombre, contraseña y TruequeCoins
+            userDao?.insertUser(
+                UserEntity(
+                    id = generatedUserId,
+                    email = email,
+                    name = userName,
+                    passwordHash = password, // Contraseña guardada para inicio de sesión normal
+                    authProvider = "EMAIL",
+                    isKycVerified = true,
+                    kycLevel = "TELEFONO_SMS_NIVEL_1",
+                    truequeCoins = 100.0, // Balance único de TruequeCoins
+                    city = "Coatzacoalcos",
+                    lastLoginEpochMs = System.currentTimeMillis()
+                )
             )
 
             val rating = calculateBayesianRatingUseCase(existingRatingsCount = 10, existingSumOfRatings = 48.0)
@@ -170,8 +211,10 @@ class AuthViewModel @Inject constructor(
                     isLoading = false,
                     isLoggedIn = true,
                     currentUserId = generatedUserId,
+                    nameInput = userName,
+                    emailInput = email,
                     kycLevel = KycLevel.TELEFONO_SMS_NIVEL_1,
-                    truequeCoins = 150.0,
+                    truequeCoins = 100.0, // Moneda virtual canónica única
                     bayesianRating = rating,
                     obfuscatedNeighborhood = obfuscated.neighborhoodName
                 )
@@ -233,14 +276,36 @@ class AuthViewModel @Inject constructor(
             delay(300)
 
             val newUserId = "usr_" + System.currentTimeMillis().toString().takeLast(6)
+            val userEmail = currentState.emailInput.ifBlank { "usuario_$newUserId@truequapp.com" }
+            val userName = currentState.nameInput.ifBlank { "Usuario Verificado SMS" }
+
             userSessionDataStore.saveUser(
                 userId = newUserId,
-                email = currentState.emailInput,
-                isKycVerified = true
+                email = userEmail,
+                isKycVerified = true,
+                name = userName,
+                authProvider = "PHONE"
             )
             userSessionDataStore.saveTokens(
                 accessToken = "jwt_token_kyc1_$newUserId",
                 refreshToken = "refresh_$newUserId"
+            )
+
+            // Persistencia en SQLite Room Database
+            userDao?.insertUser(
+                UserEntity(
+                    id = newUserId,
+                    email = userEmail,
+                    name = userName,
+                    phoneNumber = currentState.phoneInput,
+                    passwordHash = currentState.passwordInput.ifBlank { null },
+                    authProvider = "PHONE",
+                    isKycVerified = true,
+                    kycLevel = "TELEFONO_SMS_NIVEL_1",
+                    truequeCoins = 100.0,
+                    city = "Coatzacoalcos",
+                    lastLoginEpochMs = System.currentTimeMillis()
+                )
             )
 
             // Inicialización de Monedero con TruequeCoins iniciales y KYC Nivel 1
