@@ -21,6 +21,9 @@ cameraX = "1.3.4"
 socketIo = "2.1.0"
 junit5 = "5.10.2"
 coroutines = "1.8.1"
+mapsCompose = "6.1.2"
+playServicesMaps = "19.0.0"
+biometric = "1.2.0-alpha05"
 
 [libraries]
 # AndroidX Core & Lifecycle
@@ -74,6 +77,9 @@ mlkit-barcode-scanning = { group = "com.google.mlkit", name = "barcode-scanning"
 camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "cameraX" }
 camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "cameraX" }
 camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "cameraX" }
+maps-compose = { group = "com.google.maps.android", name = "maps-compose", version.ref = "mapsCompose" }
+play-services-maps = { group = "com.google.android.gms", name = "play-services-maps", version.ref = "playServicesMaps" }
+androidx-biometric = { group = "androidx.biometric", name = "biometric", version.ref = "biometric" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -16,12 +16,18 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Analytics
+import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -48,6 +54,10 @@ import com.truequapp.feature.auth.mvi.AuthUiState
 fun ProfileScreen(
     state: AuthUiState,
     onEvent: (AuthUiEvent) -> Unit,
+    onNavigateToWallet: () -> Unit = {},
+    onNavigateToSafeZones: () -> Unit = {},
+    onNavigateToReports: () -> Unit = {},
+    onNavigateToAccountDeletion: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -231,6 +241,75 @@ fun ProfileScreen(
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer
                             )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Acciones de Plataforma Fases 3, 4 y 5
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(modifier = Modifier.padding(8.dp)) {
+                    TextButton(
+                        onClick = onNavigateToSafeZones,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.LocationOn, contentDescription = null)
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text("Puntos Seguros (Safe Zones CU019)", fontWeight = FontWeight.SemiBold)
+                            }
+                            Icon(Icons.Default.ChevronRight, contentDescription = null)
+                        }
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp))
+
+                    TextButton(
+                        onClick = onNavigateToReports,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Analytics, contentDescription = null)
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text("Métricas de Liquidez & PDF (CU021)", fontWeight = FontWeight.SemiBold)
+                            }
+                            Icon(Icons.Default.ChevronRight, contentDescription = null)
+                        }
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp))
+
+                    TextButton(
+                        onClick = onNavigateToAccountDeletion,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.DeleteForever, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text("Baja y Supresión de Cuenta (CU002)", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.error)
+                            }
+                            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.error)
                         }
                     }
                 }
