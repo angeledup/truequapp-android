@@ -73,6 +73,7 @@ sealed interface AuthUiEvent : UiEvent {
         val displayName: String,
         val photoUrl: String?
     ) : AuthUiEvent
+    data class SignInWithGoogleFailure(val errorMessage: String) : AuthUiEvent
 
     // Edición de Perfil y persistencia directa en Base de Datos Room
     data object OpenEditProfileDialog : AuthUiEvent

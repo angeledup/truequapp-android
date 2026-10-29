@@ -130,61 +130,93 @@ class AuthViewModel @Inject constructor(
             is AuthUiEvent.EditNeighborhoodChanged -> setState { copy(editNeighborhoodInput = event.neighborhood) }
             is AuthUiEvent.SaveEditedProfile -> saveEditedProfile()
             is AuthUiEvent.AutoFillTestOtp -> setState { copy(otpCodeInput = "123456") }
+            is AuthUiEvent.SignInWithGoogleFailure -> {
+                setState { copy(isLoading = false, errorMessage = event.errorMessage) }
+                sendEffect(AuthUiEffect.ShowSnackbar(event.errorMessage))
+            }
         }
     }
 
     private fun handleGoogleSignIn(event: AuthUiEvent.SignInWithGoogleSuccess) {
         viewModelScope.launch(dispatchers.io) {
             setState { copy(isLoading = true, errorMessage = null) }
-            val generatedToken = "jwt_google_${UUID.randomUUID()}"
-            userSessionDataStore.saveTokens(generatedToken, "refresh_$generatedToken")
-            userSessionDataStore.saveUser(
-                userId = event.googleId,
-                email = event.email,
-                isKycVerified = true,
-                name = event.displayName,
-                photoUrl = event.photoUrl,
-                authProvider = "GOOGLE"
-            )
-            val currentCoins = userSessionDataStore.getTruequeCoins()
 
-            // Persistencia en Base de Datos SQLite Room
-            userDao?.insertUser(
-                UserEntity(
+            // 1. Comprobar si el usuario ya existe en la base de datos (por id de Google o por correo)
+            val existingUser = userDao?.getUserByIdSync(event.googleId)
+                ?: userDao?.getUserByEmailSync(event.email)
+
+            val resolvedUser: UserEntity
+            if (existingUser != null) {
+                // Usuario existente: recuperar información completa y actualizar datos pertinentes de Google sin duplicados
+                resolvedUser = existingUser.copy(
+                    name = event.displayName.ifBlank { existingUser.name },
+                    email = event.email.ifBlank { existingUser.email },
+                    photoUrl = event.photoUrl ?: existingUser.photoUrl,
+                    authProvider = "GOOGLE",
+                    lastLoginEpochMs = System.currentTimeMillis()
+                )
+                userDao?.updateUser(resolvedUser)
+            } else {
+                // Usuario nuevo: crear registro completo en la base de datos Room
+                resolvedUser = UserEntity(
                     id = event.googleId,
                     email = event.email,
                     name = event.displayName,
-                    passwordHash = null, // Sin contraseña (proveedor Google)
+                    passwordHash = null, // Autenticado con Google (sin contraseña local)
+                    phoneNumber = null,
                     authProvider = "GOOGLE",
                     photoUrl = event.photoUrl,
                     isKycVerified = true,
                     kycLevel = "TELEFONO_SMS_NIVEL_1",
-                    truequeCoins = currentCoins,
-                    city = "Coatzacoalcos",
+                    truequeCoins = 100.0, // Balance inicial canónico
+                    escrowCoins = 0.0,
+                    bayesianRating = 5.0,
+                    ratingsCount = 1,
+                    attendanceRate = 1.0,
                     obfuscatedNeighborhood = "Centro, Coatzacoalcos",
+                    city = "Coatzacoalcos",
+                    createdAtEpochMs = System.currentTimeMillis(),
                     lastLoginEpochMs = System.currentTimeMillis()
                 )
-            )
+                userDao?.insertUser(resolvedUser)
+            }
 
+            // 2. Persistir tokens y sesión en UserSessionDataStore
+            val generatedToken = "jwt_google_${UUID.randomUUID()}"
+            userSessionDataStore.saveTokens(generatedToken, "refresh_$generatedToken")
+            userSessionDataStore.saveUser(
+                userId = resolvedUser.id,
+                email = resolvedUser.email,
+                isKycVerified = resolvedUser.isKycVerified,
+                name = resolvedUser.name,
+                photoUrl = resolvedUser.photoUrl,
+                authProvider = "GOOGLE"
+            )
+            userSessionDataStore.updateTruequeCoins(resolvedUser.truequeCoins, resolvedUser.escrowCoins)
+
+            // 3. Actualizar estado de interfaz inmutable
             setState {
                 copy(
                     isLoading = false,
                     isLoggedIn = true,
-                    currentUserId = event.googleId,
-                    userName = event.displayName,
-                    userEmail = event.email,
-                    nameInput = event.displayName,
-                    emailInput = event.email,
+                    currentUserId = resolvedUser.id,
+                    userName = resolvedUser.name,
+                    userEmail = resolvedUser.email,
+                    userPhone = resolvedUser.phoneNumber.orEmpty(),
+                    nameInput = resolvedUser.name,
+                    emailInput = resolvedUser.email,
                     authProvider = "GOOGLE",
-                    googleEmail = event.email,
-                    userPhotoUrl = event.photoUrl,
-                    truequeCoins = currentCoins,
-                    userNeighborhood = "Centro, Coatzacoalcos",
-                    obfuscatedNeighborhood = "Centro, Coatzacoalcos",
-                    kycLevel = KycLevel.TELEFONO_SMS_NIVEL_1
+                    googleEmail = resolvedUser.email,
+                    userPhotoUrl = resolvedUser.photoUrl,
+                    truequeCoins = resolvedUser.truequeCoins,
+                    userNeighborhood = resolvedUser.obfuscatedNeighborhood,
+                    obfuscatedNeighborhood = resolvedUser.obfuscatedNeighborhood,
+                    bayesianRating = resolvedUser.bayesianRating,
+                    attendanceRate = resolvedUser.attendanceRate,
+                    kycLevel = if (resolvedUser.isKycVerified) KycLevel.TELEFONO_SMS_NIVEL_1 else KycLevel.BASICO_NIVEL_0
                 )
             }
-            sendEffect(AuthUiEffect.ShowSnackbar("¡Bienvenido, ${event.displayName}! Sesión iniciada con Google."))
+            sendEffect(AuthUiEffect.ShowSnackbar("¡Bienvenido, ${resolvedUser.name}! Sesión iniciada con Google."))
             sendEffect(AuthUiEffect.NavigateToHome)
         }
     }

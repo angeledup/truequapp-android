@@ -92,46 +92,41 @@ fun AuthScreen(
         val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
         try {
             val account = task.getResult(ApiException::class.java)
-            if (account != null) {
+            if (account != null && !account.email.isNullOrBlank()) {
+                val googleId = account.id ?: ("google_" + account.email.hashCode().toString())
+                val email = account.email.orEmpty()
+                val displayName = account.displayName
+                    ?.ifBlank { null }
+                    ?: listOfNotNull(account.givenName, account.familyName).joinToString(" ").ifBlank { null }
+                    ?: email.substringBefore("@").replace('.', ' ').replaceFirstChar { it.uppercase() }
+                val photoUrl = account.photoUrl?.toString()
+
                 onEvent(
                     AuthUiEvent.SignInWithGoogleSuccess(
-                        googleId = account.id ?: "google_${System.currentTimeMillis()}",
-                        email = account.email ?: "usuario.google@gmail.com",
-                        displayName = account.displayName ?: "Usuario Google",
-                        photoUrl = account.photoUrl?.toString()
+                        googleId = googleId,
+                        email = email,
+                        displayName = displayName,
+                        photoUrl = photoUrl
                     )
                 )
             } else {
-                val fallbackEmail = state.emailInput.trim().ifBlank { "usuario.coatzacoalcos@gmail.com" }
-                val fallbackName = state.nameInput.trim().ifBlank {
-                    fallbackEmail.substringBefore("@")
-                        .replace('.', ' ')
-                        .replaceFirstChar { it.uppercase() }
-                }
                 onEvent(
-                    AuthUiEvent.SignInWithGoogleSuccess(
-                        googleId = "usr_google_default",
-                        email = fallbackEmail,
-                        displayName = fallbackName,
-                        photoUrl = null
+                    AuthUiEvent.SignInWithGoogleFailure(
+                        "No se pudo obtener el perfil de la cuenta de Google seleccionada."
                     )
                 )
             }
-        } catch (e: Exception) {
-            val fallbackEmail = state.emailInput.trim().ifBlank { "usuario.coatzacoalcos@gmail.com" }
-            val fallbackName = state.nameInput.trim().ifBlank {
-                fallbackEmail.substringBefore("@")
-                    .replace('.', ' ')
-                    .replaceFirstChar { it.uppercase() }
+        } catch (e: ApiException) {
+            val errorMessage = when (e.statusCode) {
+                12501 -> "Inicio de sesión cancelado por el usuario."
+                10 -> "Error 10 (DEVELOPER_ERROR): Falta registrar la huella SHA-1 en Google Cloud / Firebase Console para com.truequapp."
+                12500 -> "Error 12500 (SIGN_IN_FAILED): Falló la conexión con los Servicios de Google Play."
+                7 -> "Error 7 (NETWORK_ERROR): Sin conexión con los servidores de Google."
+                else -> "Error en Google Sign-In (${e.statusCode}): ${e.statusMessage ?: e.localizedMessage ?: "Fallo de autenticación"}"
             }
-            onEvent(
-                AuthUiEvent.SignInWithGoogleSuccess(
-                    googleId = "usr_google_${System.currentTimeMillis() % 10000}",
-                    email = fallbackEmail,
-                    displayName = fallbackName,
-                    photoUrl = null
-                )
-            )
+            onEvent(AuthUiEvent.SignInWithGoogleFailure(errorMessage))
+        } catch (e: Exception) {
+            onEvent(AuthUiEvent.SignInWithGoogleFailure("Error en Google Sign-In: ${e.localizedMessage ?: e.message}"))
         }
     }
 

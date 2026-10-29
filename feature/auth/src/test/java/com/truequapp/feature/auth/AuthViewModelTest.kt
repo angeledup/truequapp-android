@@ -209,7 +209,7 @@ class AuthViewModelTest {
     }
 
     @Test
-    @DisplayName("Google Sign-In: Inicia sesión correctamente con cuenta de Google y persiste sesión")
+    @DisplayName("Google Sign-In: Inicia sesión correctamente con cuenta de Google y persiste en SQLite Room")
     fun shouldLoginSuccessfully_whenGoogleSignInSucceeds() = runTest(testDispatcher) {
         viewModel.onEvent(
             AuthUiEvent.SignInWithGoogleSuccess(
@@ -224,10 +224,76 @@ class AuthViewModelTest {
         val state = viewModel.uiState.value
         assertTrue(state.isLoggedIn)
         assertEquals("GOOGLE", state.authProvider)
-        assertEquals("estudiante.unam@gmail.com", state.emailInput)
-        assertEquals("Estudiante UNAM", state.nameInput)
+        assertEquals("estudiante.unam@gmail.com", state.userEmail)
+        assertEquals("Estudiante UNAM", state.userName)
+        assertEquals("https://lh3.googleusercontent.com/photo", state.userPhotoUrl)
         assertEquals(100.0, state.truequeCoins)
         assertTrue(fakeDataStore.sessionFlow.first().isAuthenticated)
+
+        // Verificar que el usuario se guardó en Room DAO
+        val userInDb = fakeUserDao.getUserByIdSync("goog_12345")
+        assertNotNull(userInDb)
+        assertEquals("estudiante.unam@gmail.com", userInDb?.email)
+        assertEquals("Estudiante UNAM", userInDb?.name)
+        assertEquals("GOOGLE", userInDb?.authProvider)
+    }
+
+    @Test
+    @DisplayName("Google Sign-In: Re-acceso del mismo usuario actualiza datos sin generar duplicados")
+    fun shouldUpdateExistingUserWithoutDuplicates_whenGoogleUserLogsInAgain() = runTest(testDispatcher) {
+        // 1. Usuario previamente registrado en la BD con balance ganado de 250 TC
+        val initialUser = UserEntity(
+            id = "goog_99999",
+            email = "mariana.coatza@gmail.com",
+            name = "Mariana Original",
+            authProvider = "GOOGLE",
+            truequeCoins = 250.0,
+            city = "Coatzacoalcos",
+            obfuscatedNeighborhood = "Col. Petrolera, Coatzacoalcos"
+        )
+        fakeUserDao.insertUser(initialUser)
+
+        // 2. Acceso posterior del mismo usuario con nombre actualizado en Google y nueva foto
+        viewModel.onEvent(
+            AuthUiEvent.SignInWithGoogleSuccess(
+                googleId = "goog_99999",
+                email = "mariana.coatza@gmail.com",
+                displayName = "Mariana López Coatzacoalcos",
+                photoUrl = "https://lh3.googleusercontent.com/mariana_nueva"
+            )
+        )
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.isLoggedIn)
+        assertEquals("Mariana López Coatzacoalcos", state.userName)
+        assertEquals("mariana.coatza@gmail.com", state.userEmail)
+        assertEquals("https://lh3.googleusercontent.com/mariana_nueva", state.userPhotoUrl)
+        // El balance de TruequeCoins DEBE preservarse intacto (250 TC)
+        assertEquals(250.0, state.truequeCoins)
+
+        // Verificar que en la base de datos sigue existiendo un único registro (sin duplicados)
+        val usersInDb = fakeUserDao.users.values.filter { it.email == "mariana.coatza@gmail.com" }
+        assertEquals(1, usersInDb.size)
+        assertEquals("Mariana López Coatzacoalcos", usersInDb.first().name)
+        assertEquals(250.0, usersInDb.first().truequeCoins)
+    }
+
+    @Test
+    @DisplayName("Google Sign-In: Falla o cancelación no inventa datos ni simula login")
+    fun shouldNotAuthenticate_whenGoogleSignInFails() = runTest(testDispatcher) {
+        viewModel.onEvent(
+            AuthUiEvent.SignInWithGoogleFailure(
+                "Error 10 (DEVELOPER_ERROR): Falta registrar la huella SHA-1 en Google Cloud Console."
+            )
+        )
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isLoggedIn)
+        assertNotNull(state.errorMessage)
+        assertTrue(state.errorMessage!!.contains("Error 10"))
+        assertFalse(fakeDataStore.sessionFlow.first().isAuthenticated)
     }
 
     @Test
