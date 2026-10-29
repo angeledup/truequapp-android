@@ -44,3 +44,4 @@ interface TradeItemDao {
     @Query("SELECT COUNT(*) FROM items")
     suspend fun countItems(): Int
 }
+

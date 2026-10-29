@@ -3,6 +3,8 @@ package com.truequapp.feature.auth
 import com.truequapp.core.common.dispatcher.DispatcherProvider
 import com.truequapp.core.datastore.UserSessionDataStore
 import com.truequapp.core.datastore.model.UserSession
+import com.truequapp.core.database.dao.UserDao
+import com.truequapp.core.database.entity.UserEntity
 import com.truequapp.core.domain.model.KycLevel
 import com.truequapp.feature.auth.mvi.AuthUiEffect
 import com.truequapp.feature.auth.mvi.AuthUiEvent
@@ -63,6 +65,24 @@ class FakeUserSessionDataStore : UserSessionDataStore {
     override suspend fun clearSession() { _session.value = UserSession() }
 }
 
+class FakeUserDao : UserDao {
+    val users = mutableMapOf<String, UserEntity>()
+
+    override fun getUserById(id: String): Flow<UserEntity?> = MutableStateFlow(users[id])
+    override suspend fun getUserByIdSync(id: String): UserEntity? = users[id]
+    override fun getUserByEmail(email: String): Flow<UserEntity?> = MutableStateFlow(users.values.find { it.email.equals(email, ignoreCase = true) })
+    override suspend fun getUserByEmailSync(email: String): UserEntity? = users.values.find { it.email.equals(email, ignoreCase = true) }
+    override suspend fun authenticate(email: String, passwordHash: String): UserEntity? = users.values.find { it.email == email && it.passwordHash == passwordHash }
+    override suspend fun insertUser(user: UserEntity) { users[user.id] = user }
+    override suspend fun updateUser(user: UserEntity) { users[user.id] = user }
+    override suspend fun updateTruequeCoins(userId: String, availableCoins: Double, escrowCoins: Double) {
+        users[userId]?.let { users[userId] = it.copy(truequeCoins = availableCoins, escrowCoins = escrowCoins) }
+    }
+    override suspend fun getTruequeCoins(userId: String): Double? = users[userId]?.truequeCoins
+    override fun getAllUsers(): Flow<List<UserEntity>> = MutableStateFlow(users.values.toList())
+    override suspend fun deleteUser(userId: String) { users.remove(userId) }
+}
+
 class TestDispatcherProvider(private val dispatcher: TestDispatcher) : DispatcherProvider {
     override val main: CoroutineDispatcher get() = dispatcher
     override val io: CoroutineDispatcher get() = dispatcher
@@ -75,6 +95,7 @@ class AuthViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
     private val fakeDataStore = FakeUserSessionDataStore()
+    private val fakeUserDao = FakeUserDao()
     private val testDispatcherProvider = TestDispatcherProvider(testDispatcher)
 
     private lateinit var viewModel: AuthViewModel
@@ -84,6 +105,7 @@ class AuthViewModelTest {
         Dispatchers.setMain(testDispatcher)
         viewModel = AuthViewModel(
             userSessionDataStore = fakeDataStore,
+            userDao = fakeUserDao,
             dispatchers = testDispatcherProvider
         )
     }
@@ -206,5 +228,69 @@ class AuthViewModelTest {
         assertEquals("Estudiante UNAM", state.nameInput)
         assertEquals(100.0, state.truequeCoins)
         assertTrue(fakeDataStore.sessionFlow.first().isAuthenticated)
+    }
+
+    @Test
+    @DisplayName("Room SQLite: Login con usuario existente carga sus datos reales y no strings genéricos")
+    fun shouldLoadExistingUserFromDatabase_whenLoggingIn() = runTest(testDispatcher) {
+        val existingUser = UserEntity(
+            id = "usr_coatza_99",
+            email = "carlos.mendoza@coatza.com",
+            name = "Carlos Mendoza Coatzacoalcos",
+            passwordHash = "segura123",
+            phoneNumber = "+529211112233",
+            authProvider = "EMAIL",
+            truequeCoins = 150.0,
+            obfuscatedNeighborhood = "Col. Petrolera, Coatzacoalcos",
+            city = "Coatzacoalcos"
+        )
+        fakeUserDao.insertUser(existingUser)
+
+        viewModel.onEvent(AuthUiEvent.EmailChanged("carlos.mendoza@coatza.com"))
+        viewModel.onEvent(AuthUiEvent.PasswordChanged("segura123"))
+        viewModel.onEvent(AuthUiEvent.SubmitLogin)
+
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.isLoggedIn)
+        assertEquals("Carlos Mendoza Coatzacoalcos", state.userName)
+        assertEquals("carlos.mendoza@coatza.com", state.userEmail)
+        assertEquals("+529211112233", state.userPhone)
+        assertEquals(150.0, state.truequeCoins)
+        assertEquals("Col. Petrolera, Coatzacoalcos", state.userNeighborhood)
+    }
+
+    @Test
+    @DisplayName("Room SQLite: Editar perfil persiste cambios en la base de datos y actualiza UI")
+    fun shouldUpdateProfileInDatabaseAndState_whenSaveEditedProfile() = runTest(testDispatcher) {
+        // Primero registrar o iniciar sesión
+        viewModel.onEvent(AuthUiEvent.EmailChanged("usuario.nuevo@gmail.com"))
+        viewModel.onEvent(AuthUiEvent.PasswordChanged("pass12345"))
+        viewModel.onEvent(AuthUiEvent.NameChanged("Nombre Inicial"))
+        viewModel.onEvent(AuthUiEvent.SubmitLogin)
+        advanceUntilIdle()
+
+        // Abrir diálogo y modificar datos
+        viewModel.onEvent(AuthUiEvent.OpenEditProfileDialog)
+        viewModel.onEvent(AuthUiEvent.EditNameChanged("Angel Eduardo"))
+        viewModel.onEvent(AuthUiEvent.EditPhoneChanged("+529217654321"))
+        viewModel.onEvent(AuthUiEvent.EditNeighborhoodChanged("Puerto México, Coatzacoalcos"))
+        viewModel.onEvent(AuthUiEvent.SaveEditedProfile)
+
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals("Angel Eduardo", state.userName)
+        assertEquals("+529217654321", state.userPhone)
+        assertEquals("Puerto México, Coatzacoalcos", state.userNeighborhood)
+        assertFalse(state.isEditProfileDialogVisible)
+
+        // Verificar persistencia en Room DAO
+        val userInDb = fakeUserDao.getUserByEmailSync("usuario.nuevo@gmail.com")
+        assertNotNull(userInDb)
+        assertEquals("Angel Eduardo", userInDb?.name)
+        assertEquals("+529217654321", userInDb?.phoneNumber)
+        assertEquals("Puerto México, Coatzacoalcos", userInDb?.obfuscatedNeighborhood)
     }
 }

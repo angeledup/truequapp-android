@@ -20,3 +20,4 @@ data class SafeZoneEntity(
     val isCampusUniversityPartner: Boolean,
     val city: String = "Coatzacoalcos"
 )
+

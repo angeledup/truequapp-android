@@ -32,3 +32,4 @@ data class TradeProposalEntity(
     val createdAtEpochMs: Long = System.currentTimeMillis(),
     val updatedAtEpochMs: Long = System.currentTimeMillis()
 )
+

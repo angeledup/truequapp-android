@@ -37,3 +37,4 @@ data class UserEntity(
     val createdAtEpochMs: Long = System.currentTimeMillis(),
     val lastLoginEpochMs: Long = System.currentTimeMillis()
 )
+

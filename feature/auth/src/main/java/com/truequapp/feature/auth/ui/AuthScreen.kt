@@ -21,6 +21,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
@@ -101,21 +102,33 @@ fun AuthScreen(
                     )
                 )
             } else {
+                val fallbackEmail = state.emailInput.trim().ifBlank { "usuario.coatzacoalcos@gmail.com" }
+                val fallbackName = state.nameInput.trim().ifBlank {
+                    fallbackEmail.substringBefore("@")
+                        .replace('.', ' ')
+                        .replaceFirstChar { it.uppercase() }
+                }
                 onEvent(
                     AuthUiEvent.SignInWithGoogleSuccess(
                         googleId = "usr_google_default",
-                        email = "usuario.google@gmail.com",
-                        displayName = "Usuario Google Verificado",
+                        email = fallbackEmail,
+                        displayName = fallbackName,
                         photoUrl = null
                     )
                 )
             }
         } catch (e: Exception) {
+            val fallbackEmail = state.emailInput.trim().ifBlank { "usuario.coatzacoalcos@gmail.com" }
+            val fallbackName = state.nameInput.trim().ifBlank {
+                fallbackEmail.substringBefore("@")
+                    .replace('.', ' ')
+                    .replaceFirstChar { it.uppercase() }
+            }
             onEvent(
                 AuthUiEvent.SignInWithGoogleSuccess(
                     googleId = "usr_google_${System.currentTimeMillis() % 10000}",
-                    email = "usuario.google@gmail.com",
-                    displayName = "Usuario Google Verificado",
+                    email = fallbackEmail,
+                    displayName = fallbackName,
                     photoUrl = null
                 )
             )
@@ -220,6 +233,19 @@ fun AuthScreen(
                             placeholder = { Text("+522281234567") },
                             leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                            singleLine = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 12.dp),
+                            shape = MaterialTheme.shapes.medium
+                        )
+
+                        OutlinedTextField(
+                            value = state.neighborhoodInput,
+                            onValueChange = { onEvent(AuthUiEvent.NeighborhoodChanged(it)) },
+                            label = { Text("Colonia en Coatzacoalcos") },
+                            placeholder = { Text("Ej. Centro, Petrolera, Puerto México") },
+                            leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null) },
                             singleLine = true,
                             modifier = Modifier
                                 .fillMaxWidth()

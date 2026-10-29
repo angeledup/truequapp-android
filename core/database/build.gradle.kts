@@ -50,3 +50,4 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation("androidx.room:room-testing:2.6.1")
 }
+

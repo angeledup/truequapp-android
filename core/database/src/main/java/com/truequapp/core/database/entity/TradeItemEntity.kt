@@ -35,3 +35,4 @@ data class TradeItemEntity(
     val city: String = "Coatzacoalcos",
     val createdAtEpochMs: Long = System.currentTimeMillis()
 )
+

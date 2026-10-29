@@ -25,3 +25,4 @@ interface SafeZoneDao {
     @Query("SELECT COUNT(*) FROM safe_zones")
     suspend fun countSafeZones(): Int
 }
+

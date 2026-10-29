@@ -55,11 +55,11 @@ class UserSessionDataStoreImpl @Inject constructor(
         UserSession(
             accessToken = prefs[KEY_ACCESS_TOKEN],
             refreshToken = prefs[KEY_REFRESH_TOKEN],
-            userId = prefs[KEY_USER_ID] ?: "usr-demo",
-            userName = prefs[KEY_USER_NAME] ?: "Usuario Verificado",
-            userEmail = prefs[KEY_USER_EMAIL] ?: "usuario@truequapp.com",
+            userId = prefs[KEY_USER_ID],
+            userName = prefs[KEY_USER_NAME],
+            userEmail = prefs[KEY_USER_EMAIL],
             userPhotoUrl = prefs[KEY_USER_PHOTO],
-            isKycVerified = prefs[KEY_KYC_VERIFIED] ?: true,
+            isKycVerified = prefs[KEY_KYC_VERIFIED] ?: false,
             truequeCoins = prefs[KEY_TRUEQUE_COINS] ?: DEFAULT_INITIAL_COINS,
             escrowCoins = prefs[KEY_ESCROW_COINS] ?: 0.0,
             authProvider = prefs[KEY_AUTH_PROVIDER] ?: "EMAIL"

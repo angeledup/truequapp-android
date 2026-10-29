@@ -25,3 +25,4 @@ data class ChatMessageEntity(
     val isAuditLog: Boolean = false, // Registros automáticos de modificaciones de oferta (RN-03)
     val isRead: Boolean = false
 )
+

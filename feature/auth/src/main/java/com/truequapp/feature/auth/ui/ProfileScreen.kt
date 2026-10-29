@@ -21,16 +21,21 @@ import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PersonOutline
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.truequapp.core.designsystem.component.KycLevel
@@ -89,7 +95,7 @@ fun ProfileScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Default.Person,
+                    imageVector = if (state.isLoggedIn) Icons.Default.Person else Icons.Default.PersonOutline,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(54.dp)
@@ -98,44 +104,112 @@ fun ProfileScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Text(
-                text = state.nameInput.ifBlank { "Usuario Verificado" },
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            if (state.isLoggedIn) {
+                Text(
+                    text = state.userName.ifBlank { state.nameInput }.ifBlank { "Usuario Registrado" },
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
 
-            Text(
-                text = state.emailInput.ifBlank { "usuario@truequapp.com" },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+                Text(
+                    text = state.userEmail.ifBlank { state.emailInput }.ifBlank { "Sin correo registrado" },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
-            Spacer(modifier = Modifier.height(12.dp))
+                if (state.userPhone.isNotBlank()) {
+                    Text(
+                        text = "Tel: ${state.userPhone}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
 
-            // Badge KYC Nivel 1 (Teléfono Verificado)
-            TruequappBadge(
-                level = KycLevel.LEVEL_1_PHONE
-            )
+                Spacer(modifier = Modifier.height(8.dp))
 
-            if (state.authProvider == "GOOGLE") {
-                Spacer(modifier = Modifier.height(6.dp))
-                androidx.compose.material3.Surface(
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                // Badge KYC Nivel 1 (Teléfono Verificado)
+                val badgeLevel = when (state.kycLevel) {
+                    com.truequapp.core.domain.model.KycLevel.IDENTIFICACION_OFICIAL_NIVEL_2 -> KycLevel.LEVEL_2_OFFICIAL_ID
+                    else -> KycLevel.LEVEL_1_PHONE
+                }
+                TruequappBadge(
+                    level = badgeLevel
+                )
+
+                if (state.authProvider == "GOOGLE") {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    androidx.compose.material3.Surface(
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp)
                     ) {
-                        GoogleIcon(modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            GoogleIcon(modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Cuenta de Google Vinculada",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Botón para editar datos del perfil y persistir en SQLite Room
+                OutlinedButton(
+                    onClick = { onEvent(AuthUiEvent.OpenEditProfileDialog) },
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Editar Datos del Perfil (BD)", fontSize = 13.sp)
+                }
+            } else {
+                Text(
+                    text = "Modo Invitado",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Text(
+                    text = "Sin sesión iniciada",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
                         Text(
-                            text = "Cuenta de Google Vinculada",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            text = "Inicia sesión o regístrate para que tu nombre, correo, teléfono y TruequeCoins se guarden en la base de datos de Coatzacoalcos.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        TruequappPrimaryButton(
+                            text = "Iniciar Sesión / Registrarme",
+                            onClick = onNavigateToAuth,
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
                 }
@@ -214,7 +288,7 @@ fun ProfileScreen(
                         )
                     }
                     Text(
-                        text = "Sector: ${state.obfuscatedNeighborhood.ifBlank { "Zona de Intercambio General" }}",
+                        text = "Sector: ${state.userNeighborhood.ifBlank { state.obfuscatedNeighborhood }.ifBlank { "Centro, Coatzacoalcos" }}",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.padding(top = 4.dp)
@@ -373,6 +447,83 @@ fun ProfileScreen(
                 )
             }
         }
+    }
+
+    // Modal de edición de datos de perfil persistentes en Base de Datos Room
+    if (state.isEditProfileDialogVisible) {
+        AlertDialog(
+            onDismissRequest = { onEvent(AuthUiEvent.DismissEditProfileDialog) },
+            shape = MaterialTheme.shapes.large,
+            title = {
+                Text(
+                    text = "Editar Perfil (Guardar en BD)",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "Actualiza tu información guardada en SQLite Room:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+
+                    OutlinedTextField(
+                        value = state.editNameInput,
+                        onValueChange = { onEvent(AuthUiEvent.EditNameChanged(it)) },
+                        label = { Text("Nombre Completo") },
+                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                    )
+
+                    OutlinedTextField(
+                        value = state.editPhoneInput,
+                        onValueChange = { onEvent(AuthUiEvent.EditPhoneChanged(it)) },
+                        label = { Text("Teléfono de Contacto") },
+                        leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                    )
+
+                    OutlinedTextField(
+                        value = state.editNeighborhoodInput,
+                        onValueChange = { onEvent(AuthUiEvent.EditNeighborhoodChanged(it)) },
+                        label = { Text("Colonia en Coatzacoalcos") },
+                        placeholder = { Text("Ej. Centro, Petrolera, María de la Piedad") },
+                        leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    if (!state.errorMessage.isNullOrBlank()) {
+                        Text(
+                            text = state.errorMessage,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TruequappPrimaryButton(
+                    text = "Guardar en Base de Datos",
+                    onClick = { onEvent(AuthUiEvent.SaveEditedProfile) }
+                )
+            },
+            dismissButton = {
+                TextButton(onClick = { onEvent(AuthUiEvent.DismissEditProfileDialog) }) {
+                    Text("Cancelar")
+                }
+            }
+        )
     }
 }
 

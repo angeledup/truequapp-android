@@ -105,3 +105,4 @@ abstract class TruequappDatabase : RoomDatabase() {
         }
     }
 }
+

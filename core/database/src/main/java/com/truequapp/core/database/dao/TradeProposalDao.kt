@@ -35,3 +35,4 @@ interface TradeProposalDao {
     @Query("DELETE FROM trade_proposals WHERE id = :proposalId")
     suspend fun deleteProposal(proposalId: String)
 }
+

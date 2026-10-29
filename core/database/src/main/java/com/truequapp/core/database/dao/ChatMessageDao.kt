@@ -25,3 +25,4 @@ interface ChatMessageDao {
     @Query("UPDATE chat_messages SET isRead = 1 WHERE proposalId = :proposalId AND senderId != :currentUserId")
     suspend fun markMessagesAsRead(proposalId: String, currentUserId: String)
 }
+

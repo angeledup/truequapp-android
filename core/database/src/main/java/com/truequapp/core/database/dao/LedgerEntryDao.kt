@@ -25,3 +25,4 @@ interface LedgerEntryDao {
     @Query("SELECT * FROM ledger_entries WHERE tradeId = :tradeId ORDER BY timestampEpochMs ASC")
     fun getEntriesForTrade(tradeId: String): Flow<List<LedgerEntryEntity>>
 }
+
