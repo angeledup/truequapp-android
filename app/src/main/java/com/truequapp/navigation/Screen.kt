@@ -4,6 +4,8 @@ package com.truequapp.navigation
  * Destinations for Jetpack Compose Navigation in Truequapp.
  */
 sealed class Screen(val route: String, val title: String) {
+    data object Login : Screen("login", "Iniciar Sesión")
+    data object Register : Screen("register", "Registrarse")
     data object Splash : Screen("splash", "Bienvenida")
     data object Auth : Screen("auth", "Iniciar Sesión")
     data object Catalog : Screen("catalog", "Explorar Trueques")

@@ -1,5 +1,6 @@
 package com.truequapp.navigation
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -37,16 +38,17 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.truequapp.auth.ui.LoginRoute
+import com.truequapp.auth.ui.LoginViewModel
+import com.truequapp.auth.ui.RegisterRoute
+import com.truequapp.auth.ui.RegisterViewModel
+import com.truequapp.core.designsystem.component.TruequappOutlinedButton
 import com.truequapp.core.designsystem.theme.TruequappTheme
-import com.truequapp.feature.auth.mvi.AuthViewModel
-import com.truequapp.feature.auth.ui.AuthScreen
-import com.truequapp.feature.auth.ui.ProfileScreen
 import com.truequapp.feature.catalog.mvi.CatalogViewModel
 import com.truequapp.feature.catalog.ui.CatalogFeedScreen
 import com.truequapp.feature.catalog.ui.ItemPublishScreen
 import com.truequapp.feature.chat.mvi.ChatViewModel
 import com.truequapp.feature.chat.ui.ChatScreen
-import com.truequapp.feature.trade.mvi.TradeUiEvent
 import com.truequapp.feature.trade.mvi.TradeViewModel
 import com.truequapp.feature.trade.ui.CreateTradeProposalScreen
 import com.truequapp.feature.trade.ui.TradeListScreen
@@ -57,7 +59,7 @@ fun TruequappNavHost(
     navController: NavHostController = rememberNavController()
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route ?: Screen.Catalog.route
+    val currentRoute = navBackStackEntry?.destination?.route ?: Screen.Login.route
 
     val topLevelRoutes = listOf(
         Screen.Catalog.route,
@@ -111,9 +113,38 @@ fun TruequappNavHost(
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = Screen.Catalog.route,
+            startDestination = Screen.Login.route,
             modifier = Modifier.padding(innerPadding)
         ) {
+            // Pantalla 1: Inicio de Sesión (Valida contra SQLite Room)
+            composable(Screen.Login.route) {
+                val loginViewModel: LoginViewModel = hiltViewModel()
+                LoginRoute(
+                    viewModel = loginViewModel,
+                    onLoginSuccess = {
+                        navController.navigate(Screen.Catalog.route) {
+                            popUpTo(Screen.Login.route) { inclusive = true }
+                        }
+                    },
+                    onNavigateToRegister = {
+                        navController.navigate(Screen.Register.route)
+                    }
+                )
+            }
+
+            // Pantalla 2: Registro de Cuenta Nueva (Persiste en SQLite Room con 7 columnas)
+            composable(Screen.Register.route) {
+                val registerViewModel: RegisterViewModel = hiltViewModel()
+                RegisterRoute(
+                    viewModel = registerViewModel,
+                    onNavigateBackToLogin = {
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(Screen.Register.route) { inclusive = true }
+                        }
+                    }
+                )
+            }
+
             // Marketplace Feed (CU008)
             composable(Screen.Catalog.route) {
                 val catalogViewModel: CatalogViewModel = hiltViewModel()
@@ -158,7 +189,7 @@ fun TruequappNavHost(
                 )
             }
 
-            // Proponer Trueque Directo o Híbrido (CU009, RN-02, Opción A)
+            // Crear Propuesta de Trueque 1:1 o N:1 (CU009, RN-02)
             composable(
                 route = Screen.CreateTrade.route,
                 arguments = listOf(navArgument("targetItemId") { type = NavType.StringType })
@@ -168,7 +199,9 @@ fun TruequappNavHost(
                 val tradeState by tradeViewModel.uiState.collectAsStateWithLifecycle()
 
                 LaunchedEffect(targetItemId) {
-                    tradeViewModel.onEvent(TradeUiEvent.InitTradeCreation(targetItemId, tradeState.currentUserId))
+                    if (targetItemId.isNotBlank()) {
+                        tradeViewModel.onEvent(com.truequapp.feature.trade.mvi.TradeUiEvent.InitTradeCreation(targetItemId, "usuario_actual"))
+                    }
                 }
 
                 CreateTradeProposalScreen(
@@ -176,15 +209,15 @@ fun TruequappNavHost(
                     effectFlow = tradeViewModel.uiEffect,
                     onEvent = tradeViewModel::onEvent,
                     onNavigateBack = { navController.popBackStack() },
-                    onNavigateToNegotiation = { proposalId ->
-                        navController.navigate(Screen.TradeNegotiation.createRoute(proposalId)) {
-                            popUpTo(Screen.Trades.route)
+                    onNavigateToNegotiation = { pId ->
+                        navController.navigate(Screen.TradeNegotiation.createRoute(pId)) {
+                            popUpTo(Screen.Catalog.route)
                         }
                     }
                 )
             }
 
-            // Detalle de Negociación (CU010, CU011, CU012, RN-01, RN-07)
+            // Detalle y Negociación de Propuesta (CU010, CU011, CU012, RN-01, RN-07)
             composable(
                 route = Screen.TradeNegotiation.route,
                 arguments = listOf(navArgument("proposalId") { type = NavType.StringType })
@@ -223,29 +256,12 @@ fun TruequappNavHost(
                 )
             }
 
-            // Perfil de Usuario y KYC (CU003, CU004, RN-09, RN-10)
+            // Perfil de Usuario y KYC
             composable(Screen.Profile.route) {
-                val authViewModel: AuthViewModel = hiltViewModel()
-                val authState by authViewModel.uiState.collectAsStateWithLifecycle()
-
-                ProfileScreen(
-                    state = authState,
-                    onEvent = authViewModel::onEvent
-                )
-            }
-
-            // Autenticación SMS OTP (CU001, CU023)
-            composable(Screen.Auth.route) {
-                val authViewModel: AuthViewModel = hiltViewModel()
-                val authState by authViewModel.uiState.collectAsStateWithLifecycle()
-
-                AuthScreen(
-                    state = authState,
-                    effectFlow = authViewModel.uiEffect,
-                    onEvent = authViewModel::onEvent,
-                    onNavigateToHome = {
-                        navController.navigate(Screen.Catalog.route) {
-                            popUpTo(Screen.Auth.route) { inclusive = true }
+                ProfileSectionScreen(
+                    onLogout = {
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(Screen.Catalog.route) { inclusive = true }
                         }
                     }
                 )
@@ -258,6 +274,45 @@ fun TruequappNavHost(
                     subtitle = "Módulo de Puntos Seguros con geofencing (Fase 3)"
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ProfileSectionScreen(onLogout: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.AccountCircle,
+                contentDescription = null,
+                tint = TruequappTheme.colors.primary,
+                modifier = Modifier.size(72.dp)
+            )
+            Text(
+                text = "Mi Perfil & Sesión",
+                style = TruequappTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "Sesión validada contra base de datos SQL local",
+                style = TruequappTheme.typography.bodyMedium,
+                color = TruequappTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            TruequappOutlinedButton(
+                text = "Cerrar Sesión",
+                onClick = onLogout
+            )
         }
     }
 }

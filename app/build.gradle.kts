@@ -14,8 +14,8 @@ android {
         applicationId = "com.truequapp"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1001
-        versionName = "1.1"
+        versionCode = 2001
+        versionName = "2.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -54,6 +54,12 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+
+    testOptions {
+        unitTests.all {
+            it.useJUnitPlatform()
+        }
+    }
 }
 
 dependencies {
@@ -63,7 +69,7 @@ dependencies {
     implementation(project(":core:designsystem"))
     implementation(project(":core:network"))
     implementation(project(":core:datastore"))
-    implementation(project(":feature:auth"))
+    implementation(project(":core:database"))
     implementation(project(":feature:catalog"))
     implementation(project(":feature:trade"))
     implementation(project(":feature:chat"))

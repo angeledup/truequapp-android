@@ -5,37 +5,49 @@ Este archivo registra el ciclo de vida de versiones activas de acuerdo a la pol�
 ---
 
 ## 🟢 Versión Activa ($V_N$)
-* **Versión:** `v0.4`
-* **Fase:** Fase 2 — *MVP Core Refinements: Moneda Única `truequeCoins`, Especificación RN-03, Límite 1 Foto WebP, Pestañas Activas/Ofertas, Persistencia Local y Guardado de Favoritos*
-* **Rama Git:** `feature/fase-2-mvp-core`
-* **Fecha:** 28 de Octubre de 2026
+* **Versión:** `v2.1`
+* **Fase:** Fase 2 — *MVP Core: Paso 1 - Autenticación, Registro y Base de Datos SQL Room con 7 Columnas*
+* **Rama Git:** `main`
+* **Fecha:** 3 de Noviembre de 2026
 * **Resumen:**
-  * **Unificación de Moneda Virtual (`truequeCoins`):**
-    * Estandarización de la variable en contratos, estados y ViewModels (`:feature:auth`, `:feature:trade`, `:core:domain`). Eliminación de nombres heterogéneos (`walletBalanceCoins`, `compensatoryCoinsInput`, `userCoinsBalance`) a favor de `truequeCoins` y `truequeCoinsInput`, manteniendo getters retrocompatibles.
-  * **Especificación y Detalle de la Regla RN-03 (`:feature:chat`, `:feature:trade`):**
-    * Incorporación de diálogo explicativo y banner permanente de seguridad detallando los tres pilares de RN-03: (1) Apertura condicionada a propuestas formales activas, (2) Prevención de acoso y tratos fuera de plataforma suprimiendo mensajería directa libre previa, y (3) Ventana de auditoría de exactamente 48 horas en modo solo lectura para controversias tras culminar o cancelar el trueque.
-  * **Restricción de Publicación a 1 Sola Imagen (`:feature:catalog`):**
-    * Ajuste en `ItemPublishScreen` con `PickVisualMedia` limitando la subida a exactamente 1 fotografía, procesada asíncronamente a WebP lossy `< 80 KB` con eliminación de EXIF/GPS.
-  * **Zona de Trueques: Pestañas 'Activas' y 'Ofertas' (`:feature:trade`):**
-    * Reestructuración de `TradeListScreen`, `TradeContract` y `TradeViewModel`:
-      * **Activas:** Propuestas salientes enviadas por el usuario o intercambios en curso (`RESERVADO`, `EN_ENTREGA`).
-      * **Ofertas:** Ofertas entrantes recibidas de otros usuarios respecto a publicaciones propias y contraofertas recibidas sobre la propuesta inicial.
-  * **Persistencia Local de Artículos Propios Publicados (`:feature:catalog`):**
-    * Implementación de `CatalogLocalStorage` serializando `user_published_items.json` en el sandbox privado de la app para conservar las publicaciones entre sesiones.
-  * **Marcado y Guardado de Publicaciones de Otros Usuarios (`:feature:catalog`):**
-    * Marcado de favoritos persistido en `user_bookmarked_items.json` con filtro rápido en el catálogo de marketplace que solo muestra publicaciones guardadas mientras sigan activas (`ItemStatus.DISPONIBLE`).
+  * **Base de Datos SQL Nativa con Room (`:core:database`):**
+    * Creación de la tabla `usuarios` conteniendo exactamente las 7 columnas requeridas por negocio:
+      1. `correo` (TEXT PRIMARY KEY)
+      2. `contrasena` (TEXT)
+      3. `usuario` (TEXT)
+      4. `numero_telefonico` (TEXT)
+      5. `cantidad_trueque_coins` (REAL, default 100.0)
+      6. `trueques_realizados` (INTEGER, default 0)
+      7. `calificacion` (REAL, default 5.0)
+    * `UserDao` con consultas SQL directas: `getUserByEmail(correo)`, `countByEmail(correo)`, `insertUser(user)` y `getAllUsers()`.
+  * **Pantalla de Inicio de Sesión (`LoginScreen`):**
+    * Destino inicial al ingresar a la aplicación (`startDestination = Screen.Login.route`).
+    * Validación reactiva de 2 inputs contra la base de datos SQL Room:
+      * Correo electrónico: Si no existe, muestra el mensaje exacto `"No hay una cuenta vinculada al correo"`.
+      * Contraseña: Si el correo existe pero la contraseña no coincide, muestra el mensaje exacto `"Contraseña incorrecta"`.
+    * Botón al pie `"Registrar cuenta nueva"` para navegar a la pantalla de registro.
+  * **Pantalla de Registro (`RegisterScreen`):**
+    * 4 inputs validados que persisten directamente en la base de datos SQL:
+      1. Nombre de usuario (`usuario`)
+      2. Número telefónico (`numero_telefonico`)
+      3. Correo electrónico (`correo`)
+      4. Contraseña (`contrasena`)
+    * Validación anti-duplicados por correo y retorno asistido al Login tras registrarse con éxito.
+  * **Pruebas y Compatibilidad Google Play:**
+    * `versionCode = 2001`, `versionName = "2.1"`.
+    * Pruebas unitarias para `AuthRepository`, `LoginViewModel` y `UserEntity` en JUnit Platform.
 
 ---
 
 ## 🟡 Versión de Respaldo ($V_{N-1}$ — Punto de Restauración Fallback)
-* **Versión:** `v0.3`
-* **Fase:** Fase 2 — *MVP Core: Usuarios, Catálogo WebP, Trueques 1:1 y Chat Transaccional Inicial*
-* **Rama Git:** `feature/fase-2-mvp-core`
-* **Fecha:** 27 de Octubre de 2026
+* **Versión:** `v0.4`
+* **Fase:** Fase 2 — *MVP Core Refinements: Moneda Única `truequeCoins`, Especificación RN-03, Límite 1 Foto WebP, Pestañas Activas/Ofertas, Persistencia Local y Guardado de Favoritos*
+* **Rama Git:** `main`
+* **Fecha:** 28 de Octubre de 2026
 * **Resumen:**
-  * Implementación inicial de KYC Nivel 1 por SMS OTP, compresión WebP, motor de trueques 1:1 e híbridos con ratio del 40% (RN-02), bloqueo ACID (RN-01), cancelación anticipada con penalización (RN-07) y chat en tiempo real Socket.io.
+  * Estandarización de `truequeCoins`, banner explicativo de auditoría 48h RN-03, compresión WebP lossy < 80 KB para 1 sola foto, pestañas Activas/Ofertas en listado de trueques y persistencia en sandbox local (`user_published_items.json` y `user_bookmarked_items.json`).
 
 ---
 
 ## 🔴 Versiones Purgadas ($V_{N-2}$)
-* **Versión:** `v0.2` (Fase 0 - Ajuste Transparencia de Reseñas RN-12) y `v0.1` (Fase 0 - Modelado Canónico Inicial). Archivadas conforme a la política $N-1$.
+* **Versión:** `v0.3` (Fase 2 MVP Core Inicial), `v0.2` (Fase 0 Reseñas) y `v0.1` (Fase 0 Modelado Canónico). Archivadas conforme a la política $N-1$.
