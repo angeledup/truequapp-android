@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -115,6 +116,37 @@ class AuthRepositoryTest {
 
         assertInstanceOf(RegisterResult.EmailAlreadyExists::class.java, result)
     }
+
+    @Test
+    fun `getCurrentUser returns logged in user details from database`() = runTest {
+        val user = UserEntity(
+            correo = "sesion@correo.com",
+            contrasena = "pass123",
+            usuario = "usuario_sesion",
+            numeroTelefonico = "5511223344",
+            cantidadTruequeCoins = 150.0,
+            truequesRealizados = 3,
+            calificacion = 4.8
+        )
+        fakeUserDao.insertUser(user)
+        fakeSessionDataStore.saveUser("usuario_sesion", "sesion@correo.com", false)
+
+        val current = authRepository.getCurrentUser()
+        assertEquals("sesion@correo.com", current?.correo)
+        assertEquals("usuario_sesion", current?.usuario)
+        assertEquals(150.0, current?.cantidadTruequeCoins)
+        assertEquals(3, current?.truequesRealizados)
+        assertEquals(4.8, current?.calificacion)
+    }
+
+    @Test
+    fun `logout clears session DataStore`() = runTest {
+        fakeSessionDataStore.saveUser("usr1", "usr1@correo.com", false)
+        authRepository.logout()
+
+        assertNull(fakeSessionDataStore.savedUserId)
+        assertNull(fakeSessionDataStore.savedEmail)
+    }
 }
 
 private class FakeUserDao : UserDao {
@@ -122,6 +154,10 @@ private class FakeUserDao : UserDao {
 
     override suspend fun getUserByEmail(correo: String): UserEntity? {
         return users[correo.lowercase()]
+    }
+
+    override fun observeUserByEmail(correo: String): Flow<UserEntity?> {
+        return flowOf(users[correo.lowercase()])
     }
 
     override suspend fun countByEmail(correo: String): Int {
@@ -158,4 +194,3 @@ private class FakeSessionDataStore : UserSessionDataStore {
         savedEmail = null
     }
 }
-

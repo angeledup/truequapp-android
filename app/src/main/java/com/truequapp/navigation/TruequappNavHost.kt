@@ -42,7 +42,6 @@ import com.truequapp.auth.ui.LoginRoute
 import com.truequapp.auth.ui.LoginViewModel
 import com.truequapp.auth.ui.RegisterRoute
 import com.truequapp.auth.ui.RegisterViewModel
-import com.truequapp.core.designsystem.component.TruequappOutlinedButton
 import com.truequapp.core.designsystem.theme.TruequappTheme
 import com.truequapp.feature.catalog.mvi.CatalogViewModel
 import com.truequapp.feature.catalog.ui.CatalogFeedScreen
@@ -53,6 +52,8 @@ import com.truequapp.feature.trade.mvi.TradeViewModel
 import com.truequapp.feature.trade.ui.CreateTradeProposalScreen
 import com.truequapp.feature.trade.ui.TradeListScreen
 import com.truequapp.feature.trade.ui.TradeNegotiationScreen
+import com.truequapp.profile.ui.ProfileRoute
+import com.truequapp.profile.ui.ProfileViewModel
 
 @Composable
 fun TruequappNavHost(
@@ -93,7 +94,7 @@ fun TruequappNavHost(
                                 if (currentRoute != screen.route) {
                                     navController.navigate(screen.route) {
                                         popUpTo(navController.graph.findStartDestination().id) {
-                                            saveState = true
+                                             saveState = true
                                         }
                                         launchSingleTop = true
                                         restoreState = true
@@ -256,12 +257,14 @@ fun TruequappNavHost(
                 )
             }
 
-            // Perfil de Usuario y KYC
+            // Perfil de Usuario con información real de la base de datos SQL
             composable(Screen.Profile.route) {
-                ProfileSectionScreen(
-                    onLogout = {
+                val profileViewModel: ProfileViewModel = hiltViewModel()
+                ProfileRoute(
+                    viewModel = profileViewModel,
+                    onLogoutSuccess = {
                         navController.navigate(Screen.Login.route) {
-                            popUpTo(Screen.Catalog.route) { inclusive = true }
+                            popUpTo(0) { inclusive = true }
                         }
                     }
                 )
@@ -274,45 +277,6 @@ fun TruequappNavHost(
                     subtitle = "Módulo de Puntos Seguros con geofencing (Fase 3)"
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun ProfileSectionScreen(onLogout: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.AccountCircle,
-                contentDescription = null,
-                tint = TruequappTheme.colors.primary,
-                modifier = Modifier.size(72.dp)
-            )
-            Text(
-                text = "Mi Perfil & Sesión",
-                style = TruequappTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "Sesión validada contra base de datos SQL local",
-                style = TruequappTheme.typography.bodyMedium,
-                color = TruequappTheme.colorScheme.onSurfaceVariant
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            TruequappOutlinedButton(
-                text = "Cerrar Sesión",
-                onClick = onLogout
-            )
         }
     }
 }

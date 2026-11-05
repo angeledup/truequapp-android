@@ -3,6 +3,9 @@ package com.truequapp.auth.data
 import com.truequapp.core.database.dao.UserDao
 import com.truequapp.core.database.entity.UserEntity
 import com.truequapp.core.datastore.UserSessionDataStore
+import com.truequapp.core.datastore.model.UserSession
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -24,6 +27,8 @@ class AuthRepository @Inject constructor(
     private val userDao: UserDao,
     private val userSessionDataStore: UserSessionDataStore
 ) {
+
+    val currentSessionFlow: Flow<UserSession> get() = userSessionDataStore.sessionFlow
 
     /**
      * Valida credenciales contra la base de datos SQL.
@@ -108,5 +113,28 @@ class AuthRepository @Inject constructor(
 
         return RegisterResult.Success(newUser)
     }
-}
 
+    /**
+     * Obtiene los datos del usuario logueado actualmente a partir de la sesión.
+     */
+    suspend fun getCurrentUser(): UserEntity? {
+        val session = userSessionDataStore.sessionFlow.first()
+        val email = session.userEmail ?: return null
+        return userDao.getUserByEmail(email)
+    }
+
+    suspend fun getUserByEmail(correo: String): UserEntity? {
+        return userDao.getUserByEmail(correo)
+    }
+
+    fun observeUserByEmail(correo: String): Flow<UserEntity?> {
+        return userDao.observeUserByEmail(correo)
+    }
+
+    /**
+     * Cierra la sesión activa del usuario.
+     */
+    suspend fun logout() {
+        userSessionDataStore.clearSession()
+    }
+}

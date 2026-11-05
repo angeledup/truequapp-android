@@ -24,16 +24,16 @@ import org.junit.jupiter.api.Test
 class LoginViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
-    private lateinit var fakeDao: FakeUserDao
-    private lateinit var fakeSession: FakeSessionDataStore
+    private lateinit var fakeDao: FakeLoginUserDao
+    private lateinit var fakeSession: FakeLoginSessionDataStore
     private lateinit var repository: AuthRepository
     private lateinit var viewModel: LoginViewModel
 
     @BeforeEach
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
-        fakeDao = FakeUserDao()
-        fakeSession = FakeSessionDataStore()
+        fakeDao = FakeLoginUserDao()
+        fakeSession = FakeLoginSessionDataStore()
         repository = AuthRepository(fakeDao, fakeSession)
         viewModel = LoginViewModel(repository)
     }
@@ -90,11 +90,15 @@ class LoginViewModelTest {
     }
 }
 
-private class FakeUserDao : UserDao {
+private class FakeLoginUserDao : UserDao {
     private val users = mutableMapOf<String, UserEntity>()
 
     override suspend fun getUserByEmail(correo: String): UserEntity? {
         return users[correo.lowercase()]
+    }
+
+    override fun observeUserByEmail(correo: String): Flow<UserEntity?> {
+        return flowOf(users[correo.lowercase()])
     }
 
     override suspend fun countByEmail(correo: String): Int {
@@ -110,7 +114,7 @@ private class FakeUserDao : UserDao {
     }
 }
 
-private class FakeSessionDataStore : UserSessionDataStore {
+private class FakeLoginSessionDataStore : UserSessionDataStore {
     override val sessionFlow: Flow<UserSession> get() = flowOf(UserSession())
     override suspend fun saveTokens(accessToken: String, refreshToken: String) {}
     override suspend fun saveUser(userId: String, email: String, isKycVerified: Boolean) {}
@@ -118,4 +122,3 @@ private class FakeSessionDataStore : UserSessionDataStore {
     override suspend fun getRefreshToken(): String? = null
     override suspend fun clearSession() {}
 }
-

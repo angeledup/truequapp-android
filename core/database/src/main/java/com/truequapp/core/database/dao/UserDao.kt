@@ -21,6 +21,12 @@ interface UserDao {
     suspend fun getUserByEmail(correo: String): UserEntity?
 
     /**
+     * Consulta SQL reactiva para observar cambios en un usuario en tiempo real.
+     */
+    @Query("SELECT * FROM usuarios WHERE LOWER(correo) = LOWER(:correo) LIMIT 1")
+    fun observeUserByEmail(correo: String): Flow<UserEntity?>
+
+    /**
      * Consulta SQL para verificar la existencia previa de un correo en el registro.
      */
     @Query("SELECT COUNT(*) FROM usuarios WHERE LOWER(correo) = LOWER(:correo)")
@@ -38,4 +44,3 @@ interface UserDao {
     @Query("SELECT * FROM usuarios")
     fun getAllUsers(): Flow<List<UserEntity>>
 }
-
