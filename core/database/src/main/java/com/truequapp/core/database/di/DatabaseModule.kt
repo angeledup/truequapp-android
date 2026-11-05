@@ -3,6 +3,7 @@ package com.truequapp.core.database.di
 import android.content.Context
 import androidx.room.Room
 import com.truequapp.core.database.TruequappDatabase
+import com.truequapp.core.database.dao.TruequeDao
 import com.truequapp.core.database.dao.UserDao
 import dagger.Module
 import dagger.Provides
@@ -36,5 +37,10 @@ object DatabaseModule {
     fun provideUserDao(database: TruequappDatabase): UserDao {
         return database.userDao()
     }
-}
 
+    @Provides
+    @Singleton
+    fun provideTruequeDao(database: TruequappDatabase): TruequeDao {
+        return database.truequeDao()
+    }
+}

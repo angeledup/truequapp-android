@@ -2,18 +2,25 @@ package com.truequapp.core.database
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import com.truequapp.core.database.dao.TruequeDao
 import com.truequapp.core.database.dao.UserDao
+import com.truequapp.core.database.entity.OfertaItemEntity
+import com.truequapp.core.database.entity.TruequeEntity
 import com.truequapp.core.database.entity.UserEntity
 
 /**
  * Base de datos principal de Truequapp gestionada mediante SQLite y Room.
  */
 @Database(
-    entities = [UserEntity::class],
-    version = 1,
+    entities = [
+        UserEntity::class,
+        OfertaItemEntity::class,
+        TruequeEntity::class
+    ],
+    version = 2,
     exportSchema = false
 )
 abstract class TruequappDatabase : RoomDatabase() {
     abstract fun userDao(): UserDao
+    abstract fun truequeDao(): TruequeDao
 }
-

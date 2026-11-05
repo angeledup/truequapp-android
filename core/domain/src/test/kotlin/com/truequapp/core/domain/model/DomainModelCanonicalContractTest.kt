@@ -38,6 +38,42 @@ class DomainModelCanonicalContractTest {
     }
 
     @Test
+    @DisplayName("TradeProposal: estaActiva debe ser true en estados activos y false en finales")
+    fun shouldValidateEstaActivaOnTradeProposal() {
+        val baseProposal = TradeProposal(
+            id = "prop_activa_test",
+            requesterUserId = "usr_1",
+            receiverUserId = "usr_2",
+            offeredItemIds = listOf("item_1"),
+            targetItemId = "item_2",
+            modality = TradeModality.DIRECTO_1_A_1,
+            status = TradeStatus.PENDIENTE,
+            expiresAtEpochMs = System.currentTimeMillis() + 3600000L
+        )
+
+        // Estados Activos -> estaActiva == true
+        assertTrue(baseProposal.copy(status = TradeStatus.PENDIENTE).estaActiva)
+        assertTrue(baseProposal.copy(status = TradeStatus.CONTRAOFERTADA).estaActiva)
+        assertTrue(baseProposal.copy(status = TradeStatus.RESERVADO).estaActiva)
+        assertTrue(baseProposal.copy(status = TradeStatus.EN_ENTREGA).estaActiva)
+        assertTrue(baseProposal.copy(status = TradeStatus.PENDIENTE).esta_activa)
+
+        // Estados Finales / Inactivos -> estaActiva == false
+        assertFalse(baseProposal.copy(status = TradeStatus.COMPLETADO).estaActiva)
+        assertFalse(baseProposal.copy(status = TradeStatus.CANCELADO).estaActiva)
+        assertFalse(baseProposal.copy(status = TradeStatus.RECHAZADO).estaActiva)
+        assertFalse(baseProposal.copy(status = TradeStatus.EXPIRADO).estaActiva)
+        assertFalse(baseProposal.copy(status = TradeStatus.EN_DISPUTA).estaActiva)
+
+        // Expirada por tiempo TTL
+        val expiredProposal = baseProposal.copy(
+            status = TradeStatus.PENDIENTE,
+            expiresAtEpochMs = System.currentTimeMillis() - 10000L
+        )
+        assertFalse(expiredProposal.estaActiva)
+    }
+
+    @Test
     @DisplayName("UserProfile: Constructor canónico y propiedades de compatibilidad de Fase 0")
     fun shouldConstructCanonicalUserProfile() {
         val user = UserProfile(

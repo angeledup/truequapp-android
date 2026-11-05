@@ -46,6 +46,22 @@ data class TradeProposal(
     val isExpired: Boolean
         get() = System.currentTimeMillis() > expiresAtEpochMs && status == TradeStatus.PENDIENTE
 
+    /**
+     * Variable de estado que indica si la propuesta de trueque está activa.
+     * Retorna `true` para propuestas en curso (PENDIENTE, CONTRAOFERTADA, RESERVADO, EN_ENTREGA).
+     * Retorna `false` para estados finales (COMPLETADO, CANCELADO, RECHAZADO, EXPIRADO, EN_DISPUTA) o vencidas por TTL.
+     */
+    val estaActiva: Boolean
+        get() = !isExpired && status in listOf(
+            TradeStatus.PENDIENTE,
+            TradeStatus.CONTRAOFERTADA,
+            TradeStatus.RESERVADO,
+            TradeStatus.EN_ENTREGA
+        )
+
+    val esta_activa: Boolean
+        get() = estaActiva
+
     val isChatAllowed: Boolean
         get() = status in listOf(
             TradeStatus.PENDIENTE,

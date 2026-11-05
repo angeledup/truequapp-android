@@ -42,6 +42,7 @@ dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:designsystem"))
     implementation(project(":core:datastore"))
+    implementation(project(":core:database"))
 
     // Compose BOM & UI
     val composeBom = platform(libs.compose.bom)
@@ -75,4 +76,3 @@ dependencies {
     testRuntimeOnly(libs.junit.platform.launcher)
     testImplementation(libs.kotlinx.coroutines.test)
 }
-
