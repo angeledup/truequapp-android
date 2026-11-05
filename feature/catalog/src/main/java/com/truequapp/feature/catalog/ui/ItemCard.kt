@@ -12,10 +12,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -41,8 +43,9 @@ import com.truequapp.core.domain.model.ItemCondition
 import com.truequapp.core.domain.model.TradeItem
 
 /**
- * Tarjeta de artículo para la cuadrícula del catálogo de marketplace (CU008).
- * Muestra fotografía WebP, condición física, rango de valor estimado, distancia difusa y marcador de favoritos.
+ * Tarjeta de artículo para la cuadrícula del catálogo de marketplace (CU008 / Fase 2).
+ * Muestra fotografía WebP mediante Coil, condición física, rango de valor estimado,
+ * distancia difusa, indicador de múltiples fotos y marcador de favoritos.
  */
 @Composable
 fun ItemCard(
@@ -67,11 +70,11 @@ fun ItemCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
     ) {
         Column {
-            // Imagen del ítem (WebP) o placeholder
+            // Imagen del ítem (WebP con Coil) o placeholder
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(130.dp)
+                    .height(135.dp)
                     .clip(MaterialTheme.shapes.medium)
                     .background(MaterialTheme.colorScheme.surfaceContainerHighest),
                 contentAlignment = Alignment.Center
@@ -101,26 +104,53 @@ fun ItemCard(
                     ConditionTag(condition = designCondition)
                 }
 
+                // Indicador de múltiples fotos WebP (si tiene más de 1)
+                if (item.imagesWebP.size > 1) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(6.dp)
+                            .background(Color.Black.copy(alpha = 0.65f), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.PhotoLibrary,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = "${item.imagesWebP.size}",
+                                color = Color.White,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
                 // Botón para marcar publicación como favorita (esquina superior derecha)
                 if (onToggleBookmark != null) {
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
                             .padding(4.dp)
-                            .size(36.dp)
+                            .size(34.dp)
                             .clip(CircleShape)
                             .background(Color.Black.copy(alpha = 0.45f)),
                         contentAlignment = Alignment.Center
                     ) {
                         IconButton(
                             onClick = onToggleBookmark,
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier.size(34.dp)
                         ) {
                             Icon(
                                 imageVector = if (isBookmarked) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
                                 contentDescription = if (isBookmarked) "Quitar de guardados" else "Guardar publicación",
                                 tint = if (isBookmarked) TruequappTheme.colorScheme.primary else Color.White,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
@@ -147,17 +177,17 @@ fun ItemCard(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // Distancia aproximada protegiendo la dirección real (RN-10)
+                // Distancia aproximada protegiendo la dirección real (RN-10) en Coatzacoalcos
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         imageVector = Icons.Default.LocationOn,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.size(14.dp)
+                        modifier = Modifier.size(13.dp)
                     )
                     Spacer(modifier = Modifier.width(3.dp))
                     Text(
-                        text = "~3.5 km (Área Protegida)",
+                        text = "~3.5 km • Coatzacoalcos",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
