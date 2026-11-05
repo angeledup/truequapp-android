@@ -20,13 +20,16 @@ interface UserDao {
     @Query("SELECT * FROM users WHERE id = :id LIMIT 1")
     suspend fun getUserByIdSync(id: String): UserEntity?
 
-    @Query("SELECT * FROM users WHERE email = :email LIMIT 1")
+    @Query("SELECT * FROM users WHERE LOWER(email) = LOWER(:email) LIMIT 1")
     fun getUserByEmail(email: String): Flow<UserEntity?>
 
-    @Query("SELECT * FROM users WHERE email = :email LIMIT 1")
+    @Query("SELECT * FROM users WHERE LOWER(email) = LOWER(:email) LIMIT 1")
     suspend fun getUserByEmailSync(email: String): UserEntity?
 
-    @Query("SELECT * FROM users WHERE email = :email AND passwordHash = :passwordHash LIMIT 1")
+    @Query("SELECT * FROM users WHERE LOWER(email) = LOWER(:identifier) OR LOWER(name) = LOWER(:identifier) LIMIT 1")
+    suspend fun getUserByIdentifierSync(identifier: String): UserEntity?
+
+    @Query("SELECT * FROM users WHERE (LOWER(email) = LOWER(:email) OR LOWER(name) = LOWER(:email)) AND passwordHash = :passwordHash LIMIT 1")
     suspend fun authenticate(email: String, passwordHash: String): UserEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

@@ -36,7 +36,73 @@ class AuthViewModel @Inject constructor(
     private var countdownJob: Job? = null
 
     init {
+        ensureAdminAccountsSeeded()
         checkCurrentSession()
+    }
+
+    private fun ensureAdminAccountsSeeded() {
+        viewModelScope.launch(dispatchers.io) {
+            val now = System.currentTimeMillis()
+            // Cuenta 1: chocolatt / chocolattcorreo@gmail.com / chocolatte
+            val existingChocolatt = userDao?.getUserByIdSync("usr_chocolatt")
+                ?: userDao?.getUserByEmailSync("chocolattcorreo@gmail.com")
+                ?: userDao?.getUserByIdentifierSync("chocolatt")
+            if (existingChocolatt == null) {
+                userDao?.insertUser(
+                    UserEntity(
+                        id = "usr_chocolatt",
+                        email = "chocolattcorreo@gmail.com",
+                        name = "chocolatt",
+                        passwordHash = "chocolatte",
+                        phoneNumber = "+529211000001",
+                        authProvider = "EMAIL",
+                        isKycVerified = true,
+                        kycLevel = "TELEFONO_SMS_NIVEL_1",
+                        truequeCoins = 10000.0,
+                        escrowCoins = 0.0,
+                        bayesianRating = 4.9,
+                        ratingsCount = 15,
+                        attendanceRate = 1.0,
+                        obfuscatedNeighborhood = "Centro, Coatzacoalcos",
+                        city = "Coatzacoalcos",
+                        createdAtEpochMs = now,
+                        lastLoginEpochMs = now
+                    )
+                )
+            } else if (existingChocolatt.truequeCoins < 10000.0 || existingChocolatt.passwordHash != "chocolatte") {
+                userDao?.updateUser(existingChocolatt.copy(truequeCoins = 10000.0, passwordHash = "chocolatte"))
+            }
+
+            // Cuenta 2: Vergara / Vergaracorreo@gmail.com / AngEduVr
+            val existingVergara = userDao?.getUserByIdSync("usr_vergara")
+                ?: userDao?.getUserByEmailSync("Vergaracorreo@gmail.com")
+                ?: userDao?.getUserByIdentifierSync("Vergara")
+            if (existingVergara == null) {
+                userDao?.insertUser(
+                    UserEntity(
+                        id = "usr_vergara",
+                        email = "Vergaracorreo@gmail.com",
+                        name = "Vergara",
+                        passwordHash = "AngEduVr",
+                        phoneNumber = "+529211000002",
+                        authProvider = "EMAIL",
+                        isKycVerified = true,
+                        kycLevel = "TELEFONO_SMS_NIVEL_1",
+                        truequeCoins = 10000.0,
+                        escrowCoins = 0.0,
+                        bayesianRating = 4.9,
+                        ratingsCount = 14,
+                        attendanceRate = 1.0,
+                        obfuscatedNeighborhood = "Col. Petrolera, Coatzacoalcos",
+                        city = "Coatzacoalcos",
+                        createdAtEpochMs = now,
+                        lastLoginEpochMs = now
+                    )
+                )
+            } else if (existingVergara.truequeCoins < 10000.0 || existingVergara.passwordHash != "AngEduVr") {
+                userDao?.updateUser(existingVergara.copy(truequeCoins = 10000.0, passwordHash = "AngEduVr"))
+            }
+        }
     }
 
     private fun checkCurrentSession() {
@@ -159,6 +225,8 @@ class AuthViewModel @Inject constructor(
                 userDao?.updateUser(resolvedUser)
             } else {
                 // Usuario nuevo: crear registro completo en la base de datos Room
+                val initialCoins = if (event.email.equals("chocolattcorreo@gmail.com", ignoreCase = true) ||
+                    event.email.equals("Vergaracorreo@gmail.com", ignoreCase = true)) 10000.0 else 100.0
                 resolvedUser = UserEntity(
                     id = event.googleId,
                     email = event.email,
@@ -169,7 +237,7 @@ class AuthViewModel @Inject constructor(
                     photoUrl = event.photoUrl,
                     isKycVerified = true,
                     kycLevel = "TELEFONO_SMS_NIVEL_1",
-                    truequeCoins = 100.0, // Balance inicial canónico
+                    truequeCoins = initialCoins, // 10,000 para admin beta, 100 para usuarios regulares
                     escrowCoins = 0.0,
                     bayesianRating = 5.0,
                     ratingsCount = 1,
@@ -235,9 +303,65 @@ class AuthViewModel @Inject constructor(
      * Valida si el correo y la contraseña coinciden con un registro existente en la base de datos.
      * En caso contrario, deniega el acceso identificando si falta el correo o la contraseña es inválida.
      */
-    private suspend fun validateAccountWithDatabase(email: String, password: String): AccountValidationResult {
-        val user = userDao?.getUserByEmailSync(email)
-            ?: return AccountValidationResult.UserNotFound
+    private suspend fun validateAccountWithDatabase(identifier: String, password: String): AccountValidationResult {
+        val trimmed = identifier.trim()
+        var user = userDao?.getUserByIdentifierSync(trimmed)
+            ?: userDao?.getUserByEmailSync(trimmed)
+
+        // Respaldo de inicialización inmediata si se introduce chocolatt o Vergara
+        val lower = trimmed.lowercase()
+        if (user == null) {
+            val now = System.currentTimeMillis()
+            if (lower == "chocolatt" || lower == "chocolattcorreo@gmail.com") {
+                val admin = UserEntity(
+                    id = "usr_chocolatt",
+                    email = "chocolattcorreo@gmail.com",
+                    name = "chocolatt",
+                    passwordHash = "chocolatte",
+                    phoneNumber = "+529211000001",
+                    authProvider = "EMAIL",
+                    isKycVerified = true,
+                    kycLevel = "TELEFONO_SMS_NIVEL_1",
+                    truequeCoins = 10000.0,
+                    escrowCoins = 0.0,
+                    bayesianRating = 4.9,
+                    ratingsCount = 15,
+                    attendanceRate = 1.0,
+                    obfuscatedNeighborhood = "Centro, Coatzacoalcos",
+                    city = "Coatzacoalcos",
+                    createdAtEpochMs = now,
+                    lastLoginEpochMs = now
+                )
+                userDao?.insertUser(admin)
+                user = admin
+            } else if (lower == "vergara" || lower == "vergaracorreo@gmail.com") {
+                val admin = UserEntity(
+                    id = "usr_vergara",
+                    email = "Vergaracorreo@gmail.com",
+                    name = "Vergara",
+                    passwordHash = "AngEduVr",
+                    phoneNumber = "+529211000002",
+                    authProvider = "EMAIL",
+                    isKycVerified = true,
+                    kycLevel = "TELEFONO_SMS_NIVEL_1",
+                    truequeCoins = 10000.0,
+                    escrowCoins = 0.0,
+                    bayesianRating = 4.9,
+                    ratingsCount = 14,
+                    attendanceRate = 1.0,
+                    obfuscatedNeighborhood = "Col. Petrolera, Coatzacoalcos",
+                    city = "Coatzacoalcos",
+                    createdAtEpochMs = now,
+                    lastLoginEpochMs = now
+                )
+                userDao?.insertUser(admin)
+                user = admin
+            }
+        }
+
+        if (user == null) {
+            return AccountValidationResult.UserNotFound
+        }
 
         if (user.passwordHash != password) {
             return AccountValidationResult.IncorrectPassword
@@ -358,8 +482,8 @@ class AuthViewModel @Inject constructor(
         val email = currentState.emailInput.trim()
         val password = currentState.passwordInput
 
-        if (!isValidEmail(email)) {
-            setState { copy(errorMessage = "Ingresa un correo electrónico válido.") }
+        if (!isValidEmailOrUsername(email)) {
+            setState { copy(errorMessage = "Ingresa un correo electrónico o nombre de usuario válido.") }
             return
         }
         if (password.length < 6) {
@@ -453,8 +577,8 @@ class AuthViewModel @Inject constructor(
             setState { copy(errorMessage = "El nombre completo debe tener al menos 3 caracteres.") }
             return
         }
-        if (!isValidEmail(email)) {
-            setState { copy(errorMessage = "Ingresa un correo electrónico válido.") }
+        if (!isValidEmailOrUsername(email)) {
+            setState { copy(errorMessage = "Ingresa un correo electrónico o nombre de usuario válido.") }
             return
         }
         if (!isValidE164Phone(phone)) {
@@ -505,6 +629,7 @@ class AuthViewModel @Inject constructor(
             val userPhone = currentState.phoneInput.trim()
             val neighborhood = currentState.neighborhoodInput.ifBlank { "Col. Petrolera, Coatzacoalcos" }
 
+            val registeredCoins = if (userEmail in listOf("chocolattcorreo@gmail.com", "Vergaracorreo@gmail.com")) 10000.0 else 100.0
             val newUser = UserEntity(
                 id = newUserId,
                 email = userEmail,
@@ -514,7 +639,7 @@ class AuthViewModel @Inject constructor(
                 authProvider = "EMAIL",
                 isKycVerified = true,
                 kycLevel = "TELEFONO_SMS_NIVEL_1",
-                truequeCoins = 100.0,
+                truequeCoins = registeredCoins,
                 obfuscatedNeighborhood = neighborhood,
                 city = "Coatzacoalcos",
                 lastLoginEpochMs = System.currentTimeMillis()
@@ -552,7 +677,7 @@ class AuthViewModel @Inject constructor(
                     userNeighborhood = neighborhood,
                     obfuscatedNeighborhood = neighborhood,
                     kycLevel = KycLevel.TELEFONO_SMS_NIVEL_1,
-                    truequeCoins = 100.0,
+                    truequeCoins = registeredCoins,
                     bayesianRating = initialRating,
                     attendanceRate = 1.0
                 )
@@ -662,6 +787,13 @@ class AuthViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    private fun isValidEmailOrUsername(input: String): Boolean {
+        val trimmed = input.trim().lowercase()
+        if (trimmed == "chocolatt" || trimmed == "vergara") return true
+        if (trimmed == "chocolattcorreo@gmail.com" || trimmed == "vergaracorreo@gmail.com") return true
+        return input.isNotBlank() && (input.contains("@") || input.length >= 3)
     }
 
     private fun isValidEmail(email: String): Boolean {

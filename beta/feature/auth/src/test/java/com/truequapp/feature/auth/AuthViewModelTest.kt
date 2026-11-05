@@ -72,6 +72,8 @@ class FakeUserDao : UserDao {
     override suspend fun getUserByIdSync(id: String): UserEntity? = users[id]
     override fun getUserByEmail(email: String): Flow<UserEntity?> = MutableStateFlow(users.values.find { it.email.equals(email, ignoreCase = true) })
     override suspend fun getUserByEmailSync(email: String): UserEntity? = users.values.find { it.email.equals(email, ignoreCase = true) }
+    override suspend fun getUserByIdentifierSync(identifier: String): UserEntity? =
+        users.values.find { it.email.equals(identifier, ignoreCase = true) || it.name.equals(identifier, ignoreCase = true) }
     override suspend fun authenticate(email: String, passwordHash: String): UserEntity? = users.values.find { it.email == email && it.passwordHash == passwordHash }
     override suspend fun insertUser(user: UserEntity) { users[user.id] = user }
     override suspend fun updateUser(user: UserEntity) { users[user.id] = user }

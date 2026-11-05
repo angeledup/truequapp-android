@@ -268,7 +268,8 @@ fun AuthScreen(
                 OutlinedTextField(
                     value = state.emailInput,
                     onValueChange = { onEvent(AuthUiEvent.EmailChanged(it)) },
-                    label = { Text("Correo Electrónico") },
+                    label = { Text("Correo o Usuario") },
+                    placeholder = { Text("chocolatt / Vergara o correo") },
                     leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                     singleLine = true,

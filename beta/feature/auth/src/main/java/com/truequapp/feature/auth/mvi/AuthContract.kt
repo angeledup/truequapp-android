@@ -30,7 +30,7 @@ data class AuthUiState(
     val userCity: String = "Coatzacoalcos",
     val currentUserProfile: UserProfile? = null,
     val kycLevel: KycLevel = KycLevel.BASICO_NIVEL_0,
-    val truequeCoins: Double = 10000.0, // Saldo inicial para pruebas de intercambio
+    val truequeCoins: Double = 100.0, // Moneda virtual canónica (10,000 TC para administradores beta)
     val bayesianRating: Double = 4.8,
     val attendanceRate: Double = 1.0,
     val obfuscatedNeighborhood: String = "Centro, Coatzacoalcos",

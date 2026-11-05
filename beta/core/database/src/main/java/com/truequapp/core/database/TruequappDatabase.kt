@@ -40,7 +40,7 @@ import kotlinx.coroutines.launch
         LedgerEntryEntity::class,
         SafeZoneEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class TruequappDatabase : RoomDatabase() {
@@ -70,16 +70,12 @@ abstract class TruequappDatabase : RoomDatabase() {
     private class DatabasePrepopulateCallback : RoomDatabase.Callback() {
         override fun onCreate(db: SupportSQLiteDatabase) {
             super.onCreate(db)
-            CoroutineScope(Dispatchers.IO).launch {
-                seedDatabase(db)
-            }
+            seedDatabase(db)
         }
 
         override fun onOpen(db: SupportSQLiteDatabase) {
             super.onOpen(db)
-            CoroutineScope(Dispatchers.IO).launch {
-                seedAdminAccounts(db)
-            }
+            seedAdminAccounts(db)
         }
 
         private fun seedDatabase(db: SupportSQLiteDatabase) {
