@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.viewModelScope
 import com.truequapp.core.common.dispatcher.DispatcherProvider
 import com.truequapp.core.common.mvi.BaseViewModel
+import com.truequapp.core.database.repository.UserRepository
 import com.truequapp.core.datastore.UserSessionDataStore
 import com.truequapp.core.domain.model.ItemCondition
 import com.truequapp.core.domain.model.ItemStatus
@@ -16,6 +17,7 @@ import com.truequapp.feature.catalog.compressor.WebPImageCompressor
 import com.truequapp.feature.catalog.storage.CatalogLocalStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -34,7 +36,8 @@ class CatalogViewModel @Inject constructor(
     private val catalogLocalStorage: CatalogLocalStorage? = null,
     private val userSessionDataStore: UserSessionDataStore,
     private val dispatchers: DispatcherProvider,
-    @ApplicationContext private val context: Context? = null
+    @ApplicationContext private val context: Context? = null,
+    private val userRepository: UserRepository? = null
 ) : BaseViewModel<CatalogUiState, CatalogUiEvent, CatalogUiEffect>(CatalogUiState()) {
 
     private val inMemoryItems = mutableListOf<TradeItem>()
@@ -49,7 +52,20 @@ class CatalogViewModel @Inject constructor(
         viewModelScope.launch(dispatchers.io) {
             val session = userSessionDataStore.sessionFlow.first()
             currentUserId = session.userId ?: "usr_current"
+            val userEmail = session.userEmail
+
+            // Consultar saldo de TruequeCoins en la base de datos (Single Source of Truth)
+            val dbCoins = userRepository?.getCoins(userEmail)
+            if (dbCoins != null) {
+                setState { copy(truequeCoins = dbCoins) }
+            }
+
             syncCatalog()
+
+            // Observar en tiempo real las TruequeCoins desde la base de datos
+            userRepository?.observeCoins(userEmail)?.collectLatest { realTimeCoins ->
+                setState { copy(truequeCoins = realTimeCoins) }
+            }
         }
     }
 

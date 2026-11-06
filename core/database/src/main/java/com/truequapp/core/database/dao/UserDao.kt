@@ -9,13 +9,14 @@ import kotlinx.coroutines.flow.Flow
 
 /**
  * Interfaz de Acceso a Datos (DAO) con consultas SQL explícitas para la tabla 'usuarios'.
+ * Fuente única de la verdad (Single Source of Truth) para el saldo en TruequeCoins,
+ * estadísticas de trueques realizados y calificación del usuario.
  */
 @Dao
 interface UserDao {
 
     /**
      * Consulta SQL para obtener un usuario a partir de su correo electrónico.
-     * Utilizada durante el proceso de Login.
      */
     @Query("SELECT * FROM usuarios WHERE LOWER(correo) = LOWER(:correo) LIMIT 1")
     suspend fun getUserByEmail(correo: String): UserEntity?
@@ -43,4 +44,90 @@ interface UserDao {
      */
     @Query("SELECT * FROM usuarios")
     fun getAllUsers(): Flow<List<UserEntity>>
+
+    // =========================================================================
+    // CONSULTAS ATÓMICAS Y GESTIÓN DE COINS (Single Source of Truth)
+    // =========================================================================
+
+    /**
+     * Checa y devuelve la cantidad de TruequeCoins que tiene el usuario en la base de datos.
+     */
+    @Query("SELECT cantidad_trueque_coins FROM usuarios WHERE LOWER(correo) = LOWER(:correo) LIMIT 1")
+    suspend fun getCoinsByEmail(correo: String): Double?
+
+    /**
+     * Observa en tiempo real la cantidad de TruequeCoins del usuario ante cualquier modificación.
+     */
+    @Query("SELECT cantidad_trueque_coins FROM usuarios WHERE LOWER(correo) = LOWER(:correo) LIMIT 1")
+    fun observeCoinsByEmail(correo: String): Flow<Double?>
+
+    /**
+     * Reduce una cantidad específica de TruequeCoins de forma atómica en la base de datos.
+     * Utiliza MAX(0.0, ...) para evitar saldos negativos.
+     * Retorna el número de filas afectadas (1 si el usuario existe).
+     */
+    @Query("UPDATE usuarios SET cantidad_trueque_coins = MAX(0.0, cantidad_trueque_coins - :amount) WHERE LOWER(correo) = LOWER(:correo)")
+    suspend fun reduceCoins(correo: String, amount: Double): Int
+
+    /**
+     * Incrementa / añade una cantidad específica de TruequeCoins al saldo del usuario en la base de datos.
+     */
+    @Query("UPDATE usuarios SET cantidad_trueque_coins = cantidad_trueque_coins + :amount WHERE LOWER(correo) = LOWER(:correo)")
+    suspend fun addCoins(correo: String, amount: Double): Int
+
+    /**
+     * Actualiza directamente el saldo absoluto de TruequeCoins de un usuario.
+     */
+    @Query("UPDATE usuarios SET cantidad_trueque_coins = :newCoins WHERE LOWER(correo) = LOWER(:correo)")
+    suspend fun updateCoins(correo: String, newCoins: Double): Int
+
+    // =========================================================================
+    // CONSULTAS Y ACTUALIZACIONES DE TRUEQUES REALIZADOS
+    // =========================================================================
+
+    /**
+     * Consulta y devuelve la cantidad de trueques realizados por el usuario.
+     */
+    @Query("SELECT trueques_realizados FROM usuarios WHERE LOWER(correo) = LOWER(:correo) LIMIT 1")
+    suspend fun getCompletedTradesByEmail(correo: String): Int?
+
+    /**
+     * Observa en tiempo real los trueques realizados por el usuario.
+     */
+    @Query("SELECT trueques_realizados FROM usuarios WHERE LOWER(correo) = LOWER(:correo) LIMIT 1")
+    fun observeCompletedTradesByEmail(correo: String): Flow<Int?>
+
+    /**
+     * Incrementa en 1 la cantidad de trueques completados en la base de datos.
+     */
+    @Query("UPDATE usuarios SET trueques_realizados = trueques_realizados + 1 WHERE LOWER(correo) = LOWER(:correo)")
+    suspend fun incrementCompletedTrades(correo: String): Int
+
+    /**
+     * Actualiza el contador explícito de trueques realizados por el usuario.
+     */
+    @Query("UPDATE usuarios SET trueques_realizados = :count WHERE LOWER(correo) = LOWER(:correo)")
+    suspend fun updateCompletedTrades(correo: String, count: Int): Int
+
+    // =========================================================================
+    // CONSULTAS Y ACTUALIZACIONES DE CALIFICACIÓN (ESTRELLAS)
+    // =========================================================================
+
+    /**
+     * Consulta y devuelve la calificación actual del usuario (de 1.0 a 5.0 o 10.0 estrellas).
+     */
+    @Query("SELECT calificacion FROM usuarios WHERE LOWER(correo) = LOWER(:correo) LIMIT 1")
+    suspend fun getRatingByEmail(correo: String): Double?
+
+    /**
+     * Observa en tiempo real la calificación del usuario.
+     */
+    @Query("SELECT calificacion FROM usuarios WHERE LOWER(correo) = LOWER(:correo) LIMIT 1")
+    fun observeRatingByEmail(correo: String): Flow<Double?>
+
+    /**
+     * Actualiza la calificación / estrellas del usuario en la base de datos.
+     */
+    @Query("UPDATE usuarios SET calificacion = :newRating WHERE LOWER(correo) = LOWER(:correo)")
+    suspend fun updateRating(correo: String, newRating: Double): Int
 }

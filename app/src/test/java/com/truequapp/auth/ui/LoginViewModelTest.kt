@@ -112,6 +112,43 @@ private class FakeLoginUserDao : UserDao {
     override fun getAllUsers(): Flow<List<UserEntity>> {
         return flowOf(users.values.toList())
     }
+
+    override suspend fun getCoinsByEmail(correo: String): Double? = users[correo.lowercase()]?.cantidadTruequeCoins
+    override fun observeCoinsByEmail(correo: String): Flow<Double?> = flowOf(users[correo.lowercase()]?.cantidadTruequeCoins)
+    override suspend fun reduceCoins(correo: String, amount: Double): Int {
+        val u = users[correo.lowercase()] ?: return 0
+        users[correo.lowercase()] = u.copy(cantidadTruequeCoins = maxOf(0.0, u.cantidadTruequeCoins - amount))
+        return 1
+    }
+    override suspend fun addCoins(correo: String, amount: Double): Int {
+        val u = users[correo.lowercase()] ?: return 0
+        users[correo.lowercase()] = u.copy(cantidadTruequeCoins = u.cantidadTruequeCoins + amount)
+        return 1
+    }
+    override suspend fun updateCoins(correo: String, newCoins: Double): Int {
+        val u = users[correo.lowercase()] ?: return 0
+        users[correo.lowercase()] = u.copy(cantidadTruequeCoins = newCoins)
+        return 1
+    }
+    override suspend fun getCompletedTradesByEmail(correo: String): Int? = users[correo.lowercase()]?.truequesRealizados
+    override fun observeCompletedTradesByEmail(correo: String): Flow<Int?> = flowOf(users[correo.lowercase()]?.truequesRealizados)
+    override suspend fun incrementCompletedTrades(correo: String): Int {
+        val u = users[correo.lowercase()] ?: return 0
+        users[correo.lowercase()] = u.copy(truequesRealizados = u.truequesRealizados + 1)
+        return 1
+    }
+    override suspend fun updateCompletedTrades(correo: String, count: Int): Int {
+        val u = users[correo.lowercase()] ?: return 0
+        users[correo.lowercase()] = u.copy(truequesRealizados = count)
+        return 1
+    }
+    override suspend fun getRatingByEmail(correo: String): Double? = users[correo.lowercase()]?.calificacion
+    override fun observeRatingByEmail(correo: String): Flow<Double?> = flowOf(users[correo.lowercase()]?.calificacion)
+    override suspend fun updateRating(correo: String, newRating: Double): Int {
+        val u = users[correo.lowercase()] ?: return 0
+        users[correo.lowercase()] = u.copy(calificacion = newRating)
+        return 1
+    }
 }
 
 private class FakeLoginSessionDataStore : UserSessionDataStore {

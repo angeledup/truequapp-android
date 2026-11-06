@@ -3,6 +3,7 @@ package com.truequapp.feature.trade.mvi
 import androidx.lifecycle.viewModelScope
 import com.truequapp.core.common.dispatcher.DispatcherProvider
 import com.truequapp.core.common.mvi.BaseViewModel
+import com.truequapp.core.database.repository.UserRepository
 import com.truequapp.core.database.storage.UserPublicationStorage
 import com.truequapp.core.datastore.UserSessionDataStore
 import com.truequapp.core.domain.model.GeoCoordinates
@@ -25,7 +26,9 @@ import com.truequapp.core.domain.rules.ValidateTradeValueUseCase
 import com.truequapp.feature.trade.data.TradeRepository
 import com.truequapp.feature.trade.data.toTradeProposal
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -47,7 +50,8 @@ class TradeViewModel @Inject constructor(
     private val userSessionDataStore: UserSessionDataStore,
     private val dispatchers: DispatcherProvider,
     private val tradeRepository: TradeRepository? = null,
-    private val userPublicationStorage: UserPublicationStorage? = null
+    private val userPublicationStorage: UserPublicationStorage? = null,
+    private val userRepository: UserRepository? = null
 ) : BaseViewModel<TradeUiState, TradeUiEvent, TradeUiEffect>(TradeUiState()) {
 
     // Almacén en memoria de ítems y propuestas para sincronización local
@@ -147,13 +151,24 @@ class TradeViewModel @Inject constructor(
         viewModelScope.launch(dispatchers.io) {
             val session = userSessionDataStore.sessionFlow.first()
             val userId = session.userId ?: "usr_current"
+            val userEmail = session.userEmail
+
+            // Consultar datos del usuario desde la base de datos SQL (Single Source of Truth)
+            val dbUser = if (!userEmail.isNullOrBlank()) {
+                userRepository?.getCurrentUser()
+            } else null
+
+            val coinsFromDb = dbUser?.cantidadTruequeCoins
+                ?: userRepository?.getCoins(userEmail)
+                ?: 100.0
+
             val kyc = if (session.isKycVerified) KycLevel.TELEFONO_SMS_NIVEL_1 else KycLevel.BASICO_NIVEL_0
             val userProfile = UserProfile(
                 id = userId,
-                fullName = "Usuario Truequapp",
-                username = "truequero_${userId.takeLast(4)}",
-                email = session.userEmail ?: "user_${userId}@truequapp.com",
-                phoneNumber = "+525500000000",
+                fullName = dbUser?.usuario ?: "Usuario Truequapp",
+                username = dbUser?.usuario ?: "truequero_${userId.takeLast(4)}",
+                email = userEmail ?: "user_${userId}@truequapp.com",
+                phoneNumber = dbUser?.numeroTelefonico ?: "+525500000000",
                 kycLevel = kyc,
                 attendanceRate = 1.0,
                 location = ObfuscatedGeoLocation(
@@ -167,9 +182,14 @@ class TradeViewModel @Inject constructor(
             setState {
                 copy(
                     currentUserId = userId,
-                    truequeCoins = 100.0,
+                    truequeCoins = coinsFromDb,
                     currentUserProfile = userProfile
                 )
+            }
+
+            // Observar en tiempo real las coins desde la base de datos
+            userRepository?.observeCoins(userEmail)?.collectLatest { realTimeCoins ->
+                setState { copy(truequeCoins = realTimeCoins) }
             }
         }
     }

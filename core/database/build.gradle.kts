@@ -34,6 +34,7 @@ android {
 dependencies {
     implementation(project(":core:domain"))
     implementation(project(":core:common"))
+    implementation(project(":core:datastore"))
 
     // Room Database (SQLite)
     implementation(libs.room.runtime)
