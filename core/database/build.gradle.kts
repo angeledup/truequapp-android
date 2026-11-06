@@ -32,6 +32,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":core:domain"))
     implementation(project(":core:common"))
 
     // Room Database (SQLite)
@@ -48,4 +49,3 @@ dependencies {
     testRuntimeOnly(libs.junit.platform.launcher)
     testImplementation(libs.kotlinx.coroutines.test)
 }
-

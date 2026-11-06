@@ -3,6 +3,7 @@ package com.truequapp.feature.trade
 import com.truequapp.core.common.dispatcher.DispatcherProvider
 import com.truequapp.core.datastore.UserSessionDataStore
 import com.truequapp.core.datastore.model.UserSession
+import com.truequapp.core.domain.model.EstimatedValueRange
 import com.truequapp.core.domain.model.GeoCoordinates
 import com.truequapp.core.domain.model.ItemCondition
 import com.truequapp.core.domain.model.ItemStatus
@@ -299,5 +300,81 @@ class TradeViewModelTest {
 
         assertEquals(TradeStatus.CANCELADO, viewModel.uiState.value.currentProposal?.status)
         assertEquals(0.95, viewModel.uiState.value.currentUserProfile?.attendanceRate ?: 1.0, 0.001)
+    }
+
+    @Test
+    @DisplayName("Mis Publicaciones en Trueques: Carga artículos propios del usuario en la pestaña correspondiente")
+    fun shouldLoadUserPublicationsInTradeScreen() = runTest(testDispatcher) {
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        // Debe contener los artículos del usuario actual sembrados o cargados
+        assertTrue(state.myPublications.isNotEmpty(), "La lista de publicaciones del usuario no debe estar vacía")
+        assertTrue(state.myPublications.all { it.ownerId == "usr_current" })
+    }
+
+    @Test
+    @DisplayName("Mis Publicaciones: Eliminar publicación la remueve del estado y notifica al usuario")
+    fun shouldDeletePublication_whenUserConfirmsDeletion() = runTest(testDispatcher) {
+        advanceUntilIdle()
+
+        val myItem = TradeItem(
+            id = "custom_item_to_delete",
+            ownerId = "usr_current",
+            title = "Teclado Mecánico Custom",
+            description = "Switches Red silenciosos",
+            categoryId = 1,
+            type = ItemType.BIEN_FISICO,
+            condition = ItemCondition.COMO_NUEVO,
+            estimatedValue = EstimatedValueRange(1200.0, 1500.0),
+            imagesWebP = emptyList<String>(),
+            tagsWishlist = emptyList<String>(),
+            status = ItemStatus.DISPONIBLE
+        )
+        viewModel.addTestItem(myItem)
+        viewModel.onEvent(TradeUiEvent.RefreshMyPublications)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.myPublications.any { it.id == "custom_item_to_delete" })
+
+        // Eliminar publicación
+        viewModel.onEvent(TradeUiEvent.DeletePublication("custom_item_to_delete"))
+        advanceUntilIdle()
+
+        val updatedState = viewModel.uiState.value
+        assertFalse(updatedState.myPublications.any { it.id == "custom_item_to_delete" }, "El artículo debe haber sido eliminado")
+        assertNull(updatedState.errorMessage)
+    }
+
+    @Test
+    @DisplayName("RN-01: No permite eliminar una publicación si está en estado RESERVADO")
+    fun shouldPreventDeletingPublication_whenReserved() = runTest(testDispatcher) {
+        advanceUntilIdle()
+
+        val reservedItem = TradeItem(
+            id = "reserved_item_delete_test",
+            ownerId = "usr_current",
+            title = "Bicicleta de Montaña",
+            description = "En proceso de trueque",
+            categoryId = 7,
+            type = ItemType.BIEN_FISICO,
+            condition = ItemCondition.USADO,
+            estimatedValue = EstimatedValueRange(3000.0, 3500.0),
+            imagesWebP = emptyList<String>(),
+            tagsWishlist = emptyList<String>(),
+            status = ItemStatus.RESERVADO
+        )
+        viewModel.addTestItem(reservedItem)
+        viewModel.onEvent(TradeUiEvent.RefreshMyPublications)
+        advanceUntilIdle()
+
+        // Intentar eliminar
+        viewModel.onEvent(TradeUiEvent.DeletePublication("reserved_item_delete_test"))
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertNotNull(state.errorMessage)
+        assertTrue(state.errorMessage!!.contains("RN-01"))
+        assertTrue(state.myPublications.any { it.id == "reserved_item_delete_test" }, "El artículo no debe eliminarse")
     }
 }

@@ -3,6 +3,7 @@ package com.truequapp.feature.trade.mvi
 import androidx.lifecycle.viewModelScope
 import com.truequapp.core.common.dispatcher.DispatcherProvider
 import com.truequapp.core.common.mvi.BaseViewModel
+import com.truequapp.core.database.storage.UserPublicationStorage
 import com.truequapp.core.datastore.UserSessionDataStore
 import com.truequapp.core.domain.model.GeoCoordinates
 import com.truequapp.core.domain.model.ItemCondition
@@ -30,7 +31,8 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * ViewModel que orquesta el Motor de Propuestas de Trueque de la Fase 2 (CU009, CU010, CU011, CU012).
+ * ViewModel que orquesta el Motor de Propuestas de Trueque de la Fase 2 (CU009, CU010, CU011, CU012)
+ * y la gestión de "Mis Publicaciones" (eliminación y cancelación) trasladadas a la pantalla de Trueques.
  * Aplica con rigor las reglas de negocio canónicas:
  * - RN-01: Exclusividad y bloqueo atómico ACID de inventario.
  * - RN-02: Umbral mínimo de valor del 40% (Banda de equivalencia).
@@ -44,7 +46,8 @@ class TradeViewModel @Inject constructor(
     private val evaluateCancellationWindowUseCase: EvaluateCancellationWindowUseCase = EvaluateCancellationWindowUseCase(),
     private val userSessionDataStore: UserSessionDataStore,
     private val dispatchers: DispatcherProvider,
-    private val tradeRepository: TradeRepository? = null
+    private val tradeRepository: TradeRepository? = null,
+    private val userPublicationStorage: UserPublicationStorage? = null
 ) : BaseViewModel<TradeUiState, TradeUiEvent, TradeUiEffect>(TradeUiState()) {
 
     // Almacén en memoria de ítems y propuestas para sincronización local
@@ -117,6 +120,14 @@ class TradeViewModel @Inject constructor(
         )
         inMemoryItems.addAll(seedItems)
 
+        // Sincronizar publicaciones guardadas en sandbox persistente
+        val savedPublications = userPublicationStorage?.loadPublishedItems().orEmpty()
+        savedPublications.forEach { saved ->
+            if (inMemoryItems.none { it.id == saved.id }) {
+                inMemoryItems.add(saved)
+            }
+        }
+
         val seedProposals = listOf(
             TradeProposal(
                 id = "prop_seed_101",
@@ -151,6 +162,8 @@ class TradeViewModel @Inject constructor(
                 )
             )
 
+            loadUserPublications(userId)
+
             setState {
                 copy(
                     currentUserId = userId,
@@ -159,6 +172,16 @@ class TradeViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    private fun loadUserPublications(userId: String) {
+        val saved = userPublicationStorage?.loadPublishedItems().orEmpty()
+        val userItems = if (saved.isNotEmpty()) {
+            saved.filter { it.ownerId == userId || it.ownerId == "usr_current" }
+        } else {
+            inMemoryItems.filter { it.ownerId == userId || it.ownerId == "usr_current" }
+        }
+        setState { copy(myPublications = userItems) }
     }
 
     override fun onEvent(event: TradeUiEvent) {
@@ -171,6 +194,8 @@ class TradeViewModel @Inject constructor(
             is TradeUiEvent.LoadProposals -> loadProposals(event.userId)
             is TradeUiEvent.SelectTab -> setState { copy(selectedTab = event.tabIndex) }
             is TradeUiEvent.LoadProposalDetails -> loadProposalDetails(event.proposalId, event.currentUserId)
+            is TradeUiEvent.RefreshMyPublications -> loadUserPublications(currentState.currentUserId)
+            is TradeUiEvent.DeletePublication -> deletePublication(event.itemId)
             is TradeUiEvent.AcceptProposal -> acceptProposal(event.proposalId)
             is TradeUiEvent.OpenCounterOfferDialog -> setState { copy(showCounterOfferDialog = true) }
             is TradeUiEvent.DismissCounterOfferDialog -> setState { copy(showCounterOfferDialog = false) }
@@ -184,6 +209,34 @@ class TradeViewModel @Inject constructor(
             is TradeUiEvent.ConfirmCancelProposal -> confirmCancelProposal()
             is TradeUiEvent.DismissError -> setState { copy(errorMessage = null) }
         }
+    }
+
+    // Gestión de Mis Publicaciones trasladadas a Trueques
+    private fun deletePublication(itemId: String) {
+        val item = inMemoryItems.find { it.id == itemId }
+            ?: currentState.myPublications.find { it.id == itemId }
+
+        if (item != null && item.status == ItemStatus.RESERVADO) {
+            setState {
+                copy(errorMessage = "RN-01: No se puede eliminar un artículo reservado en una transacción activa.")
+            }
+            return
+        }
+
+        inMemoryItems.removeIf { it.id == itemId }
+        userPublicationStorage?.deletePublishedItem(itemId)
+
+        val updatedPublications = currentState.myPublications.filter { it.id != itemId }
+        val updatedAvailable = currentState.availableUserItems.filter { it.id != itemId }
+
+        setState {
+            copy(
+                myPublications = updatedPublications,
+                availableUserItems = updatedAvailable
+            )
+        }
+
+        sendEffect(TradeUiEffect.ShowToast("Publicación eliminada correctamente."))
     }
 
     // CU009: Proponer Trueque Directo o Híbrido
@@ -335,7 +388,7 @@ class TradeViewModel @Inject constructor(
         }
     }
 
-    // Listado de Propuestas (Pestañas 'Activas' y 'Ofertas')
+    // Listado de Propuestas y Publicaciones (Pestañas 'Activas', 'Ofertas' y 'Mis Publicaciones')
     private fun loadProposals(userId: String) {
         val userEmail = currentState.currentUserProfile?.email ?: userId
 
@@ -355,6 +408,9 @@ class TradeViewModel @Inject constructor(
             } catch (e: Exception) {
                 // Continuar en caso de entorno de prueba sin BD
             }
+
+            // Sincronizar publicaciones del usuario
+            loadUserPublications(userId)
 
             // Activas: Trueques iniciados por el usuario pendientes de respuesta, o en estado RESERVADO / EN_ENTREGA
             val active = inMemoryProposals.filter {

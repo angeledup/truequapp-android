@@ -42,6 +42,7 @@ dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:designsystem"))
     implementation(project(":core:datastore"))
+    implementation(project(":core:database"))
 
     // Image loading with Coil
     implementation(libs.coil.compose)
@@ -78,4 +79,3 @@ dependencies {
     testRuntimeOnly(libs.junit.platform.launcher)
     testImplementation(libs.kotlinx.coroutines.test)
 }
-

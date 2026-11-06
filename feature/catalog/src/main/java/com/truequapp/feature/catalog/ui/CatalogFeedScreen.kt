@@ -27,7 +27,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.NearMe
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
@@ -70,6 +69,7 @@ import kotlinx.coroutines.flow.collectLatest
 /**
  * Pantalla de Exploración del Marketplace con Feed en cuadrícula (LazyVerticalGrid), paginación incremental,
  * filtros geolocalizados, filtro por condición y rango de valor estimado (CU008 / Fase 2).
+ * Exclusivamente muestra artículos y propuestas de otros usuarios del marketplace.
  */
 @Composable
 fun CatalogFeedScreen(
@@ -277,7 +277,7 @@ fun CatalogFeedScreen(
                 }
             }
 
-            // Chips horizontales: Filtros especiales (Guardados / Mis Publicaciones) y categorías
+            // Chips horizontales: Filtros especiales (Guardados) y categorías del Catálogo
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -300,22 +300,8 @@ fun CatalogFeedScreen(
                     label = { Text("Guardados (${state.bookmarkedItemIds.size})") }
                 )
 
-                // Filtro de Mis Publicaciones
                 FilterChip(
-                    selected = state.filterOnlyMyPublications,
-                    onClick = { onEvent(CatalogUiEvent.ToggleMyPublicationsFilter) },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Inventory2,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    },
-                    label = { Text("Mis Publicaciones (${state.myInventory.size})") }
-                )
-
-                FilterChip(
-                    selected = state.selectedCategoryId == null && !state.filterOnlyBookmarked && !state.filterOnlyMyPublications,
+                    selected = state.selectedCategoryId == null && !state.filterOnlyBookmarked,
                     onClick = { onEvent(CatalogUiEvent.CategoryFilterSelected(null)) },
                     label = { Text("Todas") }
                 )
@@ -343,7 +329,6 @@ fun CatalogFeedScreen(
                     Text(
                         text = when {
                             state.filterOnlyBookmarked -> "No tienes publicaciones guardadas activas en este momento."
-                            state.filterOnlyMyPublications -> "Aún no has publicado ningún artículo. Presiona '+' para publicar."
                             else -> "No se encontraron artículos con los filtros seleccionados."
                         },
                         style = MaterialTheme.typography.bodyMedium,
