@@ -46,9 +46,13 @@ class CatalogViewModel @Inject constructor(
     private var currentUserEmail: String? = null
     private var currentUserName: String = "Usuario Truequapp"
 
+    private fun getEffectiveUserKey(): String = currentUserEmail ?: currentUserId
+
     private fun isMyItem(item: TradeItem): Boolean {
-        return item.ownerId == currentUserId || 
-               (currentUserEmail != null && item.ownerId == currentUserEmail) ||
+        val userKey = getEffectiveUserKey()
+        return item.ownerId.equals(currentUserId, ignoreCase = true) || 
+               (currentUserEmail != null && item.ownerId.equals(currentUserEmail, ignoreCase = true)) ||
+               (userKey.contains("@") && item.ownerId.equals(userKey.substringBefore("@"), ignoreCase = true)) ||
                (currentUserId == "usr_current" && item.ownerId == "usr_current")
     }
 
@@ -79,18 +83,39 @@ class CatalogViewModel @Inject constructor(
     }
 
     private fun syncCatalog() {
-        val savedItems = catalogLocalStorage?.loadPublishedItems().orEmpty()
+        val userKey = getEffectiveUserKey()
+        // 1. Servidor Central Simulado: consultar catálogo general del marketplace
+        val remoteItems = catalogLocalStorage?.getRemoteCatalogItems()
+            ?: catalogLocalStorage?.loadPublishedItems().orEmpty()
+
+        // 2. Cliente Local: cargar exclusivamente publicaciones propias del usuario autenticado
+        val localMyItems = if (userKey.isNotBlank()) {
+            catalogLocalStorage?.loadUserPublications(userKey).orEmpty()
+        } else emptyList()
+
         val bookmarkedIds = catalogLocalStorage?.loadBookmarkedIds().orEmpty()
 
         inMemoryItems.clear()
         inMemoryItems.addAll(testItems)
-        savedItems.forEach { saved ->
-            if (inMemoryItems.none { it.id == saved.id }) {
-                inMemoryItems.add(saved)
+        remoteItems.forEach { remote ->
+            if (inMemoryItems.none { it.id == remote.id }) {
+                inMemoryItems.add(remote)
+            }
+        }
+        localMyItems.forEach { myItem ->
+            val idx = inMemoryItems.indexOfFirst { it.id == myItem.id }
+            if (idx != -1) {
+                inMemoryItems[idx] = myItem
+            } else {
+                inMemoryItems.add(myItem)
             }
         }
 
-        val myItems = inMemoryItems.filter { isMyItem(it) }
+        val myItems = if (localMyItems.isNotEmpty()) {
+            localMyItems
+        } else {
+            inMemoryItems.filter { isMyItem(it) }
+        }
 
         setState {
             copy(
@@ -372,16 +397,19 @@ class CatalogViewModel @Inject constructor(
 
             inMemoryItems.add(0, newItem)
 
-            // Guardar de forma persistente todas las publicaciones del catálogo en almacenamiento sandbox
-            val mySavedPublications = inMemoryItems.filter { isMyItem(it) }
-            val itemsToSave = inMemoryItems.filter { item -> testItems.none { it.id == item.id } }
-            catalogLocalStorage?.savePublishedItems(itemsToSave)
+            // 1. Publicar al Servidor Central Simulado (Marketplace general)
+            catalogLocalStorage?.publishItemToServer(newItem)
+
+            // 2. Guardar exclusivamente en el almacenamiento local del usuario (filtro estricto)
+            val updatedUserItems = (listOf(newItem) + catalogLocalStorage?.loadUserPublications(effectiveOwnerId).orEmpty())
+                .distinctBy { it.id }
+            catalogLocalStorage?.saveUserPublications(effectiveOwnerId, updatedUserItems)
 
             setState {
                 copy(
                     isPublishing = false,
                     items = inMemoryItems,
-                    myInventory = mySavedPublications,
+                    myInventory = updatedUserItems,
                     newTitle = "",
                     newDescription = "",
                     selectedImageUris = emptyList(),
@@ -417,14 +445,16 @@ class CatalogViewModel @Inject constructor(
         }
 
         inMemoryItems.removeIf { it.id == itemId }
-        val mySaved = inMemoryItems.filter { isMyItem(it) }
-        val itemsToSave = inMemoryItems.filter { item -> testItems.none { it.id == item.id } }
-        catalogLocalStorage?.savePublishedItems(itemsToSave)
+        val effectiveOwnerId = getEffectiveUserKey()
+
+        // Eliminar del servidor central y del archivo local del usuario
+        catalogLocalStorage?.deleteItemFromServer(itemId)
+        val updatedMy = catalogLocalStorage?.deleteUserPublication(effectiveOwnerId, itemId).orEmpty()
 
         setState {
             copy(
                 items = inMemoryItems,
-                myInventory = mySaved
+                myInventory = updatedMy
             )
         }
         applyFilters(resetPagination = false)
@@ -435,13 +465,26 @@ class CatalogViewModel @Inject constructor(
         val index = inMemoryItems.indexOfFirst { it.id == updated.id }
         if (index != -1) {
             inMemoryItems[index] = updated
-            val mySaved = inMemoryItems.filter { isMyItem(it) }
-            val itemsToSave = inMemoryItems.filter { item -> testItems.none { it.id == item.id } }
-            catalogLocalStorage?.savePublishedItems(itemsToSave)
+            val effectiveOwnerId = getEffectiveUserKey()
+
+            // Actualizar en el servidor central simulado
+            catalogLocalStorage?.updateItemOnServer(updated)
+
+            // Si es mi publicación, actualizar en mi inventario local
+            val updatedMy = if (isMyItem(updated)) {
+                val currentMy = catalogLocalStorage?.loadUserPublications(effectiveOwnerId).orEmpty().toMutableList()
+                val myIdx = currentMy.indexOfFirst { it.id == updated.id }
+                if (myIdx != -1) currentMy[myIdx] = updated else currentMy.add(updated)
+                catalogLocalStorage?.saveUserPublications(effectiveOwnerId, currentMy)
+                currentMy
+            } else {
+                catalogLocalStorage?.loadUserPublications(effectiveOwnerId).orEmpty()
+            }
+
             setState {
                 copy(
                     items = inMemoryItems,
-                    myInventory = mySaved
+                    myInventory = updatedMy
                 )
             }
             applyFilters(resetPagination = false)

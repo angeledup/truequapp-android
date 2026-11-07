@@ -13,27 +13,40 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Almacenamiento unificado y persistente para las publicaciones del usuario (inventario) y artículos marcados como favoritos.
- * Permite que los módulos de Catálogo y Trueques compartan el mismo estado de inventario en sandbox local.
+ * Almacenamiento desacoplado para la arquitectura cliente-servidor:
+ * 1. Servidor Central Simulado: Almacena el catálogo general del marketplace en la nube (`server_marketplace_catalog.json`).
+ *    Listo para migrar a llamadas REST (GET/POST /api/items) en producción.
+ * 2. Cliente Local del Usuario: Guarda exclusivamente las publicaciones locales del usuario en sesión (`user_published_items_{userKey}.json`).
+ *    Aplica filtro estricto por usuario y no descarga ni mezcla artículos ajenos en el archivo local.
  */
 @Singleton
 class UserPublicationStorage @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
+    // -------------------------------------------------------------------------
+    // ARCHIVOS PERSISTENTES
+    // -------------------------------------------------------------------------
+    private val serverCatalogFile: File
+        get() = File(context.filesDir, "server_marketplace_catalog.json")
+
     private val publicationsFile: File
         get() = File(context.filesDir, "user_published_items.json")
 
     private val bookmarksFile: File
         get() = File(context.filesDir, "user_bookmarked_items.json")
 
-    /**
-     * Guarda la lista de artículos publicados por el usuario de forma persistente.
-     */
-    @Synchronized
-    fun savePublishedItems(items: List<TradeItem>) {
+    private fun getUserPublicationsFile(userKey: String): File {
+        val sanitized = userKey.trim().lowercase().replace(Regex("[^a-z0-9_-]"), "_")
+        return File(context.filesDir, "user_published_items_$sanitized.json")
+    }
+
+    // -------------------------------------------------------------------------
+    // SERIALIZACIÓN / DESERIALIZACIÓN JSON REUTILIZABLE
+    // -------------------------------------------------------------------------
+    private fun writeItemsToFile(file: File, items: List<TradeItem>) {
         try {
             val jsonArray = JSONArray()
-            items.forEach { item ->
+            items.distinctBy { it.id }.forEach { item ->
                 val obj = JSONObject().apply {
                     put("id", item.id)
                     put("ownerId", item.ownerId)
@@ -51,20 +64,16 @@ class UserPublicationStorage @Inject constructor(
                 }
                 jsonArray.put(obj)
             }
-            publicationsFile.writeText(jsonArray.toString())
+            file.writeText(jsonArray.toString())
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
-    /**
-     * Recupera los artículos publicados por el usuario desde el almacenamiento local.
-     */
-    @Synchronized
-    fun loadPublishedItems(): List<TradeItem> {
-        if (!publicationsFile.exists()) return emptyList()
+    private fun readItemsFromFile(file: File): List<TradeItem> {
+        if (!file.exists()) return emptyList()
         return try {
-            val jsonStr = publicationsFile.readText()
+            val jsonStr = file.readText()
             val jsonArray = JSONArray(jsonStr)
             val list = mutableListOf<TradeItem>()
             for (i in 0 until jsonArray.length()) {
@@ -102,28 +111,125 @@ class UserPublicationStorage @Inject constructor(
                     )
                 )
             }
-            list
+            list.distinctBy { it.id }
         } catch (e: Exception) {
             emptyList()
         }
     }
 
-    /**
-     * Elimina una publicación específica del inventario del usuario.
-     */
+    // -------------------------------------------------------------------------
+    // CAPA REMOTA SIMULADA (Catálogo Central del Marketplace)
+    // -------------------------------------------------------------------------
     @Synchronized
-    fun deletePublishedItem(itemId: String): List<TradeItem> {
-        val currentItems = loadPublishedItems().toMutableList()
-        val removed = currentItems.removeIf { it.id == itemId }
-        if (removed) {
-            savePublishedItems(currentItems)
+    fun getRemoteCatalogItems(): List<TradeItem> {
+        // Si el archivo del servidor central aún no existe pero hay publicaciones previas, migrar
+        if (!serverCatalogFile.exists() && publicationsFile.exists()) {
+            val legacy = readItemsFromFile(publicationsFile)
+            if (legacy.isNotEmpty()) {
+                writeItemsToFile(serverCatalogFile, legacy)
+                return legacy
+            }
         }
-        return currentItems
+        return readItemsFromFile(serverCatalogFile)
     }
 
-    /**
-     * Guarda el conjunto de identificadores de artículos marcados / favoritos por el usuario.
-     */
+    @Synchronized
+    fun publishItemToServer(item: TradeItem) {
+        val current = getRemoteCatalogItems().toMutableList()
+        current.removeIf { it.id == item.id }
+        current.add(0, item)
+        writeItemsToFile(serverCatalogFile, current)
+        // También actualizar copia legacy para compatibilidad
+        writeItemsToFile(publicationsFile, current)
+    }
+
+    @Synchronized
+    fun deleteItemFromServer(itemId: String): List<TradeItem> {
+        val current = getRemoteCatalogItems().toMutableList()
+        current.removeIf { it.id == itemId }
+        writeItemsToFile(serverCatalogFile, current)
+        writeItemsToFile(publicationsFile, current)
+        return current
+    }
+
+    @Synchronized
+    fun updateItemOnServer(item: TradeItem): List<TradeItem> {
+        val current = getRemoteCatalogItems().toMutableList()
+        val index = current.indexOfFirst { it.id == item.id }
+        if (index != -1) {
+            current[index] = item
+        } else {
+            current.add(0, item)
+        }
+        writeItemsToFile(serverCatalogFile, current)
+        writeItemsToFile(publicationsFile, current)
+        return current
+    }
+
+    // -------------------------------------------------------------------------
+    // CAPA CLIENTE LOCAL (Almacenamiento exclusivo del usuario autenticado)
+    // -------------------------------------------------------------------------
+    @Synchronized
+    fun saveUserPublications(userKey: String, items: List<TradeItem>) {
+        if (userKey.isBlank()) return
+        // Filtro estricto por usuario: solo se guarda en este archivo lo que pertenece a este usuario
+        val myOnly = items.filter {
+            it.ownerId.equals(userKey, ignoreCase = true) ||
+            (userKey.contains("@") && it.ownerId.equals(userKey.substringBefore("@"), ignoreCase = true))
+        }.distinctBy { it.id }
+
+        writeItemsToFile(getUserPublicationsFile(userKey), myOnly)
+    }
+
+    @Synchronized
+    fun loadUserPublications(userKey: String): List<TradeItem> {
+        if (userKey.isBlank()) return emptyList()
+        val file = getUserPublicationsFile(userKey)
+        if (file.exists()) {
+            return readItemsFromFile(file)
+        }
+        // Fallback: si no existe el archivo específico, extraer solo lo propio del catálogo central
+        val all = getRemoteCatalogItems()
+        val myOnly = all.filter {
+            it.ownerId.equals(userKey, ignoreCase = true) ||
+            (userKey.contains("@") && it.ownerId.equals(userKey.substringBefore("@"), ignoreCase = true))
+        }
+        if (myOnly.isNotEmpty()) {
+            writeItemsToFile(file, myOnly)
+        }
+        return myOnly
+    }
+
+    @Synchronized
+    fun deleteUserPublication(userKey: String, itemId: String): List<TradeItem> {
+        val current = loadUserPublications(userKey).toMutableList()
+        current.removeIf { it.id == itemId }
+        writeItemsToFile(getUserPublicationsFile(userKey), current)
+        return current
+    }
+
+    // -------------------------------------------------------------------------
+    // MÉTODOS DE COMPATIBILIDAD CON CÓDIGO EXISTENTE
+    // -------------------------------------------------------------------------
+    @Synchronized
+    fun savePublishedItems(items: List<TradeItem>) {
+        writeItemsToFile(serverCatalogFile, items)
+        writeItemsToFile(publicationsFile, items)
+    }
+
+    @Synchronized
+    fun loadPublishedItems(): List<TradeItem> {
+        return getRemoteCatalogItems()
+    }
+
+    @Synchronized
+    fun deletePublishedItem(itemId: String): List<TradeItem> {
+        return deleteItemFromServer(itemId)
+    }
+
+    // -------------------------------------------------------------------------
+    // FAVORITOS / BOOKMARKS
+    // -------------------------------------------------------------------------
     @Synchronized
     fun saveBookmarkedIds(ids: Set<String>) {
         try {
@@ -134,9 +240,6 @@ class UserPublicationStorage @Inject constructor(
         }
     }
 
-    /**
-     * Carga el conjunto de identificadores de artículos marcados / favoritos.
-     */
     @Synchronized
     fun loadBookmarkedIds(): Set<String> {
         if (!bookmarksFile.exists()) return emptySet()
@@ -153,4 +256,3 @@ class UserPublicationStorage @Inject constructor(
         }
     }
 }
-

@@ -123,8 +123,9 @@ class TradeViewModel @Inject constructor(
         )
         inMemoryItems.addAll(seedItems)
 
-        // Sincronizar publicaciones guardadas en sandbox persistente
-        val savedPublications = userPublicationStorage?.loadPublishedItems().orEmpty()
+        // Sincronizar publicaciones del catálogo central (servidor simulado)
+        val savedPublications = userPublicationStorage?.getRemoteCatalogItems()
+            ?: userPublicationStorage?.loadPublishedItems().orEmpty()
         savedPublications.forEach { saved ->
             if (inMemoryItems.none { it.id == saved.id }) {
                 inMemoryItems.add(saved)
@@ -189,12 +190,30 @@ class TradeViewModel @Inject constructor(
     }
 
     private fun loadUserPublications(userId: String) {
-        val saved = userPublicationStorage?.loadPublishedItems().orEmpty()
-        val userItems = if (saved.isNotEmpty()) {
-            saved.filter { isMyTradeItem(it, userId) }
+        val activeSessionEmail = currentState.currentUserProfile?.email
+        val effectiveUserId = if (userId.isNotBlank() && userId != "usuario_actual") {
+            userId
         } else {
-            inMemoryItems.filter { isMyTradeItem(it, userId) }
+            activeSessionEmail ?: currentState.currentUserId.takeIf { it != "usuario_actual" } ?: "usr_current"
         }
+
+        // Cargar exclusivamente las publicaciones del usuario desde su archivo local
+        val userSpecific = userPublicationStorage?.loadUserPublications(effectiveUserId).orEmpty()
+        val userItems = if (userSpecific.isNotEmpty()) {
+            userSpecific.filter { isMyTradeItem(it, effectiveUserId) }
+        } else {
+            // Fallback al catálogo si el usuario aún no tiene archivo local
+            val all = userPublicationStorage?.getRemoteCatalogItems()
+                ?: userPublicationStorage?.loadPublishedItems().orEmpty()
+            val fromAll = all.filter { isMyTradeItem(it, effectiveUserId) }
+            if (fromAll.isNotEmpty()) {
+                userPublicationStorage?.saveUserPublications(effectiveUserId, fromAll)
+                fromAll
+            } else {
+                inMemoryItems.filter { isMyTradeItem(it, effectiveUserId) }
+            }
+        }.distinctBy { it.id }
+
         setState { copy(myPublications = userItems) }
     }
 
@@ -247,7 +266,12 @@ class TradeViewModel @Inject constructor(
         }
 
         inMemoryItems.removeIf { it.id == itemId }
-        userPublicationStorage?.deletePublishedItem(itemId)
+        val activeSessionEmail = currentState.currentUserProfile?.email
+        val effectiveUserId = activeSessionEmail ?: currentState.currentUserId
+
+        // Eliminar del servidor central y del archivo local del usuario
+        userPublicationStorage?.deleteItemFromServer(itemId)
+        userPublicationStorage?.deleteUserPublication(effectiveUserId, itemId)
 
         val updatedPublications = currentState.myPublications.filter { it.id != itemId }
         val updatedAvailable = currentState.availableUserItems.filter { it.id != itemId }
@@ -264,9 +288,11 @@ class TradeViewModel @Inject constructor(
 
     // CU009: Proponer Trueque Directo o Híbrido
     private fun initTradeCreation(targetItemId: String, userId: String) {
-        val saved = userPublicationStorage?.loadPublishedItems().orEmpty()
-        val allItems = (inMemoryItems + saved).distinctBy { it.id }
-        val target = allItems.find { it.id == targetItemId }
+        // Consultar el catálogo del servidor central remoto simulado
+        val remoteCatalog = userPublicationStorage?.getRemoteCatalogItems()
+            ?: userPublicationStorage?.loadPublishedItems().orEmpty()
+        val allCatalogItems = (inMemoryItems + remoteCatalog).distinctBy { it.id }
+        val target = allCatalogItems.find { it.id == targetItemId }
 
         val activeSessionEmail = currentState.currentUserProfile?.email
         val effectiveUserId = if (userId.isNotBlank() && userId != "usuario_actual") {
@@ -275,9 +301,13 @@ class TradeViewModel @Inject constructor(
             activeSessionEmail ?: currentState.currentUserId.takeIf { it != "usuario_actual" } ?: "usr_current"
         }
 
-        val userItems = allItems
-            .filter { isMyTradeItem(it, effectiveUserId) && it.status == ItemStatus.DISPONIBLE }
-            .distinctBy { it.id }
+        // Cargar los artículos del usuario para ofertar desde su archivo local exclusivo
+        val userSpecificItems = userPublicationStorage?.loadUserPublications(effectiveUserId).orEmpty()
+        val userItems = if (userSpecificItems.isNotEmpty()) {
+            userSpecificItems.filter { isMyTradeItem(it, effectiveUserId) && it.status == ItemStatus.DISPONIBLE }
+        } else {
+            allCatalogItems.filter { isMyTradeItem(it, effectiveUserId) && it.status == ItemStatus.DISPONIBLE }
+        }.distinctBy { it.id }
 
         setState {
             copy(
@@ -497,7 +527,9 @@ class TradeViewModel @Inject constructor(
 
     private fun openOfferDetail(proposalId: String) {
         val proposal = inMemoryProposals.find { it.id == proposalId } ?: return
-        val allItems = inMemoryItems + userPublicationStorage?.loadPublishedItems().orEmpty()
+        val remoteCatalog = userPublicationStorage?.getRemoteCatalogItems()
+            ?: userPublicationStorage?.loadPublishedItems().orEmpty()
+        val allItems = (inMemoryItems + remoteCatalog).distinctBy { it.id }
         val targetItem = allItems.find { it.id == proposal.targetItemId }
         val offeredItems = allItems.filter { proposal.offeredItemIds.contains(it.id) }
 
@@ -554,8 +586,11 @@ class TradeViewModel @Inject constructor(
     // CU010: Aceptar Propuesta y Bloqueo Atómico ACID (RN-01)
     private fun acceptProposal(proposalId: String) {
         val proposal = inMemoryProposals.find { it.id == proposalId } ?: return
-        val targetItem = inMemoryItems.find { it.id == proposal.targetItemId } ?: return
-        val offeredItems = inMemoryItems.filter { proposal.offeredItemIds.contains(it.id) }
+        val remoteCatalog = userPublicationStorage?.getRemoteCatalogItems()
+            ?: userPublicationStorage?.loadPublishedItems().orEmpty()
+        val allItems = (inMemoryItems + remoteCatalog).distinctBy { it.id }
+        val targetItem = allItems.find { it.id == proposal.targetItemId } ?: inMemoryItems.find { it.id == proposal.targetItemId } ?: return
+        val offeredItems = allItems.filter { proposal.offeredItemIds.contains(it.id) }
 
         try {
             val lockResult = lockInventoryForTradeUseCase(
@@ -585,6 +620,7 @@ class TradeViewModel @Inject constructor(
                 if (itemIndex != -1) {
                     inMemoryItems[itemIndex] = lockedItem
                 }
+                userPublicationStorage?.updateItemOnServer(lockedItem)
             }
 
             // Persistir aceptación en base de datos (pasa a RESERVADO y mantiene esta_activa = true)
