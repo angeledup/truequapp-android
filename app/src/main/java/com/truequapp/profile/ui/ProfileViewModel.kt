@@ -7,6 +7,7 @@ import com.truequapp.core.common.mvi.UiEffect
 import com.truequapp.core.common.mvi.UiEvent
 import com.truequapp.core.common.mvi.UiState
 import com.truequapp.core.database.entity.UserEntity
+import com.truequapp.core.database.repository.UserRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -30,7 +31,8 @@ sealed interface ProfileUiEffect : UiEffect {
 
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val userRepository: UserRepository? = null
 ) : BaseViewModel<ProfileUiState, ProfileUiEvent, ProfileUiEffect>(ProfileUiState()) {
 
     init {
@@ -47,25 +49,37 @@ class ProfileViewModel @Inject constructor(
     private fun loadProfile() {
         viewModelScope.launch {
             setState { copy(isLoading = true) }
-            authRepository.currentSessionFlow.collectLatest { session ->
-                val email = session.userEmail
-                if (!email.isNullOrBlank()) {
-                    authRepository.observeUserByEmail(email).collectLatest { userEntity ->
-                        setState {
-                            copy(
-                                isLoading = false,
-                                user = userEntity,
-                                errorMessage = if (userEntity == null) "No se encontró el perfil en la base de datos" else null
-                            )
-                        }
-                    }
-                } else {
+            if (userRepository != null) {
+                userRepository.observeCurrentUser().collectLatest { userEntity ->
                     setState {
                         copy(
                             isLoading = false,
-                            user = null,
-                            errorMessage = "No hay una sesión activa"
+                            user = userEntity,
+                            errorMessage = if (userEntity == null) "No se encontró el perfil en la base de datos" else null
                         )
+                    }
+                }
+            } else {
+                authRepository.currentSessionFlow.collectLatest { session ->
+                    val email = session.userEmail
+                    if (!email.isNullOrBlank()) {
+                        authRepository.observeUserByEmail(email).collectLatest { userEntity ->
+                            setState {
+                                copy(
+                                    isLoading = false,
+                                    user = userEntity,
+                                    errorMessage = if (userEntity == null) "No se encontró el perfil en la base de datos" else null
+                                )
+                            }
+                        }
+                    } else {
+                        setState {
+                            copy(
+                                isLoading = false,
+                                user = null,
+                                errorMessage = "No hay una sesión activa"
+                            )
+                        }
                     }
                 }
             }

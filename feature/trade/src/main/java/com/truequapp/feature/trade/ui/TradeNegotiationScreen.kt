@@ -287,6 +287,12 @@ fun TradeNegotiationScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Ajusta los créditos en TruequeCoins de compensación:")
+                    Text(
+                        text = "Saldo disponible: ${state.truequeCoins.toInt()} TC",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold
+                    )
                     OutlinedTextField(
                         value = state.counterOfferTruequeCoinsInput,
                         onValueChange = { onEvent(TradeUiEvent.OnCounterOfferTruequeCoinsChanged(it)) },

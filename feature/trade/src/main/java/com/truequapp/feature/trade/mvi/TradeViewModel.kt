@@ -28,7 +28,6 @@ import com.truequapp.feature.trade.data.toTradeProposal
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -389,6 +388,10 @@ class TradeViewModel @Inject constructor(
                         userACorreo = userEmail,
                         userBCorreo = targetEmail
                     )
+                    // Si se ofertaron coins compensatorias, reducirlas en la base de datos (Single Source of Truth)
+                    if (coins > 0.0) {
+                        userRepository?.reduceCoins(coins, userEmail)
+                    }
                 } catch (e: Exception) {
                     // Silencioso o log de debug
                 }
@@ -579,6 +582,10 @@ class TradeViewModel @Inject constructor(
         val proposal = currentState.currentProposal ?: return
         val target = currentState.negotiationTargetItem ?: return
         val newCoins = currentState.counterOfferTruequeCoinsInput.toDoubleOrNull() ?: 0.0
+        if (userRepository != null && newCoins > currentState.truequeCoins) {
+            setState { copy(errorMessage = "Saldo insuficiente en TruequeCoins para emitir esta contraoferta.") }
+            return
+        }
         val newOfferedItems = inMemoryItems.filter { currentState.counterOfferOfferedItemIds.contains(it.id) }
 
         try {
