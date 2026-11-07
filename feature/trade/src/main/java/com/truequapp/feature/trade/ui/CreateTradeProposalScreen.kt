@@ -1,5 +1,7 @@
 package com.truequapp.feature.trade.ui
 
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -171,7 +173,8 @@ fun CreateTradeProposalScreen(
                 }
             }
 
-            if (state.availableUserItems.isEmpty()) {
+            val distinctUserItems = state.availableUserItems.distinctBy { it.id }
+            if (distinctUserItems.isEmpty()) {
                 item {
                     Card(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -185,7 +188,7 @@ fun CreateTradeProposalScreen(
                     }
                 }
             } else {
-                items(state.availableUserItems, key = { it.id }) { userItem ->
+                items(distinctUserItems, key = { it.id }) { userItem ->
                     SelectableItemRow(
                         item = userItem,
                         isSelected = state.selectedOfferedItemIds.contains(userItem.id),
@@ -246,6 +249,18 @@ private fun TargetItemCard(item: TradeItem) {
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
+            if (item.imagesWebP.isNotEmpty()) {
+                AsyncImage(
+                    model = item.imagesWebP.first(),
+                    contentDescription = item.title,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(140.dp)
+                        .clip(RoundedCornerShape(12.dp)),
+                    contentScale = ContentScale.Crop
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -277,14 +292,17 @@ private fun TargetItemCard(item: TradeItem) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
+                val minVal = item.estimatedValue.minValue.takeIf { !it.isNaN() && !it.isInfinite() }?.toInt() ?: 0
+                val maxVal = item.estimatedValue.maxValue.takeIf { !it.isNaN() && !it.isInfinite() }?.toInt() ?: 0
+                val medianVal = item.estimatedValue.medianValue.takeIf { !it.isNaN() && !it.isInfinite() }?.toInt() ?: 0
                 Text(
-                    text = "Valor estimado: \$${item.estimatedValue.minValue.toInt()} - \$${item.estimatedValue.maxValue.toInt()}",
+                    text = "Valor estimado: \$$minVal - \$$maxVal",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = TruequappTheme.colorScheme.primary
                 )
                 Text(
-                    text = "Mediana: \$${item.estimatedValue.medianValue.toInt()}",
+                    text = "Mediana: \$$medianVal",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -329,14 +347,26 @@ private fun SelectableItemRow(
                 colors = CheckboxDefaults.colors(checkedColor = TruequappTheme.colorScheme.primary)
             )
             Spacer(modifier = Modifier.width(8.dp))
+            if (item.imagesWebP.isNotEmpty()) {
+                AsyncImage(
+                    model = item.imagesWebP.first(),
+                    contentDescription = item.title,
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(8.dp)),
+                    contentScale = ContentScale.Crop
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = item.title,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium
                 )
+                val med = item.estimatedValue.medianValue.takeIf { !it.isNaN() && !it.isInfinite() }?.toInt() ?: 0
                 Text(
-                    text = "Valor estimado: ~\$${item.estimatedValue.medianValue.toInt()}",
+                    text = "Valor estimado: ~\$$med",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -351,7 +381,8 @@ private fun EquivalenceRatioBadge(
     isValid: Boolean,
     hasMinimumItems: Boolean
 ) {
-    val percentage = (ratio * 100).coerceAtMost(200.0)
+    val safeRatio = if (ratio.isNaN() || ratio.isInfinite()) 0.0 else ratio
+    val percentage = (safeRatio * 100).coerceIn(0.0, 200.0)
     val color = if (isValid) TruequappTheme.colorScheme.primary else MaterialTheme.colorScheme.error
 
     Card(
@@ -389,8 +420,9 @@ private fun EquivalenceRatioBadge(
             }
 
             Spacer(modifier = Modifier.height(8.dp))
+            val progressFloat = (percentage / 100f).toFloat().coerceIn(0f, 1f)
             LinearProgressIndicator(
-                progress = { (percentage / 100f).toFloat().coerceIn(0f, 1f) },
+                progress = { if (progressFloat.isNaN()) 0f else progressFloat },
                 color = color,
                 trackColor = color.copy(alpha = 0.2f),
                 modifier = Modifier

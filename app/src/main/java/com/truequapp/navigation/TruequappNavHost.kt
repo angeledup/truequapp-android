@@ -161,7 +161,11 @@ fun TruequappNavHost(
                     effectFlow = catalogViewModel.uiEffect,
                     onEvent = catalogViewModel::onEvent,
                     onNavigateToItemDetail = { targetItemId ->
-                        navController.navigate(Screen.CreateTrade.createRoute(targetItemId))
+                        if (navController.currentDestination?.route == Screen.Catalog.route) {
+                            navController.navigate(Screen.CreateTrade.createRoute(targetItemId)) {
+                                launchSingleTop = true
+                            }
+                        }
                     },
                     onNavigateToPublish = {
                         navController.navigate(Screen.PublishItem.route)
@@ -217,7 +221,7 @@ fun TruequappNavHost(
 
                 LaunchedEffect(targetItemId) {
                     if (targetItemId.isNotBlank()) {
-                        tradeViewModel.onEvent(com.truequapp.feature.trade.mvi.TradeUiEvent.InitTradeCreation(targetItemId, "usuario_actual"))
+                        tradeViewModel.onEvent(com.truequapp.feature.trade.mvi.TradeUiEvent.InitTradeCreation(targetItemId, ""))
                     }
                 }
 

@@ -264,15 +264,25 @@ class TradeViewModel @Inject constructor(
 
     // CU009: Proponer Trueque Directo o Híbrido
     private fun initTradeCreation(targetItemId: String, userId: String) {
-        val target = inMemoryItems.find { it.id == targetItemId }
-            ?: userPublicationStorage?.loadPublishedItems()?.find { it.id == targetItemId }
-        val allUserItems = inMemoryItems + userPublicationStorage?.loadPublishedItems().orEmpty()
-        val userItems = allUserItems.filter { isMyTradeItem(it, userId) && it.status == ItemStatus.DISPONIBLE }
+        val saved = userPublicationStorage?.loadPublishedItems().orEmpty()
+        val allItems = (inMemoryItems + saved).distinctBy { it.id }
+        val target = allItems.find { it.id == targetItemId }
+
+        val activeSessionEmail = currentState.currentUserProfile?.email
+        val effectiveUserId = if (userId.isNotBlank() && userId != "usuario_actual") {
+            userId
+        } else {
+            activeSessionEmail ?: currentState.currentUserId.takeIf { it != "usuario_actual" } ?: "usr_current"
+        }
+
+        val userItems = allItems
+            .filter { isMyTradeItem(it, effectiveUserId) && it.status == ItemStatus.DISPONIBLE }
+            .distinctBy { it.id }
 
         setState {
             copy(
                 targetItem = target,
-                currentUserId = userId,
+                currentUserId = effectiveUserId,
                 availableUserItems = userItems,
                 selectedOfferedItemIds = emptySet(),
                 truequeCoinsInput = "0",
