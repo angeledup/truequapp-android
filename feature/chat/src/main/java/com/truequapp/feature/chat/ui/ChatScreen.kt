@@ -55,6 +55,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.truequapp.core.designsystem.component.TruequappPrimaryButton
+import androidx.compose.material.icons.automirrored.filled.CompareArrows
+import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material3.Surface
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import com.truequapp.core.designsystem.theme.TruequappTheme
 import com.truequapp.feature.chat.mvi.ChatMessageItem
 import com.truequapp.feature.chat.mvi.ChatUiEffect
@@ -181,6 +186,12 @@ fun ChatScreen(
                     .fillMaxSize()
                     .padding(padding)
             ) {
+                // Cabecera compacta: Oferta de ambos (en pequeño y solamente las fotos)
+                TradeOfferCompactHeader(
+                    photosA = state.offerAPhotoUrls,
+                    photosB = state.offerBPhotoUrls
+                )
+
                 // Banner informativo permanente de cumplimiento RN-03
                 Card(
                     colors = CardDefaults.cardColors(
@@ -405,3 +416,106 @@ private fun TypingIndicatorBubble(userName: String) {
     }
 }
 
+
+
+/**
+ * Cabecera superior compacta para el chat transaccional.
+ * Muestra la oferta de ambos participantes en tamaño pequeño y SOLAMENTE las fotos de los artículos involucrados.
+ */
+@Composable
+private fun TradeOfferCompactHeader(
+    photosA: List<String>,
+    photosB: List<String>
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            // Fotos de la Oferta A (Proponente)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (photosA.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Inventory2,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                } else {
+                    photosA.take(3).forEach { photoUrl ->
+                        AsyncImage(
+                            model = photoUrl,
+                            contentDescription = "Foto Oferta A",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                        )
+                    }
+                }
+            }
+
+            // Ícono de intercambio central
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.CompareArrows,
+                contentDescription = "Intercambio",
+                tint = TruequappTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
+
+            // Fotos de la Oferta B (Receptor)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (photosB.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Inventory2,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                } else {
+                    photosB.take(3).forEach { photoUrl ->
+                        AsyncImage(
+                            model = photoUrl,
+                            contentDescription = "Foto Oferta B",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                        )
+                    }
+                }
+            }
+        }
+    }
+}

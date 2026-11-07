@@ -36,7 +36,9 @@ data class ChatUiState(
     val isOtherUserTyping: Boolean = false,
     val isConnected: Boolean = false,
     val isLoading: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val offerAPhotoUrls: List<String> = emptyList(),
+    val offerBPhotoUrls: List<String> = emptyList()
 ) : UiState
 
 /**

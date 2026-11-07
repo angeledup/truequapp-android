@@ -43,7 +43,14 @@ class CatalogViewModel @Inject constructor(
     private val inMemoryItems = mutableListOf<TradeItem>()
     private val testItems = mutableListOf<TradeItem>()
     private var currentUserId: String = "usr_current"
+    private var currentUserEmail: String? = null
     private var currentUserName: String = "Usuario Truequapp"
+
+    private fun isMyItem(item: TradeItem): Boolean {
+        return item.ownerId == currentUserId || 
+               (currentUserEmail != null && item.ownerId == currentUserEmail) ||
+               (currentUserId == "usr_current" && item.ownerId == "usr_current")
+    }
 
     init {
         loadSessionAndCatalog()
@@ -53,6 +60,7 @@ class CatalogViewModel @Inject constructor(
         viewModelScope.launch(dispatchers.io) {
             val session = userSessionDataStore.sessionFlow.first()
             currentUserId = session.userId ?: "usr_current"
+            currentUserEmail = session.userEmail
             val userEmail = session.userEmail
 
             // Consultar saldo de TruequeCoins en la base de datos (Single Source of Truth)
@@ -82,7 +90,7 @@ class CatalogViewModel @Inject constructor(
             }
         }
 
-        val myItems = inMemoryItems.filter { it.ownerId == currentUserId }
+        val myItems = inMemoryItems.filter { isMyItem(it) }
 
         setState {
             copy(
@@ -228,12 +236,12 @@ class CatalogViewModel @Inject constructor(
 
         // 1. Filtro de solo marcados/favoritos o mis publicaciones
         if (state.filterOnlyBookmarked) {
-            result = result.filter { state.bookmarkedItemIds.contains(it.id) && it.status == ItemStatus.DISPONIBLE && it.ownerId != currentUserId }
+            result = result.filter { state.bookmarkedItemIds.contains(it.id) && it.status == ItemStatus.DISPONIBLE && !isMyItem(it) }
         } else if (state.filterOnlyMyPublications) {
-            result = result.filter { it.ownerId == currentUserId }
+            result = result.filter { isMyItem(it) }
         } else {
             // Feed general de exploración: Excluir publicaciones propias para anti-auto-trueque
-            result = result.filter { it.status == ItemStatus.DISPONIBLE && it.ownerId != currentUserId }
+            result = result.filter { it.status == ItemStatus.DISPONIBLE && !isMyItem(it) }
         }
 
         // 2. Filtro de búsqueda por texto (título, descripción, wishlist)
@@ -346,9 +354,10 @@ class CatalogViewModel @Inject constructor(
                 }
             }
 
+            val effectiveOwnerId = currentUserEmail ?: currentUserId
             val newItem = TradeItem(
                 id = "item_${UUID.randomUUID().toString().take(8)}",
-                ownerId = currentUserId,
+                ownerId = effectiveOwnerId,
                 title = state.newTitle.trim(),
                 description = state.newDescription.trim(),
                 categoryId = state.newCategoryId,
@@ -363,9 +372,10 @@ class CatalogViewModel @Inject constructor(
 
             inMemoryItems.add(0, newItem)
 
-            // Guardar de forma persistente en almacenamiento sandbox
-            val mySavedPublications = inMemoryItems.filter { it.ownerId == currentUserId }
-            catalogLocalStorage?.savePublishedItems(mySavedPublications)
+            // Guardar de forma persistente todas las publicaciones del catálogo en almacenamiento sandbox
+            val mySavedPublications = inMemoryItems.filter { isMyItem(it) }
+            val itemsToSave = inMemoryItems.filter { item -> testItems.none { it.id == item.id } }
+            catalogLocalStorage?.savePublishedItems(itemsToSave)
 
             setState {
                 copy(
@@ -407,8 +417,9 @@ class CatalogViewModel @Inject constructor(
         }
 
         inMemoryItems.removeIf { it.id == itemId }
-        val mySaved = inMemoryItems.filter { it.ownerId == currentUserId }
-        catalogLocalStorage?.savePublishedItems(mySaved)
+        val mySaved = inMemoryItems.filter { isMyItem(it) }
+        val itemsToSave = inMemoryItems.filter { item -> testItems.none { it.id == item.id } }
+        catalogLocalStorage?.savePublishedItems(itemsToSave)
 
         setState {
             copy(
@@ -424,8 +435,9 @@ class CatalogViewModel @Inject constructor(
         val index = inMemoryItems.indexOfFirst { it.id == updated.id }
         if (index != -1) {
             inMemoryItems[index] = updated
-            val mySaved = inMemoryItems.filter { it.ownerId == currentUserId }
-            catalogLocalStorage?.savePublishedItems(mySaved)
+            val mySaved = inMemoryItems.filter { isMyItem(it) }
+            val itemsToSave = inMemoryItems.filter { item -> testItems.none { it.id == item.id } }
+            catalogLocalStorage?.savePublishedItems(itemsToSave)
             setState {
                 copy(
                     items = inMemoryItems,
@@ -442,7 +454,7 @@ class CatalogViewModel @Inject constructor(
         if (inMemoryItems.none { it.id == item.id }) {
             inMemoryItems.add(item)
         }
-        val myItems = inMemoryItems.filter { it.ownerId == currentUserId }
+        val myItems = inMemoryItems.filter { isMyItem(it) }
         setState {
             copy(
                 items = inMemoryItems.toList(),

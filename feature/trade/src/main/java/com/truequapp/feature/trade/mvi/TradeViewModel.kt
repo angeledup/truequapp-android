@@ -181,12 +181,19 @@ class TradeViewModel @Inject constructor(
         }
     }
 
+    private fun isMyTradeItem(item: TradeItem, userId: String): Boolean {
+        val email = currentState.currentUserProfile?.email
+        return item.ownerId.equals(userId, ignoreCase = true) || 
+               (email != null && item.ownerId.equals(email, ignoreCase = true)) || 
+               (userId == "usr_current" && item.ownerId == "usr_current")
+    }
+
     private fun loadUserPublications(userId: String) {
         val saved = userPublicationStorage?.loadPublishedItems().orEmpty()
         val userItems = if (saved.isNotEmpty()) {
-            saved.filter { it.ownerId == userId || it.ownerId == "usr_current" }
+            saved.filter { isMyTradeItem(it, userId) }
         } else {
-            inMemoryItems.filter { it.ownerId == userId || it.ownerId == "usr_current" }
+            inMemoryItems.filter { isMyTradeItem(it, userId) }
         }
         setState { copy(myPublications = userItems) }
     }
@@ -201,6 +208,15 @@ class TradeViewModel @Inject constructor(
             is TradeUiEvent.LoadProposals -> loadProposals(event.userId)
             is TradeUiEvent.SelectTab -> setState { copy(selectedTab = event.tabIndex) }
             is TradeUiEvent.LoadProposalDetails -> loadProposalDetails(event.proposalId, event.currentUserId)
+            is TradeUiEvent.OpenOfferDetail -> openOfferDetail(event.proposalId)
+            is TradeUiEvent.CloseOfferDetail -> setState {
+                copy(
+                    selectedOfferProposal = null,
+                    selectedOfferProponentUser = null,
+                    selectedOfferTargetItem = null,
+                    selectedOfferOfferedItems = emptyList()
+                )
+            }
             is TradeUiEvent.RefreshMyPublications -> loadUserPublications(currentState.currentUserId)
             is TradeUiEvent.DeletePublication -> deletePublication(event.itemId)
             is TradeUiEvent.AcceptProposal -> acceptProposal(event.proposalId)
@@ -249,7 +265,9 @@ class TradeViewModel @Inject constructor(
     // CU009: Proponer Trueque Directo o Híbrido
     private fun initTradeCreation(targetItemId: String, userId: String) {
         val target = inMemoryItems.find { it.id == targetItemId }
-        val userItems = inMemoryItems.filter { it.ownerId == userId && it.status == ItemStatus.DISPONIBLE }
+            ?: userPublicationStorage?.loadPublishedItems()?.find { it.id == targetItemId }
+        val allUserItems = inMemoryItems + userPublicationStorage?.loadPublishedItems().orEmpty()
+        val userItems = allUserItems.filter { isMyTradeItem(it, userId) && it.status == ItemStatus.DISPONIBLE }
 
         setState {
             copy(
@@ -368,9 +386,11 @@ class TradeViewModel @Inject constructor(
 
             // Persistencia en SQLite Room conforme al boceto (Oferta A, Oferta B y Trueque con esta_activa = true)
             val userEmail = currentState.currentUserProfile?.email ?: currentState.currentUserId
-            val targetEmail = target.ownerId
             viewModelScope.launch(dispatchers.io) {
                 try {
+                    val targetEmail = if (target.ownerId.contains("@")) target.ownerId else {
+                        userRepository?.getUserByEmail(target.ownerId)?.correo ?: target.ownerId
+                    }
                     tradeRepository?.saveProposal(
                         proposal = newProposal,
                         userACorreo = userEmail,
@@ -406,8 +426,12 @@ class TradeViewModel @Inject constructor(
         viewModelScope.launch(dispatchers.io) {
             // Sincronizar desde la base de datos SQL local si existe el repositorio
             try {
-                val dbProposals = tradeRepository?.getActiveProposalsForUser(userEmail)?.firstOrNull()
-                dbProposals?.forEach { activeTrueque ->
+                val dbProposalsEmail = tradeRepository?.getActiveProposalsForUser(userEmail)?.firstOrNull().orEmpty()
+                val dbProposalsId = if (!userId.equals(userEmail, ignoreCase = true)) {
+                    tradeRepository?.getActiveProposalsForUser(userId)?.firstOrNull().orEmpty()
+                } else emptyList()
+
+                (dbProposalsEmail + dbProposalsId).forEach { activeTrueque ->
                     val domainProp = activeTrueque.toTradeProposal()
                     val idx = inMemoryProposals.indexOfFirst { it.id == domainProp.id }
                     if (idx == -1) {
@@ -423,18 +447,30 @@ class TradeViewModel @Inject constructor(
             // Sincronizar publicaciones del usuario
             loadUserPublications(userId)
 
+            fun isReceiver(prop: TradeProposal): Boolean {
+                return prop.receiverUserId.equals(userEmail, ignoreCase = true) ||
+                       prop.receiverUserId.equals(userId, ignoreCase = true) ||
+                       (userId == "usr_current" && prop.receiverUserId == "usr_current")
+            }
+
+            fun isRequester(prop: TradeProposal): Boolean {
+                return prop.requesterUserId.equals(userEmail, ignoreCase = true) ||
+                       prop.requesterUserId.equals(userId, ignoreCase = true) ||
+                       (userId == "usr_current" && prop.requesterUserId == "usr_current")
+            }
+
             // Activas: Trueques iniciados por el usuario pendientes de respuesta, o en estado RESERVADO / EN_ENTREGA
             val active = inMemoryProposals.filter {
-                (it.requesterUserId == userId && it.status == TradeStatus.PENDIENTE) ||
+                (isRequester(it) && it.status == TradeStatus.PENDIENTE) ||
                 it.status in listOf(TradeStatus.RESERVADO, TradeStatus.EN_ENTREGA)
             }
             // Ofertas: Ofertas que otros usuarios te hacen respecto a tus artículos, o contraofertas recibidas sobre tu propuesta inicial
             val offers = inMemoryProposals.filter {
-                (it.receiverUserId == userId && it.status in listOf(TradeStatus.PENDIENTE, TradeStatus.CONTRAOFERTADA)) ||
-                (it.requesterUserId == userId && it.status == TradeStatus.CONTRAOFERTADA)
+                (isReceiver(it) && it.status in listOf(TradeStatus.PENDIENTE, TradeStatus.CONTRAOFERTADA)) ||
+                (isRequester(it) && it.status == TradeStatus.CONTRAOFERTADA)
             }
             val history = inMemoryProposals.filter {
-                (it.requesterUserId == userId || it.receiverUserId == userId) &&
+                (isRequester(it) || isReceiver(it)) &&
                 it.status in listOf(TradeStatus.COMPLETADO, TradeStatus.CANCELADO, TradeStatus.RECHAZADO, TradeStatus.EXPIRADO)
             }
 
@@ -444,6 +480,25 @@ class TradeViewModel @Inject constructor(
                     receivedOffers = offers,
                     historyProposals = history,
                     isLoading = false
+                )
+            }
+        }
+    }
+
+    private fun openOfferDetail(proposalId: String) {
+        val proposal = inMemoryProposals.find { it.id == proposalId } ?: return
+        val allItems = inMemoryItems + userPublicationStorage?.loadPublishedItems().orEmpty()
+        val targetItem = allItems.find { it.id == proposal.targetItemId }
+        val offeredItems = allItems.filter { proposal.offeredItemIds.contains(it.id) }
+
+        viewModelScope.launch(dispatchers.io) {
+            val proponent = userRepository?.getUserByEmail(proposal.requesterUserId)
+            setState {
+                copy(
+                    selectedOfferProposal = proposal,
+                    selectedOfferProponentUser = proponent,
+                    selectedOfferTargetItem = targetItem,
+                    selectedOfferOfferedItems = offeredItems
                 )
             }
         }
@@ -542,7 +597,8 @@ class TradeViewModel @Inject constructor(
                 )
             }
 
-            sendEffect(TradeUiEffect.ShowToast("¡Propuesta aceptada! Inventario asegurado en estado RESERVADO."))
+            sendEffect(TradeUiEffect.ShowToast("¡Propuesta aceptada! El chat ha sido habilitado."))
+            sendEffect(TradeUiEffect.NavigateToChat(proposal.id))
         } catch (e: BusinessRuleException.ExclusivityLockException) {
             setState { copy(errorMessage = "Error RN-01: ${e.message}") }
         } catch (e: Exception) {
@@ -594,6 +650,9 @@ class TradeViewModel @Inject constructor(
             // Persistir contraoferta en la base de datos (estado CONTRAOFERTADA con esta_activa = true)
             viewModelScope.launch(dispatchers.io) {
                 try {
+                    val targetEmail = if (target.ownerId.contains("@")) target.ownerId else {
+                        userRepository?.getUserByEmail(target.ownerId)?.correo ?: target.ownerId
+                    }
                     tradeRepository?.submitCounterOffer(
                         proposalId = proposal.id,
                         newOfferedItemIds = newOfferedItems.map { it.id },

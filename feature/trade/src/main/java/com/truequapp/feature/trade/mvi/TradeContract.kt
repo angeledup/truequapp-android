@@ -6,6 +6,7 @@ import com.truequapp.core.common.mvi.UiState
 import com.truequapp.core.domain.model.MeetingAppointment
 import com.truequapp.core.domain.model.TradeItem
 import com.truequapp.core.domain.model.TradeProposal
+import com.truequapp.core.database.entity.UserEntity
 import com.truequapp.core.domain.model.UserProfile
 
 /**
@@ -36,6 +37,12 @@ data class TradeUiState(
     val negotiationOfferedItems: List<TradeItem> = emptyList(),
     val scheduledAppointment: MeetingAppointment? = null,
     val currentUserProfile: UserProfile? = null,
+
+    // Subpantalla de Detalle de Oferta Recibida (CU010 / CU012)
+    val selectedOfferProposal: TradeProposal? = null,
+    val selectedOfferProponentUser: UserEntity? = null,
+    val selectedOfferTargetItem: TradeItem? = null,
+    val selectedOfferOfferedItems: List<TradeItem> = emptyList(),
 
     // Diálogos y advertencias
     val showCounterOfferDialog: Boolean = false,
@@ -74,6 +81,8 @@ sealed interface TradeUiEvent : UiEvent {
     data class LoadProposals(val userId: String) : TradeUiEvent
     data class SelectTab(val tabIndex: Int) : TradeUiEvent
     data class LoadProposalDetails(val proposalId: String, val currentUserId: String) : TradeUiEvent
+    data class OpenOfferDetail(val proposalId: String) : TradeUiEvent
+    data object CloseOfferDetail : TradeUiEvent
     data object RefreshMyPublications : TradeUiEvent
     data class DeletePublication(val itemId: String) : TradeUiEvent
 

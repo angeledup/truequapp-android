@@ -186,6 +186,17 @@ fun TruequappNavHost(
                 val tradeViewModel: TradeViewModel = hiltViewModel()
                 val tradeState by tradeViewModel.uiState.collectAsStateWithLifecycle()
 
+                LaunchedEffect(Unit) {
+                    tradeViewModel.uiEffect.collect { effect ->
+                        when (effect) {
+                            is com.truequapp.feature.trade.mvi.TradeUiEffect.NavigateToChat -> {
+                                navController.navigate(Screen.Chat.createRoute(effect.proposalId))
+                            }
+                            else -> Unit
+                        }
+                    }
+                }
+
                 TradeListScreen(
                     state = tradeState,
                     onEvent = tradeViewModel::onEvent,

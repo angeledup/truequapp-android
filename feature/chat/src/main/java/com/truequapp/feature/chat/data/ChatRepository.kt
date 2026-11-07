@@ -144,7 +144,9 @@ class ChatRepository @Inject constructor(
      */
     fun getConversations(currentUserEmail: String): Flow<List<ChatConversationSummary>> {
         return truequeDao.getHistorialTruequesPorUsuario(currentUserEmail).map { trueques ->
-            trueques.map { truequeConOfertas ->
+            trueques
+                .filter { it.trueque.estado in listOf("RESERVADO", "EN_ENTREGA", "COMPLETADO") }
+                .map { truequeConOfertas ->
                 val trueque = truequeConOfertas.trueque
                 val otherEmail = if (trueque.usuarioACorreo == currentUserEmail) {
                     trueque.usuarioBCorreo

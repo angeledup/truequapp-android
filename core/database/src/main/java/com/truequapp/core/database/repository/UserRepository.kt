@@ -193,6 +193,10 @@ class UserRepository @Inject constructor(
     /**
      * Obtiene la entidad completa del usuario actual desde la base de datos.
      */
+    suspend fun getUserByEmail(email: String): UserEntity? {
+        return userDao.getUserByEmail(email.trim())
+    }
+
     suspend fun getCurrentUser(): UserEntity? {
         val email = resolveEmail(null) ?: return null
         return userDao.getUserByEmail(email)

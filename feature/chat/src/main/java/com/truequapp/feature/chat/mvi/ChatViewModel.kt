@@ -13,6 +13,7 @@ import com.truequapp.core.domain.rules.ChatAccessPermission
 import com.truequapp.core.domain.rules.ValidateDirectChatAccessUseCase
 import com.truequapp.core.network.websocket.SocketConnectionState
 import com.truequapp.core.network.websocket.SocketManager
+import com.truequapp.core.database.storage.UserPublicationStorage
 import com.truequapp.feature.chat.data.ChatRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.collectLatest
@@ -30,7 +31,8 @@ class ChatViewModel @Inject constructor(
     private val socketManager: SocketManager,
     private val userSessionDataStore: UserSessionDataStore,
     private val dispatchers: DispatcherProvider,
-    private val chatRepository: ChatRepository? = null
+    private val chatRepository: ChatRepository? = null,
+    private val userPublicationStorage: UserPublicationStorage? = null
 ) : BaseViewModel<ChatUiState, ChatUiEvent, ChatUiEffect>(ChatUiState()) {
 
     private val inMemoryProposals = mutableListOf<TradeProposal>()
@@ -84,6 +86,17 @@ class ChatViewModel @Inject constructor(
                 val otherUserId = if (proposal?.requesterUserId == resolvedUserId) proposal.receiverUserId else proposal?.requesterUserId.orEmpty()
                 val otherUserName = if (otherUserId == "usr_alpha") "GamerAlpha" else otherUserId.substringBefore("@").ifBlank { "ColegaTruequero" }
 
+                val allItems = userPublicationStorage?.loadPublishedItems().orEmpty()
+                val itemMap = allItems.associateBy { it.id }
+
+                val offeredIds = proposal?.offeredItemIds.orEmpty().ifEmpty {
+                    dbProposal?.ofertaA?.articulosIds?.split(",")?.filter { it.isNotBlank() }.orEmpty()
+                }
+                val targetId = proposal?.targetItemId ?: dbProposal?.ofertaB?.articulosIds.orEmpty()
+
+                val photosA = offeredIds.flatMap { id -> itemMap[id]?.imagesWebP.orEmpty() }
+                val photosB = itemMap[targetId]?.imagesWebP.orEmpty()
+
                 setState {
                     copy(
                         proposalId = proposalId,
@@ -93,7 +106,9 @@ class ChatViewModel @Inject constructor(
                         permission = permission,
                         isReadOnly = isReadOnly,
                         isAccessDenied = false,
-                        errorMessage = null
+                        errorMessage = null,
+                        offerAPhotoUrls = photosA,
+                        offerBPhotoUrls = photosB
                     )
                 }
 
