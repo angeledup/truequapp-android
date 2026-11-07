@@ -43,6 +43,7 @@ dependencies {
     implementation(project(":core:designsystem"))
     implementation(project(":core:network"))
     implementation(project(":core:datastore"))
+    implementation(project(":core:database"))
 
     // Compose BOM & UI
     val composeBom = platform(libs.compose.bom)

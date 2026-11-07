@@ -3,6 +3,7 @@ package com.truequapp.feature.chat.mvi
 import androidx.lifecycle.viewModelScope
 import com.truequapp.core.common.dispatcher.DispatcherProvider
 import com.truequapp.core.common.mvi.BaseViewModel
+import com.truequapp.core.database.entity.TruequeConOfertas
 import com.truequapp.core.datastore.UserSessionDataStore
 import com.truequapp.core.domain.model.TradeModality
 import com.truequapp.core.domain.model.TradeProposal
@@ -12,8 +13,10 @@ import com.truequapp.core.domain.rules.ChatAccessPermission
 import com.truequapp.core.domain.rules.ValidateDirectChatAccessUseCase
 import com.truequapp.core.network.websocket.SocketConnectionState
 import com.truequapp.core.network.websocket.SocketManager
+import com.truequapp.feature.chat.data.ChatRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -26,7 +29,8 @@ class ChatViewModel @Inject constructor(
     private val validateDirectChatAccessUseCase: ValidateDirectChatAccessUseCase = ValidateDirectChatAccessUseCase(),
     private val socketManager: SocketManager,
     private val userSessionDataStore: UserSessionDataStore,
-    private val dispatchers: DispatcherProvider
+    private val dispatchers: DispatcherProvider,
+    private val chatRepository: ChatRepository? = null
 ) : BaseViewModel<ChatUiState, ChatUiEvent, ChatUiEffect>(ChatUiState()) {
 
     private val inMemoryProposals = mutableListOf<TradeProposal>()
@@ -105,62 +109,109 @@ class ChatViewModel @Inject constructor(
     }
 
     private fun initChat(proposalId: String, currentUserId: String) {
-        val proposal = inMemoryProposals.find { it.id == proposalId }
+        viewModelScope.launch(dispatchers.io) {
+            val sessionEmail = userSessionDataStore.sessionFlow.firstOrNull()?.userEmail
+            val resolvedUserId = if (currentUserId.isNotBlank()) currentUserId else (sessionEmail ?: "angeleduvr@gmail.com")
 
-        try {
-            // Regla RN-03: Validación canónica de acceso al chat
-            val permission = validateDirectChatAccessUseCase(
-                userId = currentUserId,
-                activeProposal = proposal
-            )
-
-            val isReadOnly = permission == ChatAccessPermission.SOLO_LECTURA_HISTORIAL
-            val otherUserId = if (proposal?.requesterUserId == currentUserId) proposal.receiverUserId else proposal?.requesterUserId.orEmpty()
-            val otherUserName = if (otherUserId == "usr_alpha") "GamerAlpha" else "ColegaTruequero"
-
-            val initialMessages = listOf(
-                ChatMessageItem(
-                    id = "msg_seed_01",
-                    proposalId = proposalId,
-                    senderId = otherUserId,
-                    senderName = otherUserName,
-                    content = "¡Hola! Vi tu oferta de trueque. ¿Te parece si coordinamos?",
-                    timestampEpochMs = System.currentTimeMillis() - 120000,
-                    isDelivered = true,
-                    isRead = true,
-                    isFromMe = false
-                )
-            )
-
-            setState {
-                copy(
-                    proposalId = proposalId,
-                    currentUserId = currentUserId,
-                    otherUserId = otherUserId,
-                    otherUserName = otherUserName,
-                    permission = permission,
-                    isReadOnly = isReadOnly,
-                    isAccessDenied = false,
-                    messages = initialMessages,
-                    errorMessage = null
-                )
+            val dbProposal = chatRepository?.getProposalById(proposalId)
+            val proposal = if (dbProposal != null) {
+                mapToTradeProposal(dbProposal)
+            } else {
+                inMemoryProposals.find { it.id == proposalId }
             }
 
-            // Unirse a sala de chat si no está denegado
-            socketManager.joinRoom("trade_chat_$proposalId")
-            listenToChatEvents(proposalId)
-
-        } catch (e: BusinessRuleException.UnauthorizedChatAccessException) {
-            setState {
-                copy(
-                    proposalId = proposalId,
-                    currentUserId = currentUserId,
-                    isAccessDenied = true,
-                    errorMessage = e.message ?: "Acceso restringido por la regla RN-03."
+            try {
+                // Regla RN-03: Validación canónica de acceso al chat
+                val permission = validateDirectChatAccessUseCase(
+                    userId = resolvedUserId,
+                    activeProposal = proposal
                 )
+
+                val isReadOnly = permission == ChatAccessPermission.SOLO_LECTURA_HISTORIAL
+                val otherUserId = if (proposal?.requesterUserId == resolvedUserId) proposal.receiverUserId else proposal?.requesterUserId.orEmpty()
+                val otherUserName = if (otherUserId == "usr_alpha") "GamerAlpha" else otherUserId.substringBefore("@").ifBlank { "ColegaTruequero" }
+
+                setState {
+                    copy(
+                        proposalId = proposalId,
+                        currentUserId = resolvedUserId,
+                        otherUserId = otherUserId,
+                        otherUserName = otherUserName,
+                        permission = permission,
+                        isReadOnly = isReadOnly,
+                        isAccessDenied = false,
+                        errorMessage = null
+                    )
+                }
+
+                if (chatRepository != null) {
+                    launch(dispatchers.main) {
+                        chatRepository.getMessagesForProposal(proposalId, resolvedUserId).collectLatest { dbMsgs ->
+                            if (dbMsgs.isNotEmpty()) {
+                                setState { copy(messages = dbMsgs) }
+                            }
+                        }
+                    }
+                    launch(dispatchers.io) {
+                        chatRepository.markAsRead(proposalId, resolvedUserId)
+                    }
+                } else {
+                    val initialMessages = listOf(
+                        ChatMessageItem(
+                            id = "msg_seed_01",
+                            proposalId = proposalId,
+                            senderId = otherUserId,
+                            senderName = otherUserName,
+                            content = "¡Hola! Vi tu oferta de trueque. ¿Te parece si coordinamos?",
+                            timestampEpochMs = System.currentTimeMillis() - 120000,
+                            isDelivered = true,
+                            isRead = true,
+                            isFromMe = false
+                        )
+                    )
+                    setState { copy(messages = initialMessages) }
+                }
+
+                // Unirse a sala de chat si no está denegado
+                socketManager.joinRoom("trade_chat_$proposalId")
+                listenToChatEvents(proposalId)
+
+            } catch (e: BusinessRuleException.UnauthorizedChatAccessException) {
+                setState {
+                    copy(
+                        proposalId = proposalId,
+                        currentUserId = resolvedUserId,
+                        isAccessDenied = true,
+                        errorMessage = e.message ?: "Acceso restringido por la regla RN-03."
+                    )
+                }
+                sendEffect(ChatUiEffect.ShowToast("RN-03: No tienes autorización para acceder a este chat."))
             }
-            sendEffect(ChatUiEffect.ShowToast("RN-03: No tienes autorización para acceder a este chat."))
         }
+    }
+
+    private fun mapToTradeProposal(t: TruequeConOfertas): TradeProposal {
+        val ofA = t.ofertaA
+        val ofB = t.ofertaB
+        val offeredList = ofA?.articulosIds?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
+        val target = ofB?.articulosIds?.split(",")?.firstOrNull() ?: ""
+        val coins = ofA?.truequeCoins ?: 0.0
+        val statusEnum = try {
+            TradeStatus.valueOf(t.trueque.estado)
+        } catch (e: Exception) {
+            TradeStatus.PENDIENTE
+        }
+        return TradeProposal(
+            id = t.trueque.id,
+            requesterUserId = t.trueque.usuarioACorreo,
+            receiverUserId = t.trueque.usuarioBCorreo,
+            offeredItemIds = offeredList,
+            targetItemId = target,
+            compensatoryTruequeCoins = coins,
+            modality = TradeModality.DIRECTO_1_A_1,
+            status = statusEnum,
+            createdAtEpochMs = t.trueque.fechaCreacion
+        )
     }
 
     private fun listenToChatEvents(proposalId: String) {
@@ -235,6 +286,15 @@ class ChatViewModel @Inject constructor(
             )
         }
 
+        viewModelScope.launch(dispatchers.io) {
+            chatRepository?.sendMessage(
+                proposalId = state.proposalId,
+                senderEmail = state.currentUserId,
+                receiverEmail = state.otherUserId,
+                content = text
+            )
+        }
+
         socketManager.emitEvent("send_message", text)
         sendEffect(ChatUiEffect.ScrollToBottom)
     }
@@ -242,6 +302,14 @@ class ChatViewModel @Inject constructor(
     private fun handleReceiveMessage(message: ChatMessageItem) {
         setState {
             copy(messages = messages + message)
+        }
+        viewModelScope.launch(dispatchers.io) {
+            chatRepository?.saveIncomingMessage(
+                proposalId = message.proposalId,
+                senderEmail = message.senderId,
+                receiverEmail = currentState.currentUserId,
+                content = message.content
+            )
         }
         sendEffect(ChatUiEffect.ScrollToBottom)
         socketManager.emitEvent("message_read", message.id)
@@ -259,4 +327,3 @@ class ChatViewModel @Inject constructor(
         inMemoryProposals.add(proposal)
     }
 }
-

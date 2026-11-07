@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.truequapp.core.database.TruequappDatabase
+import com.truequapp.core.database.dao.ChatMessageDao
 import com.truequapp.core.database.dao.TruequeDao
 import com.truequapp.core.database.dao.UserDao
 import dagger.Module
@@ -79,5 +80,11 @@ object DatabaseModule {
     @Singleton
     fun provideTruequeDao(database: TruequappDatabase): TruequeDao {
         return database.truequeDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideChatMessageDao(database: TruequappDatabase): ChatMessageDao {
+        return database.chatMessageDao()
     }
 }

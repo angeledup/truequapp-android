@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.GppGood
 import androidx.compose.material.icons.filled.Home
@@ -46,7 +47,9 @@ import com.truequapp.core.designsystem.theme.TruequappTheme
 import com.truequapp.feature.catalog.mvi.CatalogViewModel
 import com.truequapp.feature.catalog.ui.CatalogFeedScreen
 import com.truequapp.feature.catalog.ui.ItemPublishScreen
+import com.truequapp.feature.chat.mvi.ChatListViewModel
 import com.truequapp.feature.chat.mvi.ChatViewModel
+import com.truequapp.feature.chat.ui.ChatListScreen
 import com.truequapp.feature.chat.ui.ChatScreen
 import com.truequapp.feature.trade.mvi.TradeViewModel
 import com.truequapp.feature.trade.ui.CreateTradeProposalScreen
@@ -65,6 +68,7 @@ fun TruequappNavHost(
     val topLevelRoutes = listOf(
         Screen.Catalog.route,
         Screen.Trades.route,
+        Screen.Messages.route,
         Screen.SafeZones.route,
         Screen.Profile.route
     )
@@ -80,6 +84,7 @@ fun TruequappNavHost(
                     val items = listOf(
                         Triple(Screen.Catalog, Icons.Default.Home, "Catálogo"),
                         Triple(Screen.Trades, Icons.Default.SwapHoriz, "Trueques"),
+                        Triple(Screen.Messages, Icons.AutoMirrored.Filled.Chat, "Mensajes"),
                         Triple(Screen.SafeZones, Icons.Default.Place, "Zonas"),
                         Triple(Screen.Profile, Icons.Default.AccountCircle, "Perfil")
                     )
@@ -235,6 +240,21 @@ fun TruequappNavHost(
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToChat = { pId ->
                         navController.navigate(Screen.Chat.createRoute(pId))
+                    }
+                )
+            }
+
+            // Menú Principal: Listado de Mensajes / Chats Transaccionales (Módulo 4)
+            composable(Screen.Messages.route) {
+                val chatListViewModel: ChatListViewModel = hiltViewModel()
+                val chatListState by chatListViewModel.uiState.collectAsStateWithLifecycle()
+
+                ChatListScreen(
+                    state = chatListState,
+                    effectFlow = chatListViewModel.uiEffect,
+                    onEvent = chatListViewModel::onEvent,
+                    onNavigateToChat = { proposalId ->
+                        navController.navigate(Screen.Chat.createRoute(proposalId))
                     }
                 )
             }
