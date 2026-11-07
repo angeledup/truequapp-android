@@ -36,54 +36,7 @@ class ChatViewModel @Inject constructor(
     private val inMemoryProposals = mutableListOf<TradeProposal>()
 
     init {
-        seedProposals()
         observeSocketConnection()
-    }
-
-    private fun seedProposals() {
-        val proposals = listOf(
-            TradeProposal(
-                id = "prop_active_01",
-                requesterUserId = "usr_current",
-                receiverUserId = "usr_beta",
-                offeredItemIds = listOf("item_user_01"),
-                targetItemId = "item_002",
-                compensatoryTruequeCoins = 100.0,
-                modality = TradeModality.HIBRIDO_CON_CREDITOS,
-                status = TradeStatus.PENDIENTE
-            ),
-            TradeProposal(
-                id = "prop_reserved_02",
-                requesterUserId = "usr_current",
-                receiverUserId = "usr_alpha",
-                offeredItemIds = listOf("item_user_02"),
-                targetItemId = "item_001",
-                compensatoryTruequeCoins = 2500.0,
-                modality = TradeModality.HIBRIDO_CON_CREDITOS,
-                status = TradeStatus.RESERVADO
-            ),
-            TradeProposal(
-                id = "prop_closed_recent",
-                requesterUserId = "usr_current",
-                receiverUserId = "usr_beta",
-                offeredItemIds = listOf("item_user_01"),
-                targetItemId = "item_002",
-                modality = TradeModality.DIRECTO_1_A_1,
-                status = TradeStatus.COMPLETADO,
-                createdAtEpochMs = System.currentTimeMillis() - (10 * 60 * 60 * 1000L) // Finalizado hace 10 horas (< 48h)
-            ),
-            TradeProposal(
-                id = "prop_closed_old",
-                requesterUserId = "usr_current",
-                receiverUserId = "usr_beta",
-                offeredItemIds = listOf("item_user_01"),
-                targetItemId = "item_002",
-                modality = TradeModality.DIRECTO_1_A_1,
-                status = TradeStatus.COMPLETADO,
-                createdAtEpochMs = System.currentTimeMillis() - (60 * 60 * 60 * 1000L) // Finalizado hace 60 horas (> 48h)
-            )
-        )
-        inMemoryProposals.addAll(proposals)
     }
 
     private fun observeSocketConnection() {
@@ -156,20 +109,7 @@ class ChatViewModel @Inject constructor(
                         chatRepository.markAsRead(proposalId, resolvedUserId)
                     }
                 } else {
-                    val initialMessages = listOf(
-                        ChatMessageItem(
-                            id = "msg_seed_01",
-                            proposalId = proposalId,
-                            senderId = otherUserId,
-                            senderName = otherUserName,
-                            content = "¡Hola! Vi tu oferta de trueque. ¿Te parece si coordinamos?",
-                            timestampEpochMs = System.currentTimeMillis() - 120000,
-                            isDelivered = true,
-                            isRead = true,
-                            isFromMe = false
-                        )
-                    )
-                    setState { copy(messages = initialMessages) }
+                    setState { copy(messages = emptyList()) }
                 }
 
                 // Unirse a sala de chat si no está denegado

@@ -71,6 +71,54 @@ class CatalogViewModelTest {
             userSessionDataStore = fakeDataStore,
             dispatchers = dispatchers
         )
+        viewModel.addTestItem(
+            TradeItem(
+                id = "item_001",
+                ownerId = "usr_alpha",
+                title = "Consola Nintendo Switch OLED",
+                description = "En caja original con accesorios completos y dos mandos Joy-Con.",
+                categoryId = 2,
+                type = ItemType.BIEN_FISICO,
+                condition = ItemCondition.COMO_NUEVO,
+                estimatedValueMin = 4500.0,
+                estimatedValueMax = 5200.0,
+                imagesWebP = listOf("https://images.unsplash.com/photo-1578303512597-81e6cc155b3e"),
+                tagsWishlist = listOf("PlayStation 4", "Tablet Samsung"),
+                isAvailable = true
+            )
+        )
+        viewModel.addTestItem(
+            TradeItem(
+                id = "item_002",
+                ownerId = "usr_beta",
+                title = "Cálculo de Stewart 8va Edición",
+                description = "Libro universitario para ingeniería UV, pasta dura sin rayones.",
+                categoryId = 3,
+                type = ItemType.BIEN_FISICO,
+                condition = ItemCondition.USADO,
+                estimatedValueMin = 500.0,
+                estimatedValueMax = 700.0,
+                imagesWebP = listOf("https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c"),
+                tagsWishlist = listOf("Álgebra Lineal", "Física Universitaria"),
+                isAvailable = true
+            )
+        )
+        viewModel.addTestItem(
+            TradeItem(
+                id = "item_003",
+                ownerId = "usr_gamma",
+                title = "Bicicleta de Montaña R29 Alum",
+                description = "Frenos de disco hidráulicos, 21 velocidades Shimano para rodar en Malecón.",
+                categoryId = 7,
+                type = ItemType.BIEN_FISICO,
+                condition = ItemCondition.USADO,
+                estimatedValueMin = 3200.0,
+                estimatedValueMax = 3800.0,
+                imagesWebP = listOf("https://images.unsplash.com/photo-1485965120184-e220f721d03e"),
+                tagsWishlist = listOf("Laptop", "Instrumentos"),
+                isAvailable = true
+            )
+        )
     }
 
     @AfterEach

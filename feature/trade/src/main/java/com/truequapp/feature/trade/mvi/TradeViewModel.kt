@@ -131,19 +131,7 @@ class TradeViewModel @Inject constructor(
             }
         }
 
-        val seedProposals = listOf(
-            TradeProposal(
-                id = "prop_seed_101",
-                requesterUserId = "usr_beta",
-                receiverUserId = "usr_current",
-                offeredItemIds = listOf("item_002"),
-                targetItemId = "item_user_02",
-                compensatoryTruequeCoins = 250.0,
-                modality = TradeModality.HIBRIDO_CON_CREDITOS,
-                status = TradeStatus.PENDIENTE
-            )
-        )
-        inMemoryProposals.addAll(seedProposals)
+        // Sin propuestas simuladas en tiempo de ejecución
     }
 
     private fun loadSessionUser() {

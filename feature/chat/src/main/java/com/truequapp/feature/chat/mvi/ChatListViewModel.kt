@@ -45,39 +45,9 @@ class ChatListViewModel @Inject constructor(
             setState { copy(currentUserId = userEmail) }
 
             chatRepository.getConversations(userEmail).collectLatest { dbConversations ->
-                val finalConversations = if (dbConversations.isNotEmpty()) {
-                    dbConversations
-                } else {
-                    // Semilla inicial representativa si la base de datos de trueques aún no tiene registros
-                    listOf(
-                        ChatConversationSummary(
-                            proposalId = "prop_active_01",
-                            otherUserEmail = "gamer_alpha@truequapp.com",
-                            otherUserName = "GamerAlpha",
-                            tradeStatus = "PENDIENTE",
-                            isTradeActive = true,
-                            targetItemSummary = "Nintendo Switch OLED",
-                            lastMessage = "¡Hola! Vi tu oferta de trueque. ¿Te parece si coordinamos?",
-                            lastMessageTimeMs = System.currentTimeMillis() - 120000,
-                            unreadCount = 1
-                        ),
-                        ChatConversationSummary(
-                            proposalId = "prop_reserved_02",
-                            otherUserEmail = "colega_truequero@truequapp.com",
-                            otherUserName = "ColegaTruequero",
-                            tradeStatus = "RESERVADO",
-                            isTradeActive = true,
-                            targetItemSummary = "Audífonos Sony WH-1000XM4",
-                            lastMessage = "De acuerdo con el punto de entrega en Plaza Cristal.",
-                            lastMessageTimeMs = System.currentTimeMillis() - 3600000,
-                            unreadCount = 0
-                        )
-                    )
-                }
-
                 setState {
                     copy(
-                        conversations = finalConversations,
+                        conversations = dbConversations,
                         isLoading = false,
                         errorMessage = null
                     )

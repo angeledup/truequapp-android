@@ -70,6 +70,42 @@ class ChatViewModelTest {
             userSessionDataStore = dataStore,
             dispatchers = dispatchers
         )
+        viewModel.addTestProposal(
+            TradeProposal(
+                id = "prop_active_01",
+                requesterUserId = "usr_current",
+                receiverUserId = "usr_beta",
+                offeredItemIds = listOf("item_user_01"),
+                targetItemId = "item_002",
+                compensatoryTruequeCoins = 100.0,
+                modality = TradeModality.HIBRIDO_CON_CREDITOS,
+                status = TradeStatus.PENDIENTE
+            )
+        )
+        viewModel.addTestProposal(
+            TradeProposal(
+                id = "prop_closed_recent",
+                requesterUserId = "usr_current",
+                receiverUserId = "usr_beta",
+                offeredItemIds = listOf("item_user_01"),
+                targetItemId = "item_002",
+                modality = TradeModality.DIRECTO_1_A_1,
+                status = TradeStatus.COMPLETADO,
+                createdAtEpochMs = System.currentTimeMillis() - (10 * 60 * 60 * 1000L)
+            )
+        )
+        viewModel.addTestProposal(
+            TradeProposal(
+                id = "prop_closed_old",
+                requesterUserId = "usr_current",
+                receiverUserId = "usr_beta",
+                offeredItemIds = listOf("item_user_01"),
+                targetItemId = "item_002",
+                modality = TradeModality.DIRECTO_1_A_1,
+                status = TradeStatus.COMPLETADO,
+                createdAtEpochMs = System.currentTimeMillis() - (60 * 60 * 60 * 1000L)
+            )
+        )
     }
 
     @AfterEach
@@ -104,7 +140,7 @@ class ChatViewModelTest {
         assertFalse(state.isAccessDenied)
         assertFalse(state.isReadOnly)
         assertEquals(ChatAccessPermission.PERMITIDO_ESCRITURA_Y_LECTURA, state.permission)
-        assertTrue(state.messages.isNotEmpty())
+        assertTrue(state.messages.isEmpty())
     }
 
     @Test
