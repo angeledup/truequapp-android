@@ -1,0 +1,24 @@
+[
+  {
+    "id": "msg_v2c_01_1",
+    "proposalId": "prop_seed_v2c_01",
+    "senderId": "usr_vergara",
+    "senderEmail": "Vergaracorreo@gmail.com",
+    "senderName": "Vergara",
+    "content": "¡Hola chocolatt! Te ofrezco mi Bicicleta R29 más 500 TruequeCoins por tu Nintendo Switch OLED.",
+    "timestampEpochMs": 1730999400000,
+    "isAuditLog": false,
+    "isRead": true
+  },
+  {
+    "id": "msg_v2c_01_2",
+    "proposalId": "prop_seed_v2c_01",
+    "senderId": "usr_chocolatt",
+    "senderEmail": "chocolattcorreo@gmail.com",
+    "senderName": "chocolatt",
+    "content": "¡Hola Vergara! Me interesa mucho la bicicleta. ¿Nos vemos en Plaza Forum en el domo central?",
+    "timestampEpochMs": 1730999700000,
+    "isAuditLog": false,
+    "isRead": true
+  }
+]

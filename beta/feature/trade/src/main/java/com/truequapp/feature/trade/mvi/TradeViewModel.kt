@@ -65,6 +65,62 @@ class TradeViewModel @Inject constructor(
     private fun seedInitialData() {
         val seedItems = listOf(
             TradeItem(
+                id = "item_chocolatt_01",
+                ownerId = "usr_chocolatt",
+                title = "Consola Nintendo Switch OLED",
+                description = "En caja original con accesorios completos y dos mandos Joy-Con.",
+                categoryId = 2,
+                type = ItemType.BIEN_FISICO,
+                condition = ItemCondition.COMO_NUEVO,
+                estimatedValueMin = 4500.0,
+                estimatedValueMax = 5200.0,
+                imagesWebP = listOf("https://images.unsplash.com/photo-1578303512597-81e6cc155b3e"),
+                tagsWishlist = listOf("Bicicleta", "Laptop Dell", "PlayStation 4"),
+                isAvailable = true
+            ),
+            TradeItem(
+                id = "item_chocolatt_02",
+                ownerId = "usr_chocolatt",
+                title = "Audífonos Sony WH-1000XM4 Cancelación",
+                description = "Audífonos inalámbricos premium con cancelación activa de ruido y funda de viaje.",
+                categoryId = 2,
+                type = ItemType.BIEN_FISICO,
+                condition = ItemCondition.COMO_NUEVO,
+                estimatedValueMin = 3200.0,
+                estimatedValueMax = 3800.0,
+                imagesWebP = listOf("https://images.unsplash.com/photo-1546435770-a3e426bf472b"),
+                tagsWishlist = listOf("Bicicleta R29", "Gadgets"),
+                isAvailable = true
+            ),
+            TradeItem(
+                id = "item_vergara_01",
+                ownerId = "usr_vergara",
+                title = "Bicicleta de Montaña R29 Alum Shimano",
+                description = "Frenos de disco hidráulicos, 21 velocidades Shimano para rodar en Malecón.",
+                categoryId = 7,
+                type = ItemType.BIEN_FISICO,
+                condition = ItemCondition.USADO,
+                estimatedValueMin = 3200.0,
+                estimatedValueMax = 3800.0,
+                imagesWebP = listOf("https://images.unsplash.com/photo-1485965120184-e220f721d03e"),
+                tagsWishlist = listOf("Nintendo Switch", "Consolas", "Gaming"),
+                isAvailable = true
+            ),
+            TradeItem(
+                id = "item_vergara_02",
+                ownerId = "usr_vergara",
+                title = "Laptop Dell Inspiron 15 Core i5 16GB",
+                description = "Intel Core i5 11va Gen, 16GB RAM, SSD 512GB NVMe, pantalla 15.6 FHD.",
+                categoryId = 2,
+                type = ItemType.BIEN_FISICO,
+                condition = ItemCondition.COMO_NUEVO,
+                estimatedValueMin = 6500.0,
+                estimatedValueMax = 7500.0,
+                imagesWebP = listOf("https://images.unsplash.com/photo-1496181133206-80ce9b88a853"),
+                tagsWishlist = listOf("Nintendo Switch OLED", "iPad", "Gaming"),
+                isAvailable = true
+            ),
+            TradeItem(
                 id = "item_001",
                 ownerId = "usr_alpha",
                 title = "Consola Nintendo Switch OLED",
@@ -132,7 +188,54 @@ class TradeViewModel @Inject constructor(
             }
         }
 
-        // Sin propuestas simuladas en tiempo de ejecución
+        // 4 Propuestas semilla pre-cargadas (2 de Vergara hacia chocolatt, y 2 de chocolatt hacia Vergara)
+        val defaultProposals = listOf(
+            // 1. De Vergara a chocolatt (Nintendo Switch x Bici + 500 TC)
+            TradeProposal(
+                id = "prop_seed_v2c_01",
+                requesterUserId = "Vergaracorreo@gmail.com",
+                receiverUserId = "chocolattcorreo@gmail.com",
+                offeredItemIds = listOf("item_vergara_01"),
+                targetItemId = "item_chocolatt_01",
+                compensatoryTruequeCoins = 500.0,
+                modality = TradeModality.HIBRIDO_CON_CREDITOS,
+                status = TradeStatus.PENDIENTE
+            ),
+            // 2. De Vergara a chocolatt (Audífonos Sony x Laptop Dell)
+            TradeProposal(
+                id = "prop_seed_v2c_02",
+                requesterUserId = "Vergaracorreo@gmail.com",
+                receiverUserId = "chocolattcorreo@gmail.com",
+                offeredItemIds = listOf("item_vergara_02"),
+                targetItemId = "item_chocolatt_02",
+                compensatoryTruequeCoins = 0.0,
+                modality = TradeModality.DIRECTO_1_A_1,
+                status = TradeStatus.PENDIENTE
+            ),
+            // 3. De chocolatt a Vergara (Laptop Dell x Switch + 1200 TC)
+            TradeProposal(
+                id = "prop_seed_c2v_01",
+                requesterUserId = "chocolattcorreo@gmail.com",
+                receiverUserId = "Vergaracorreo@gmail.com",
+                offeredItemIds = listOf("item_chocolatt_01"),
+                targetItemId = "item_vergara_02",
+                compensatoryTruequeCoins = 1200.0,
+                modality = TradeModality.HIBRIDO_CON_CREDITOS,
+                status = TradeStatus.PENDIENTE
+            ),
+            // 4. De chocolatt a Vergara (Bici R29 x Audífonos Sony + 300 TC)
+            TradeProposal(
+                id = "prop_seed_c2v_02",
+                requesterUserId = "chocolattcorreo@gmail.com",
+                receiverUserId = "Vergaracorreo@gmail.com",
+                offeredItemIds = listOf("item_chocolatt_02"),
+                targetItemId = "item_vergara_01",
+                compensatoryTruequeCoins = 300.0,
+                modality = TradeModality.HIBRIDO_CON_CREDITOS,
+                status = TradeStatus.PENDIENTE
+            )
+        )
+        inMemoryProposals.addAll(defaultProposals)
     }
 
     private fun loadSessionUser() {
@@ -505,12 +608,20 @@ class TradeViewModel @Inject constructor(
             fun isReceiver(prop: TradeProposal): Boolean {
                 return prop.receiverUserId.equals(userEmail, ignoreCase = true) ||
                        prop.receiverUserId.equals(userId, ignoreCase = true) ||
+                       (userEmail?.contains("chocolatt", ignoreCase = true) == true && prop.receiverUserId.contains("chocolatt", ignoreCase = true)) ||
+                       (userEmail?.contains("vergara", ignoreCase = true) == true && prop.receiverUserId.contains("vergara", ignoreCase = true)) ||
+                       (userId.contains("chocolatt", ignoreCase = true) && prop.receiverUserId.contains("chocolatt", ignoreCase = true)) ||
+                       (userId.contains("vergara", ignoreCase = true) && prop.receiverUserId.contains("vergara", ignoreCase = true)) ||
                        (userId == "usr_current" && prop.receiverUserId == "usr_current")
             }
 
             fun isRequester(prop: TradeProposal): Boolean {
                 return prop.requesterUserId.equals(userEmail, ignoreCase = true) ||
                        prop.requesterUserId.equals(userId, ignoreCase = true) ||
+                       (userEmail?.contains("chocolatt", ignoreCase = true) == true && prop.requesterUserId.contains("chocolatt", ignoreCase = true)) ||
+                       (userEmail?.contains("vergara", ignoreCase = true) == true && prop.requesterUserId.contains("vergara", ignoreCase = true)) ||
+                       (userId.contains("chocolatt", ignoreCase = true) && prop.requesterUserId.contains("chocolatt", ignoreCase = true)) ||
+                       (userId.contains("vergara", ignoreCase = true) && prop.requesterUserId.contains("vergara", ignoreCase = true)) ||
                        (userId == "usr_current" && prop.requesterUserId == "usr_current")
             }
 
@@ -568,8 +679,11 @@ class TradeViewModel @Inject constructor(
             return
         }
 
-        val targetItem = inMemoryItems.find { it.id == proposal.targetItemId }
-        val offeredItems = inMemoryItems.filter { proposal.offeredItemIds.contains(it.id) }
+        val remoteCatalog = userPublicationStorage?.getRemoteCatalogItems()
+            ?: userPublicationStorage?.loadPublishedItems().orEmpty()
+        val allItems = (inMemoryItems + remoteCatalog).distinctBy { it.id }
+        val targetItem = allItems.find { it.id == proposal.targetItemId }
+        val offeredItems = allItems.filter { proposal.offeredItemIds.contains(it.id) }
 
         // Si se encuentra en EN_ENTREGA, pre-crear o cargar cita en Safe Zone
         val appointment = if (proposal.status == TradeStatus.EN_ENTREGA || proposal.status == TradeStatus.RESERVADO) {

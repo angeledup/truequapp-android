@@ -1,6 +1,6 @@
 [
   {
-    "id": "prop_seed_chocolatt_vergara",
+    "id": "prop_seed_v2c_01",
     "initiatorUserId": "usr_vergara",
     "initiatorEmail": "Vergaracorreo@gmail.com",
     "receiverUserId": "usr_chocolatt",
@@ -16,6 +16,59 @@
     "safeZoneName": "Punto Seguro Plaza Forum Coatzacoalcos",
     "createdAtEpochMs": 1731000000000,
     "updatedAtEpochMs": 1731000000000
+  },
+  {
+    "id": "prop_seed_v2c_02",
+    "initiatorUserId": "usr_vergara",
+    "initiatorEmail": "Vergaracorreo@gmail.com",
+    "receiverUserId": "usr_chocolatt",
+    "receiverEmail": "chocolattcorreo@gmail.com",
+    "targetItemId": "item_chocolatt_02",
+    "offeredItemIds": [
+      "item_vergara_02"
+    ],
+    "monetaryCompensationCoins": 0.0,
+    "status": "PROPUESTA_ENVIADA",
+    "esta_activa": true,
+    "safeZoneId": "sz_coatza_crystal",
+    "safeZoneName": "Punto Seguro Plaza Crystal Coatzacoalcos",
+    "createdAtEpochMs": 1731000000000,
+    "updatedAtEpochMs": 1731000000000
+  },
+  {
+    "id": "prop_seed_c2v_01",
+    "initiatorUserId": "usr_chocolatt",
+    "initiatorEmail": "chocolattcorreo@gmail.com",
+    "receiverUserId": "usr_vergara",
+    "receiverEmail": "Vergaracorreo@gmail.com",
+    "targetItemId": "item_vergara_02",
+    "offeredItemIds": [
+      "item_chocolatt_01"
+    ],
+    "monetaryCompensationCoins": 1200.0,
+    "status": "PROPUESTA_ENVIADA",
+    "esta_activa": true,
+    "safeZoneId": "sz_coatza_independencia",
+    "safeZoneName": "Punto Seguro Parque Independencia",
+    "createdAtEpochMs": 1731000000000,
+    "updatedAtEpochMs": 1731000000000
+  },
+  {
+    "id": "prop_seed_c2v_02",
+    "initiatorUserId": "usr_chocolatt",
+    "initiatorEmail": "chocolattcorreo@gmail.com",
+    "receiverUserId": "usr_vergara",
+    "receiverEmail": "Vergaracorreo@gmail.com",
+    "targetItemId": "item_vergara_01",
+    "offeredItemIds": [
+      "item_chocolatt_02"
+    ],
+    "monetaryCompensationCoins": 300.0,
+    "status": "PROPUESTA_ENVIADA",
+    "esta_activa": true,
+    "safeZoneId": "sz_coatza_malecon",
+    "safeZoneName": "Punto Seguro Malecón Costero",
+    "createdAtEpochMs": 1731000000000,
+    "updatedAtEpochMs": 1731000000000
   }
 ]
-
