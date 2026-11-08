@@ -187,55 +187,6 @@ class TradeViewModel @Inject constructor(
                 inMemoryItems.add(saved)
             }
         }
-
-        // 4 Propuestas semilla pre-cargadas (2 de Vergara hacia chocolatt, y 2 de chocolatt hacia Vergara)
-        val defaultProposals = listOf(
-            // 1. De Vergara a chocolatt (Calculadora Casio x Laptop Dell + 5000 TC)
-            TradeProposal(
-                id = "prop_seed_v2c_01",
-                requesterUserId = "Vergaracorreo@gmail.com",
-                receiverUserId = "chocolattcorreo@gmail.com",
-                offeredItemIds = listOf("item_vergara_02"),
-                targetItemId = "item_chocolatt_01",
-                compensatoryTruequeCoins = 5000.0,
-                modality = TradeModality.HIBRIDO_CON_CREDITOS,
-                status = TradeStatus.PENDIENTE
-            ),
-            // 2. De Vergara a chocolatt (Mochila Escolar x Bolígrafo con diseño)
-            TradeProposal(
-                id = "prop_seed_v2c_02",
-                requesterUserId = "Vergaracorreo@gmail.com",
-                receiverUserId = "chocolattcorreo@gmail.com",
-                offeredItemIds = listOf("item_vergara_01"),
-                targetItemId = "item_chocolatt_02",
-                compensatoryTruequeCoins = 0.0,
-                modality = TradeModality.DIRECTO_1_A_1,
-                status = TradeStatus.PENDIENTE
-            ),
-            // 3. De chocolatt a Vergara (Bolígrafo con diseño x Calculadora Casio + 500 TC)
-            TradeProposal(
-                id = "prop_seed_c2v_01",
-                requesterUserId = "chocolattcorreo@gmail.com",
-                receiverUserId = "Vergaracorreo@gmail.com",
-                offeredItemIds = listOf("item_chocolatt_02"),
-                targetItemId = "item_vergara_02",
-                compensatoryTruequeCoins = 500.0,
-                modality = TradeModality.HIBRIDO_CON_CREDITOS,
-                status = TradeStatus.PENDIENTE
-            ),
-            // 4. De chocolatt a Vergara (Bolígrafo con diseño x Mochila Escolar + 450 TC)
-            TradeProposal(
-                id = "prop_seed_c2v_02",
-                requesterUserId = "chocolattcorreo@gmail.com",
-                receiverUserId = "Vergaracorreo@gmail.com",
-                offeredItemIds = listOf("item_chocolatt_02"),
-                targetItemId = "item_vergara_01",
-                compensatoryTruequeCoins = 450.0,
-                modality = TradeModality.HIBRIDO_CON_CREDITOS,
-                status = TradeStatus.PENDIENTE
-            )
-        )
-        inMemoryProposals.addAll(defaultProposals)
     }
 
     private fun loadSessionUser() {

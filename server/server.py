@@ -413,14 +413,52 @@ class TruequappRequestHandler(BaseHTTPRequestHandler):
 
         if item_id:
             items = read_json_file(CATALOGO_FILE)
-            items = [it for it in items if it.get("id") != item_id]
+            if item_id in ["all", "*"]:
+                items = []
+                if turso_client and turso_client.is_turso_configured():
+                    try:
+                        turso_client.execute_pipeline([{"sql": "DELETE FROM catalogo;"}])
+                    except Exception as e:
+                        print(f"[Turso Warning] Error al eliminar catálogo: {e}")
+            else:
+                items = [it for it in items if it.get("id") != item_id]
+                if turso_client and turso_client.is_turso_configured():
+                    try:
+                        turso_client.turso_delete_item("catalogo", item_id)
+                    except Exception as e:
+                        print(f"[Turso Warning] Error al eliminar de Turso: {e}")
             write_json_file(CATALOGO_FILE, items)
-            if turso_client and turso_client.is_turso_configured():
-                try:
-                    turso_client.turso_delete_item("catalogo", item_id)
-                except Exception as e:
-                    print(f"[Turso Warning] Error al eliminar de Turso: {e}")
             self._send_json({"success": True, "deletedId": item_id})
+            return
+
+        prop_id = None
+        if path.startswith("/api/trueques/"):
+            prop_id = path[len("/api/trueques/"):].strip()
+        elif path == "/api/trueques" or path == "/api/trueques/":
+            prop_id = query.get("id", [None])[0]
+
+        if prop_id:
+            proposals = read_json_file(PROPUESTAS_FILE)
+            if prop_id in ["all", "*"]:
+                proposals = []
+                if turso_client and turso_client.is_turso_configured():
+                    try:
+                        turso_client.execute_pipeline([
+                            {"sql": "DELETE FROM propuestas;"},
+                            {"sql": "DELETE FROM chats;"}
+                        ])
+                    except Exception as e:
+                        print(f"[Turso Warning] Error al eliminar propuestas: {e}")
+            else:
+                proposals = [p for p in proposals if p.get("id") != prop_id]
+                if turso_client and turso_client.is_turso_configured():
+                    try:
+                        turso_client.turso_delete_item("propuestas", prop_id)
+                        turso_client.execute_pipeline([{"sql": "DELETE FROM chats WHERE propuesta_id = ?;", "args": [prop_id]}])
+                    except Exception as e:
+                        print(f"[Turso Warning] Error al eliminar de Turso: {e}")
+            write_json_file(PROPUESTAS_FILE, proposals)
+            self._send_json({"success": True, "deletedProposalId": prop_id})
             return
 
         self._send_json({"error": f"Ruta DELETE {path} no encontrada"}, 404)

@@ -83,9 +83,13 @@ abstract class TruequappDatabase : RoomDatabase() {
             super.onOpen(db)
             try {
                 seedAdminAccounts(db)
-                seedItemsAndProposals(db)
+                // Limpiar propuestas y chats de demostración
+                db.execSQL("DELETE FROM ofertas_items WHERE id LIKE 'of_v2c_%' OR id LIKE 'of_c2v_%';")
+                db.execSQL("DELETE FROM trueques WHERE id LIKE 'prop_seed_%';")
+                db.execSQL("DELETE FROM trade_proposals WHERE id LIKE 'prop_seed_%';")
+                db.execSQL("DELETE FROM chat_mensajes WHERE id LIKE 'msg_v2c_%' OR id LIKE 'msg_c2v_%' OR trueque_id LIKE 'prop_seed_%';")
             } catch (e: Throwable) {
-                android.util.Log.e("TruequappDatabase", "Error en onOpen al sembrar datos", e)
+                android.util.Log.e("TruequappDatabase", "Error en onOpen al actualizar datos", e)
             }
         }
 
@@ -148,58 +152,8 @@ abstract class TruequappDatabase : RoomDatabase() {
                     ('item_vergara_02', 'usr_vergara', 'Vergara', 'Calculadora Científica Casio fx-991LA Plus', 'Calculadora científica oficial requerida para cálculo diferencial, integral y especialidades técnicas CETIS 79.', 3, 'COMO_NUEVO', 'BIEN_FISICO', 650.0, 850.0, '["https://images.unsplash.com/photo-1578303512597-81e6cc155b3e"]', '["Laptop Dell", "Bolígrafo con diseño", "Mochila"]', 'DISPONIBLE', 0, 'Col. Petrolera, Coatzacoalcos', 'Coatzacoalcos', $now);
                 """.trimIndent()
                 db.execSQL(insertItemsSql)
-
-                // 2. Inserción de Paquetes de Oferta (tabla ofertas_items requerida por TruequeDao)
-                val insertOfertasSql = """
-                    INSERT OR REPLACE INTO ofertas_items (id, usuario_correo, articulos_ids, trueque_coins, fecha_creacion)
-                    VALUES 
-                    ('of_v2c_01', 'Vergaracorreo@gmail.com', 'item_vergara_02', 5000.0, $now),
-                    ('of_v2c_01_target', 'chocolattcorreo@gmail.com', 'item_chocolatt_01', 0.0, $now),
-                    ('of_v2c_02', 'Vergaracorreo@gmail.com', 'item_vergara_01', 0.0, $now),
-                    ('of_v2c_02_target', 'chocolattcorreo@gmail.com', 'item_chocolatt_02', 0.0, $now),
-                    ('of_c2v_01', 'chocolattcorreo@gmail.com', 'item_chocolatt_02', 500.0, $now),
-                    ('of_c2v_01_target', 'Vergaracorreo@gmail.com', 'item_vergara_02', 0.0, $now),
-                    ('of_c2v_02', 'chocolattcorreo@gmail.com', 'item_chocolatt_02', 450.0, $now),
-                    ('of_c2v_02_target', 'Vergaracorreo@gmail.com', 'item_vergara_01', 0.0, $now);
-                """.trimIndent()
-                db.execSQL(insertOfertasSql)
-
-                // 3. Inserción de Contratos de Trueque (tabla trueques con esta_activa = 1, requerida por TradeRepository)
-                // 2 propuestas originadas por Vergara hacia chocolatt, y 2 propuestas originadas por chocolatt hacia Vergara
-                val insertTruequesSql = """
-                    INSERT OR REPLACE INTO trueques (id, usuario_a_correo, oferta_a_id, usuario_b_correo, oferta_b_id, estado, esta_activa, fecha_creacion, fecha_actualizacion)
-                    VALUES 
-                    ('prop_seed_v2c_01', 'Vergaracorreo@gmail.com', 'of_v2c_01', 'chocolattcorreo@gmail.com', 'of_v2c_01_target', 'PENDIENTE', 1, $now, $now),
-                    ('prop_seed_v2c_02', 'Vergaracorreo@gmail.com', 'of_v2c_02', 'chocolattcorreo@gmail.com', 'of_v2c_02_target', 'PENDIENTE', 1, $now, $now),
-                    ('prop_seed_c2v_01', 'chocolattcorreo@gmail.com', 'of_c2v_01', 'Vergaracorreo@gmail.com', 'of_c2v_01_target', 'PENDIENTE', 1, $now, $now),
-                    ('prop_seed_c2v_02', 'chocolattcorreo@gmail.com', 'of_c2v_02', 'Vergaracorreo@gmail.com', 'of_c2v_02_target', 'PENDIENTE', 1, $now, $now);
-                """.trimIndent()
-                db.execSQL(insertTruequesSql)
-
-                // 4. Inserción en tabla trade_proposals (para TradeProposalDao con Punto Seguro CETIS 79)
-                val insertProposalSql = """
-                    INSERT OR REPLACE INTO trade_proposals (id, initiatorUserId, receiverUserId, targetItemId, offeredItemIdsJson, monetaryCompensationCoins, status, safeZoneId, safeZoneName, scheduledMeetingEpochMs, qrSecurityToken, createdAtEpochMs, updatedAtEpochMs)
-                    VALUES 
-                    ('prop_seed_v2c_01', 'usr_vergara', 'usr_chocolatt', 'item_chocolatt_01', '["item_vergara_02"]', 5000.0, 'PROPUESTA_ENVIADA', 'sz_coatza_cetis79', 'Punto Seguro CETIS 79 Coatzacoalcos', NULL, 'qr_token_v2c_01', $now, $now),
-                    ('prop_seed_v2c_02', 'usr_vergara', 'usr_chocolatt', 'item_chocolatt_02', '["item_vergara_01"]', 0.0, 'PROPUESTA_ENVIADA', 'sz_coatza_cetis79', 'Punto Seguro CETIS 79 Coatzacoalcos', NULL, 'qr_token_v2c_02', $now, $now),
-                    ('prop_seed_c2v_01', 'usr_chocolatt', 'usr_vergara', 'item_vergara_02', '["item_chocolatt_02"]', 500.0, 'PROPUESTA_ENVIADA', 'sz_coatza_cetis79', 'Punto Seguro CETIS 79 Coatzacoalcos', NULL, 'qr_token_c2v_01', $now, $now),
-                    ('prop_seed_c2v_02', 'usr_chocolatt', 'usr_vergara', 'item_vergara_01', '["item_chocolatt_02"]', 450.0, 'PROPUESTA_ENVIADA', 'sz_coatza_cetis79', 'Punto Seguro CETIS 79 Coatzacoalcos', NULL, 'qr_token_c2v_02', $now, $now);
-                """.trimIndent()
-                db.execSQL(insertProposalSql)
-
-                // 5. Mensajes en chat para cada una de las 4 propuestas (tabla chat_mensajes)
-                val insertChatSql = """
-                    INSERT OR REPLACE INTO chat_mensajes (id, trueque_id, emisor_correo, receptor_correo, contenido, fecha_envio_ms, esta_entregado, esta_leido)
-                    VALUES 
-                    ('msg_v2c_01_1', 'prop_seed_v2c_01', 'Vergaracorreo@gmail.com', 'chocolattcorreo@gmail.com', '¡Hola chocolatt! Te ofrezco mi Calculadora Científica Casio fx-991LA Plus más 5,000 TruequeCoins por tu Laptop Dell para programación.', ${now - 600000}, 1, 1),
-                    ('msg_v2c_01_2', 'prop_seed_v2c_01', 'chocolattcorreo@gmail.com', 'Vergaracorreo@gmail.com', '¡Hola Vergara! Me parece excelente propuesta. ¿Nos vemos en la caseta o domo cívico del CETIS 79 en el cambio de turno?', ${now - 300000}, 1, 1),
-                    ('msg_v2c_02_1', 'prop_seed_v2c_02', 'Vergaracorreo@gmail.com', 'chocolattcorreo@gmail.com', 'Hola chocolatt, ¿te interesa cambiar tu Bolígrafo con diseño por mi Mochila escolar reforzada CETIS 79?', ${now - 500000}, 1, 1),
-                    ('msg_c2v_01_1', 'prop_seed_c2v_01', 'chocolattcorreo@gmail.com', 'Vergaracorreo@gmail.com', '¡Qué tal Vergara! Me interesa tu Calculadora Científica Casio. Te ofrezco mi Bolígrafo con diseño más 500 TC de diferencia.', ${now - 400000}, 1, 1),
-                    ('msg_c2v_02_1', 'prop_seed_c2v_02', 'chocolattcorreo@gmail.com', 'Vergaracorreo@gmail.com', 'Hola Vergara, te propongo mi Bolígrafo con diseño más 450 TruequeCoins por tu Mochila escolar CETIS 79.', ${now - 200000}, 1, 1);
-                """.trimIndent()
-                db.execSQL(insertChatSql)
             } catch (e: Throwable) {
-                android.util.Log.e("TruequappDatabase", "Error al sembrar items y propuestas", e)
+                android.util.Log.e("TruequappDatabase", "Error al sembrar items", e)
             }
         }
     }
