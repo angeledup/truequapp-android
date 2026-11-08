@@ -6,9 +6,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from server import TruequappRequestHandler, init_storage
 
-# Inicializar carpetas y archivos en el entorno efímero de Vercel (/tmp si es necesario)
+# Inicializar carpetas y archivos / conexión a Turso
 init_storage()
 
-# Exportar handler para el runtime de Vercel
-handler = TruequappRequestHandler
+# Vercel Python runtime requiere explícitamente una clase llamada 'handler'
+class handler(TruequappRequestHandler):
+    pass
+
 
