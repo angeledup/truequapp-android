@@ -62,6 +62,38 @@ class TradeRepository @Inject constructor(
         truequeDao.insertOfertaItem(ofertaB)
         truequeDao.insertTrueque(trueque)
 
+        // Sincronizar en la nube con Vercel y Turso
+        val cloudUrl = "https://truequapp-pi.vercel.app/api/trueques"
+        java.util.concurrent.Executors.newSingleThreadExecutor().execute {
+            try {
+                val conn = java.net.URL(cloudUrl).openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.connectTimeout = 5000
+                conn.readTimeout = 5000
+                conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conn.doOutput = true
+                val json = org.json.JSONObject().apply {
+                    put("id", proposal.id)
+                    put("initiatorUserId", userACorreo)
+                    put("initiatorEmail", userACorreo)
+                    put("receiverUserId", userBCorreo)
+                    put("receiverEmail", userBCorreo)
+                    put("offeredItemIds", org.json.JSONArray(proposal.offeredItemIds))
+                    put("targetItemId", proposal.targetItemId)
+                    put("monetaryCompensationCoins", proposal.compensatoryTruequeCoins)
+                    put("status", proposal.status.name)
+                    put("esta_activa", proposal.estaActiva)
+                }
+                conn.outputStream.use { os ->
+                    os.write(json.toString().toByteArray(Charsets.UTF_8))
+                }
+                conn.responseCode
+                conn.disconnect()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
         return TruequeConOfertas(
             trueque = trueque,
             ofertaA = ofertaA,
@@ -84,6 +116,97 @@ class TradeRepository @Inject constructor(
             nuevoEstado = newStatus.name,
             estaActiva = estaActiva
         )
+
+        // Sincronizar actualización de estado en la nube
+        val cloudUrl = "https://truequapp-pi.vercel.app/api/trueques/$proposalId/status"
+        java.util.concurrent.Executors.newSingleThreadExecutor().execute {
+            try {
+                val conn = java.net.URL(cloudUrl).openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = "PUT"
+                conn.connectTimeout = 5000
+                conn.readTimeout = 5000
+                conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conn.doOutput = true
+                val json = org.json.JSONObject().apply {
+                    put("status", newStatus.name)
+                }
+                conn.outputStream.use { os ->
+                    os.write(json.toString().toByteArray(Charsets.UTF_8))
+                }
+                conn.responseCode
+                conn.disconnect()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    suspend fun syncProposalsFromCloud(userEmail: String) {
+        if (userEmail.isBlank()) return
+        val cloudUrl = "https://truequapp-pi.vercel.app/api/trueques?user=${java.net.URLEncoder.encode(userEmail, "UTF-8")}"
+        try {
+            val url = java.net.URL(cloudUrl)
+            val conn = url.openConnection() as java.net.HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.connectTimeout = 4000
+            conn.readTimeout = 4000
+            conn.setRequestProperty("Accept", "application/json")
+            if (conn.responseCode == 200) {
+                val text = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                conn.disconnect()
+                val jsonArray = org.json.JSONArray(text)
+                for (i in 0 until jsonArray.length()) {
+                    val obj = jsonArray.optJSONObject(i) ?: continue
+                    val propId = obj.optString("id")
+                    if (propId.isBlank()) continue
+                    val uA = obj.optString("initiatorUserId", obj.optString("initiatorEmail", ""))
+                    val uB = obj.optString("receiverUserId", obj.optString("receiverEmail", ""))
+                    val statusStr = obj.optString("status", "PENDIENTE")
+                    val activa = obj.optBoolean("esta_activa", true)
+                    val targetId = obj.optString("targetItemId", "")
+                    val offeredArray = obj.optJSONArray("offeredItemIds")
+                    val offeredList = mutableListOf<String>()
+                    if (offeredArray != null) {
+                        for (j in 0 until offeredArray.length()) {
+                            offeredList.add(offeredArray.optString(j))
+                        }
+                    }
+                    val coins = obj.optDouble("monetaryCompensationCoins", 0.0)
+
+                    val ofA = OfertaItemEntity(
+                        id = "of_a_$propId",
+                        usuarioCorreo = uA,
+                        articulosIds = offeredList.joinToString(","),
+                        truequeCoins = coins,
+                        fechaCreacion = System.currentTimeMillis()
+                    )
+                    val ofB = OfertaItemEntity(
+                        id = "of_b_$propId",
+                        usuarioCorreo = uB,
+                        articulosIds = targetId,
+                        truequeCoins = 0.0,
+                        fechaCreacion = System.currentTimeMillis()
+                    )
+                    val tr = TruequeEntity(
+                        id = propId,
+                        usuarioACorreo = uA,
+                        ofertaAId = ofA.id,
+                        usuarioBCorreo = uB,
+                        ofertaBId = ofB.id,
+                        estado = statusStr,
+                        estaActiva = activa,
+                        fechaCreacion = System.currentTimeMillis(),
+                        fechaActualizacion = System.currentTimeMillis()
+                    )
+                    truequeDao.insertOfertaItem(ofA)
+                    truequeDao.insertOfertaItem(ofB)
+                    truequeDao.insertTrueque(tr)
+                }
+            } else {
+                conn.disconnect()
+            }
+        } catch (_: Exception) {
+        }
     }
 
     /**

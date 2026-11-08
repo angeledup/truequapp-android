@@ -16,8 +16,10 @@ import com.truequapp.core.network.websocket.SocketManager
 import com.truequapp.core.database.storage.UserPublicationStorage
 import com.truequapp.feature.chat.data.ChatRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -122,6 +124,14 @@ class ChatViewModel @Inject constructor(
                     }
                     launch(dispatchers.io) {
                         chatRepository.markAsRead(proposalId, resolvedUserId)
+                    }
+                    launch(dispatchers.io) {
+                        while (isActive) {
+                            try {
+                                chatRepository.syncMessagesFromCloud(proposalId)
+                            } catch (_: Exception) {}
+                            delay(3000)
+                        }
                     }
                 } else {
                     setState { copy(messages = emptyList()) }

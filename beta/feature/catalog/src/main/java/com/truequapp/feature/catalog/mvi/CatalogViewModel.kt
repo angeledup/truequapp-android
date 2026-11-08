@@ -361,76 +361,91 @@ class CatalogViewModel @Inject constructor(
         }
 
         viewModelScope.launch(dispatchers.io) {
-            setState { copy(isPublishing = true, errorMessage = null) }
+            try {
+                setState { copy(isPublishing = true, errorMessage = null) }
 
-            val rawUris = state.selectedImageUris.ifEmpty {
-                listOfNotNull(state.selectedImageUri)
-            }
+                val rawUris = state.selectedImageUris.ifEmpty {
+                    listOfNotNull(state.selectedImageUri)
+                }
 
-            // Pipeline de Compresión Nativo WebP (< 80 KB) y purga EXIF
-            val compressedWebPPaths = mutableListOf<String>()
-            for ((index, uriStr) in rawUris.withIndex()) {
-                try {
-                    if (context != null && uriStr.startsWith("content://")) {
-                        val uri = Uri.parse(uriStr)
-                        val cacheDir = File(context.cacheDir, "catalog_webp_images")
-                        cacheDir.mkdirs()
-                        val targetFile = File(cacheDir, "item_${System.currentTimeMillis()}_$index.webp")
-                        val result = withContext(dispatchers.default) {
-                            webPImageCompressor.compressFromUri(context, uri, targetFile)
+                // Pipeline de Compresión Nativo WebP (< 80 KB) y purga EXIF
+                val compressedWebPPaths = mutableListOf<String>()
+                for ((index, uriStr) in rawUris.withIndex()) {
+                    try {
+                        if (context != null && uriStr.startsWith("content://")) {
+                            val uri = Uri.parse(uriStr)
+                            val cacheDir = File(context.cacheDir, "catalog_webp_images")
+                            cacheDir.mkdirs()
+                            val targetFile = File(cacheDir, "item_${System.currentTimeMillis()}_$index.webp")
+                            val result = withContext(dispatchers.default) {
+                                webPImageCompressor.compressFromUri(context, uri, targetFile)
+                            }
+                            val b64 = try {
+                                "data:image/webp;base64," + android.util.Base64.encodeToString(result.file.readBytes(), android.util.Base64.NO_WRAP)
+                            } catch (_: Throwable) {
+                                result.file.absolutePath
+                            }
+                            compressedWebPPaths.add(b64)
+                        } else {
+                            compressedWebPPaths.add(uriStr)
                         }
-                        compressedWebPPaths.add(result.file.absolutePath)
-                    } else {
+                    } catch (e: Throwable) {
+                        e.printStackTrace()
                         compressedWebPPaths.add(uriStr)
                     }
-                } catch (_: Exception) {
-                    // Fallback para URIs remotas o pruebas unitarias
-                    compressedWebPPaths.add(uriStr)
+                }
+
+                val effectiveOwnerId = currentUserEmail ?: currentUserId
+                val newItem = TradeItem(
+                    id = "item_${UUID.randomUUID().toString().take(8)}",
+                    ownerId = effectiveOwnerId,
+                    title = state.newTitle.trim(),
+                    description = state.newDescription.trim(),
+                    categoryId = state.newCategoryId,
+                    type = ItemType.BIEN_FISICO,
+                    condition = state.newCondition,
+                    estimatedValueMin = state.newEstimatedValueMin,
+                    estimatedValueMax = state.newEstimatedValueMax,
+                    imagesWebP = compressedWebPPaths,
+                    tagsWishlist = state.newWishlistTags,
+                    isAvailable = true
+                )
+
+                inMemoryItems.add(0, newItem)
+
+                // 1. Publicar al Servidor Central (Marketplace general en Vercel/Turso)
+                catalogLocalStorage?.publishItemToServer(newItem)
+
+                // 2. Guardar exclusivamente en el almacenamiento local del usuario (filtro estricto)
+                val updatedUserItems = (listOf(newItem) + catalogLocalStorage?.loadUserPublications(effectiveOwnerId).orEmpty())
+                    .distinctBy { it.id }
+                catalogLocalStorage?.saveUserPublications(effectiveOwnerId, updatedUserItems)
+
+                setState {
+                    copy(
+                        isPublishing = false,
+                        items = inMemoryItems.toList(),
+                        myInventory = updatedUserItems,
+                        newTitle = "",
+                        newDescription = "",
+                        selectedImageUris = emptyList(),
+                        selectedImageUri = null,
+                        newWishlistTags = emptyList()
+                    )
+                }
+
+                applyFilters(resetPagination = true)
+                sendEffect(CatalogUiEffect.ShowSnackbar("¡Publicación guardada exitosamente!"))
+                sendEffect(CatalogUiEffect.ItemPublishedSuccess)
+            } catch (t: Throwable) {
+                t.printStackTrace()
+                setState {
+                    copy(
+                        isPublishing = false,
+                        errorMessage = "Error al publicar: ${t.localizedMessage ?: "Verifica los datos e intenta de nuevo"}"
+                    )
                 }
             }
-
-            val effectiveOwnerId = currentUserEmail ?: currentUserId
-            val newItem = TradeItem(
-                id = "item_${UUID.randomUUID().toString().take(8)}",
-                ownerId = effectiveOwnerId,
-                title = state.newTitle.trim(),
-                description = state.newDescription.trim(),
-                categoryId = state.newCategoryId,
-                type = ItemType.BIEN_FISICO,
-                condition = state.newCondition,
-                estimatedValueMin = state.newEstimatedValueMin,
-                estimatedValueMax = state.newEstimatedValueMax,
-                imagesWebP = compressedWebPPaths,
-                tagsWishlist = state.newWishlistTags,
-                isAvailable = true
-            )
-
-            inMemoryItems.add(0, newItem)
-
-            // 1. Publicar al Servidor Central Simulado (Marketplace general)
-            catalogLocalStorage?.publishItemToServer(newItem)
-
-            // 2. Guardar exclusivamente en el almacenamiento local del usuario (filtro estricto)
-            val updatedUserItems = (listOf(newItem) + catalogLocalStorage?.loadUserPublications(effectiveOwnerId).orEmpty())
-                .distinctBy { it.id }
-            catalogLocalStorage?.saveUserPublications(effectiveOwnerId, updatedUserItems)
-
-            setState {
-                copy(
-                    isPublishing = false,
-                    items = inMemoryItems.toList(),
-                    myInventory = updatedUserItems,
-                    newTitle = "",
-                    newDescription = "",
-                    selectedImageUris = emptyList(),
-                    selectedImageUri = null,
-                    newWishlistTags = emptyList()
-                )
-            }
-
-            applyFilters(resetPagination = true)
-            sendEffect(CatalogUiEffect.ShowSnackbar("¡Publicación guardada exitosamente con imágenes WebP!"))
-            sendEffect(CatalogUiEffect.ItemPublishedSuccess)
         }
     }
 

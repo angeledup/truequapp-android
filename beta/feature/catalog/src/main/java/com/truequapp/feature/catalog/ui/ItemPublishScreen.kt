@@ -95,6 +95,27 @@ fun ItemPublishScreen(
         }
     }
 
+    val fallbackPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) {
+            val stringUris = uris.take(WebPImageCompressor.MAX_ALLOWED_PHOTOS).map { it.toString() }
+            onEvent(CatalogUiEvent.ImagesSelected(stringUris))
+        }
+    }
+
+    val launchPhotoPicker = {
+        try {
+            multiplePhotoPickerLauncher.launch(
+                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            )
+        } catch (_: Exception) {
+            try {
+                fallbackPickerLauncher.launch("image/*")
+            } catch (_: Exception) { }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -237,11 +258,7 @@ fun ItemPublishScreen(
                         Card(
                             modifier = Modifier
                                 .size(120.dp, 160.dp)
-                                .clickable {
-                                    multiplePhotoPickerLauncher.launch(
-                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                    )
-                                },
+                                .clickable { launchPhotoPicker() },
                             shape = RoundedCornerShape(12.dp),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
                         ) {
@@ -273,11 +290,7 @@ fun ItemPublishScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(140.dp)
-                        .clickable {
-                            multiplePhotoPickerLauncher.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                            )
-                        },
+                        .clickable { launchPhotoPicker() },
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
                 ) {

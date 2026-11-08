@@ -73,6 +73,38 @@ class ChatRepository @Inject constructor(
 
         chatMessageDao.insertMessage(entity)
 
+        // Sincronizar en la nube con Vercel y Turso
+        val cloudUrl = "https://truequapp-pi.vercel.app/api/trueques/$proposalId/chat"
+        java.util.concurrent.Executors.newSingleThreadExecutor().execute {
+            try {
+                val conn = java.net.URL(cloudUrl).openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.connectTimeout = 5000
+                conn.readTimeout = 5000
+                conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conn.doOutput = true
+                val json = org.json.JSONObject().apply {
+                    put("id", messageId)
+                    put("proposalId", proposalId)
+                    put("emisorCorreo", senderEmail)
+                    put("senderId", senderEmail)
+                    put("senderName", senderEmail.substringBefore("@"))
+                    put("receptorCorreo", receiverEmail)
+                    put("contenido", content)
+                    put("content", content)
+                    put("fechaEnvioMs", timestamp)
+                    put("timestampEpochMs", timestamp)
+                }
+                conn.outputStream.use { os ->
+                    os.write(json.toString().toByteArray(Charsets.UTF_8))
+                }
+                conn.responseCode
+                conn.disconnect()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
         // Emisión por WebSockets en caso de estar conectado
         try {
             socketManager.emitEvent("send_message", content)
@@ -133,6 +165,50 @@ class ChatRepository @Inject constructor(
 
     suspend fun markAsRead(proposalId: String, currentUserEmail: String) {
         chatMessageDao.markMessagesAsRead(proposalId, currentUserEmail)
+    }
+
+    suspend fun syncMessagesFromCloud(proposalId: String) {
+        val cloudUrl = "https://truequapp-pi.vercel.app/api/trueques/$proposalId/chat"
+        try {
+            val url = java.net.URL(cloudUrl)
+            val conn = url.openConnection() as java.net.HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.connectTimeout = 4000
+            conn.readTimeout = 4000
+            conn.setRequestProperty("Accept", "application/json")
+            if (conn.responseCode == 200) {
+                val text = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                conn.disconnect()
+                val jsonArray = org.json.JSONArray(text)
+                val entities = mutableListOf<ChatMessageEntity>()
+                for (i in 0 until jsonArray.length()) {
+                    val obj = jsonArray.optJSONObject(i) ?: continue
+                    val msgId = obj.optString("id", "msg_$i")
+                    val emisor = obj.optString("emisorCorreo", obj.optString("senderId", ""))
+                    val receptor = obj.optString("receptorCorreo", "")
+                    val contenido = obj.optString("contenido", obj.optString("content", ""))
+                    val fecha = obj.optLong("fechaEnvioMs", obj.optLong("timestampEpochMs", System.currentTimeMillis()))
+                    entities.add(
+                        ChatMessageEntity(
+                            id = msgId,
+                            truequeId = proposalId,
+                            emisorCorreo = emisor,
+                            receptorCorreo = receptor,
+                            contenido = contenido,
+                            fechaEnvioMs = fecha,
+                            estaEntregado = true,
+                            estaLeido = false
+                        )
+                    )
+                }
+                if (entities.isNotEmpty()) {
+                    chatMessageDao.insertMessages(entities)
+                }
+            } else {
+                conn.disconnect()
+            }
+        } catch (_: Exception) {
+        }
     }
 
     suspend fun getProposalById(proposalId: String): TruequeConOfertas? {

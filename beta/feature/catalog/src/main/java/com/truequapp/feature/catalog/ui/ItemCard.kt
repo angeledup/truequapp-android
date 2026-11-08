@@ -92,9 +92,16 @@ fun ItemCard(
                     .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center
             ) {
-                if (item.imagesWebP.isNotEmpty()) {
+                val rawImage = item.imagesWebP.firstOrNull()
+                val imageModel = if (rawImage != null && rawImage.startsWith("http") && !rawImage.contains("?")) {
+                    "$rawImage?w=500&q=80"
+                } else {
+                    rawImage
+                }
+
+                if (!imageModel.isNullOrBlank()) {
                     AsyncImage(
-                        model = item.imagesWebP.first(),
+                        model = imageModel,
                         contentDescription = item.title,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.matchParentSize()

@@ -82,9 +82,24 @@ class UserPublicationStorage @Inject constructor(
             val obj = jsonArray.optJSONObject(i) ?: continue
             val imagesArray = obj.optJSONArray("imagesWebP")
             val images = mutableListOf<String>()
+            val itemId = obj.optString("id", "item_$i")
             if (imagesArray != null) {
                 for (j in 0 until imagesArray.length()) {
-                    images.add(imagesArray.optString(j))
+                    val imgStr = imagesArray.optString(j)
+                    if (imgStr.startsWith("data:image") && imgStr.contains("base64,")) {
+                        try {
+                            val b64Data = imgStr.substringAfter("base64,")
+                            val bytes = android.util.Base64.decode(b64Data, android.util.Base64.DEFAULT)
+                            val cacheFile = File(context.cacheDir, "catalog_webp_images/cloud_${itemId}_$j.webp")
+                            cacheFile.parentFile?.mkdirs()
+                            cacheFile.writeBytes(bytes)
+                            images.add(cacheFile.absolutePath)
+                        } catch (_: Throwable) {
+                            images.add(imgStr)
+                        }
+                    } else {
+                        images.add(imgStr)
+                    }
                 }
             } else {
                 val singleImg = obj.optString("photoUrl")

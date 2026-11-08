@@ -270,6 +270,10 @@ class TradeViewModel @Inject constructor(
 
             loadUserPublications(userId)
 
+            if (!userEmail.isNullOrBlank()) {
+                tradeRepository?.syncProposalsFromCloud(userEmail)
+            }
+
             setState {
                 copy(
                     currentUserId = userId,
