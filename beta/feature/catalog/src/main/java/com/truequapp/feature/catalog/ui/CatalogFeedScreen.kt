@@ -108,7 +108,9 @@ fun CatalogFeedScreen(
             when (effect) {
                 is CatalogUiEffect.ShowSnackbar -> snackbarHostState.showSnackbar(effect.message)
                 is CatalogUiEffect.NavigateToItemDetail -> onNavigateToItemDetail(effect.itemId)
-                is CatalogUiEffect.ItemPublishedSuccess -> {}
+                is CatalogUiEffect.ItemPublishedSuccess -> {
+                    snackbarHostState.showSnackbar("🎉 ¡Publicación agregada al catálogo con éxito!")
+                }
             }
         }
     }

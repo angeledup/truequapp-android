@@ -193,6 +193,7 @@ fun TruequappNavHost(
 
                 ItemPublishScreen(
                     state = catalogState,
+                    effectFlow = catalogViewModel.uiEffect,
                     onEvent = catalogViewModel::onEvent,
                     onNavigateBack = { navController.popBackStack() }
                 )

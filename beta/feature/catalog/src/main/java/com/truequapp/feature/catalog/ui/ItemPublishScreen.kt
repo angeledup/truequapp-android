@@ -47,8 +47,14 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import android.widget.Toast
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,18 +64,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.truequapp.core.designsystem.component.TruequappPrimaryButton
+import com.truequapp.core.designsystem.theme.PaletteConfig
 import com.truequapp.core.designsystem.theme.TruequappTheme
 import com.truequapp.core.domain.model.CategoryTaxonomy
 import com.truequapp.core.domain.model.ItemCondition
 import com.truequapp.feature.catalog.compressor.WebPImageCompressor
+import com.truequapp.feature.catalog.mvi.CatalogUiEffect
 import com.truequapp.feature.catalog.mvi.CatalogUiEvent
 import com.truequapp.feature.catalog.mvi.CatalogUiState
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collectLatest
 
 /**
  * Pantalla de Registro y Publicación de Artículo con Compresión WebP nativa (< 80 KB)
@@ -81,9 +92,30 @@ fun ItemPublishScreen(
     state: CatalogUiState,
     onEvent: (CatalogUiEvent) -> Unit,
     onNavigateBack: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    effectFlow: Flow<CatalogUiEffect>? = null
 ) {
+    val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    var showSuccessDialog by remember { mutableStateOf(false) }
     var tagInput by remember { mutableStateOf("") }
+
+    LaunchedEffect(effectFlow) {
+        effectFlow?.collectLatest { effect ->
+            when (effect) {
+                is CatalogUiEffect.ItemPublishedSuccess -> {
+                    showSuccessDialog = true
+                    try {
+                        Toast.makeText(context, "🎉 ¡Tu publicación ha sido subida exitosamente!", Toast.LENGTH_LONG).show()
+                    } catch (_: Exception) {}
+                }
+                is CatalogUiEffect.ShowSnackbar -> {
+                    snackbarHostState.showSnackbar(effect.message)
+                }
+                else -> Unit
+            }
+        }
+    }
 
     // Selector Nativo de Imágenes: hasta 6 fotos sin permisos invasivos de almacenamiento
     val multiplePhotoPickerLauncher = rememberLauncherForActivityResult(
@@ -130,6 +162,7 @@ fun ItemPublishScreen(
                 )
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         modifier = modifier.fillMaxSize()
     ) { innerPadding ->
         Column(
@@ -510,5 +543,44 @@ fun ItemPublishScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+
+    if (showSuccessDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showSuccessDialog = false
+                onNavigateBack()
+            },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    tint = PaletteConfig.SafeZoneVerified,
+                    modifier = Modifier.size(48.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "¡Publicación Exitosa!",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            },
+            text = {
+                Text(
+                    text = "Tu publicación ha sido subida y guardada exitosamente en el catálogo de Truequapp. Ya se encuentra disponible para todos los usuarios.",
+                    fontSize = 14.sp
+                )
+            },
+            confirmButton = {
+                TruequappPrimaryButton(
+                    text = "Aceptar y Volver al Catálogo",
+                    onClick = {
+                        showSuccessDialog = false
+                        onNavigateBack()
+                    }
+                )
+            }
+        )
     }
 }
