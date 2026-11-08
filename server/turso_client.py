@@ -61,11 +61,11 @@ def execute_pipeline(statements: list) -> list:
                 if arg is None:
                     formatted_args.append({"type": "null"})
                 elif isinstance(arg, bool):
-                    formatted_args.append({"type": "integer", "value": 1 if arg else 0})
+                    formatted_args.append({"type": "integer", "value": "1" if arg else "0"})
                 elif isinstance(arg, int):
-                    formatted_args.append({"type": "integer", "value": arg})
+                    formatted_args.append({"type": "integer", "value": str(arg)})
                 elif isinstance(arg, float):
-                    formatted_args.append({"type": "float", "value": arg})
+                    formatted_args.append({"type": "float", "value": float(arg)})
                 else:
                     formatted_args.append({"type": "text", "value": str(arg)})
 
