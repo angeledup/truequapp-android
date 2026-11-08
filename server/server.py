@@ -164,6 +164,8 @@ class TruequappRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
+        if path.startswith("/api/index.py"):
+            path = path[len("/api/index.py"):] or "/"
         query = parse_qs(parsed.query)
 
         # 1. Health Check
@@ -233,6 +235,8 @@ class TruequappRequestHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         parsed = urlparse(self.path)
         path = parsed.path
+        if path.startswith("/api/index.py"):
+            path = path[len("/api/index.py"):] or "/"
         body = self._read_body()
 
         # 1. Login / Autenticación de Usuario (por correo o por nombre de usuario)
