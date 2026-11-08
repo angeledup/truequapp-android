@@ -115,8 +115,8 @@ fun CatalogFeedScreen(
     Scaffold(
         topBar = {
             TruequappTopAppBar(
-                eyebrow = "Mercado Exclusivo",
-                title = "Explorar Trueques",
+                eyebrow = "Comunidad CETIS 79",
+                title = "Catálogo Escolar",
                 coinsBalance = state.truequeCoins.toInt(),
                 unreadNotifications = 1,
                 onCoinsClick = onCoinsClick
@@ -149,7 +149,7 @@ fun CatalogFeedScreen(
             OutlinedTextField(
                 value = state.searchQuery,
                 onValueChange = { onEvent(CatalogUiEvent.SearchQueryChanged(it)) },
-                placeholder = { Text("Buscar artículos o deseos en wishlist...") },
+                placeholder = { Text("Buscar en CETIS 79 (laptops, mochilas, calculadoras...)") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 trailingIcon = {
                     Row(verticalAlignment = Alignment.CenterVertically) {

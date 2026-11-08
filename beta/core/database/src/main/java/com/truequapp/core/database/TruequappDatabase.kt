@@ -45,7 +45,7 @@ import kotlinx.coroutines.launch
         OfertaItemEntity::class,
         TruequeEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class TruequappDatabase : RoomDatabase() {
@@ -91,10 +91,11 @@ abstract class TruequappDatabase : RoomDatabase() {
 
         private fun seedDatabase(db: SupportSQLiteDatabase) {
             try {
-                // Inserción de Puntos Seguros en Coatzacoalcos
+                // Inserción de Puntos Seguros en Coatzacoalcos (incluyendo CETIS 79)
                 val insertSafeZoneSql = """
                     INSERT OR REPLACE INTO safe_zones (id, name, addressDescription, latitude, longitude, openingHour, closingHour, hasVideoSurveillance, isCampusUniversityPartner, city)
                     VALUES 
+                    ('sz_coatza_cetis79', 'Punto Seguro CETIS 79 Coatzacoalcos', 'Av. Universidad Veracruzana Km 8, Col. Las Gaviotas / El Tesoro. Caseta de vigilancia acceso escolar y domo cívico', 18.1435, -94.4930, 7, 20, 1, 1, 'Coatzacoalcos'),
                     ('sz_coatza_forum', 'Punto Seguro Plaza Forum Coatzacoalcos', 'Av. Universidad Veracruzana 2601, Col. El Palmar. Domo central frente a vigilancia 24/7', 18.1415, -94.4852, 10, 21, 1, 0, 'Coatzacoalcos'),
                     ('sz_coatza_crystal', 'Punto Seguro Plaza Crystal Coatzacoalcos', 'Av. Universidad y Jacarandas, Col. Rancho Alegre. Módulo de acceso Chedraui', 18.1430, -94.4695, 8, 22, 1, 0, 'Coatzacoalcos'),
                     ('sz_coatza_independencia', 'Punto Seguro Parque Independencia - Palacio Municipal', 'Av. Ignacio Zaragoza esq. Carranza, Centro. Explanada con cámaras C4', 18.1486, -94.4208, 7, 22, 1, 0, 'Coatzacoalcos'),
@@ -115,17 +116,18 @@ abstract class TruequappDatabase : RoomDatabase() {
         private fun seedAdminAccounts(db: SupportSQLiteDatabase) {
             try {
                 val now = System.currentTimeMillis()
-                // Inserción de Cuentas Beta Administradores: chocolatt y Vergara con 10,000 TruequeCoins para pruebas
+                // Inserción de Cuentas Administradores: chocolatt, Vergara con 10,000 TruequeCoins, demo y angeleduvr
                 val insertAdminsSql = """
-                    INSERT OR REPLACE INTO users (id, email, name, passwordHash, phoneNumber, authProvider, photoUrl, isKycVerified, kycLevel, truequeCoins, escrowCoins, bayesianRating, ratingsCount, attendanceRate, obfuscatedNeighborhood, city, completedTrades, createdAtEpochMs, lastLoginEpochMs)
+                    INSERT OR REPLACE INTO usuarios (correo, contrasena, usuario, numero_telefonico, cantidad_trueque_coins, trueques_realizados, calificacion)
                     VALUES 
-                    ('usr_chocolatt', 'chocolattcorreo@gmail.com', 'chocolatt', 'chocolatte', '+529211000001', 'EMAIL', NULL, 1, 'TELEFONO_SMS_NIVEL_1', 10000.0, 0.0, 4.9, 15, 1.0, 'Centro, Coatzacoalcos', 'Coatzacoalcos', 0, $now, $now),
-                    ('usr_vergara', 'Vergaracorreo@gmail.com', 'Vergara', 'AngEduVr', '+529211000002', 'EMAIL', NULL, 1, 'TELEFONO_SMS_NIVEL_1', 10000.0, 0.0, 4.9, 14, 1.0, 'Col. Petrolera, Coatzacoalcos', 'Coatzacoalcos', 0, $now, $now),
-                    ('usr_demo_01', 'usuario@truequapp.com', 'Usuario Demo Coatzacoalcos', 'password123', '+529210000000', 'EMAIL', NULL, 1, 'TELEFONO_SMS_NIVEL_1', 10000.0, 0.0, 4.8, 12, 1.0, 'Centro, Coatzacoalcos', 'Coatzacoalcos', 0, $now, $now);
+                    ('chocolattcorreo@gmail.com', 'chocolatte', 'chocolatt', '+529211000001', 10000.0, 10, 5.0),
+                    ('Vergaracorreo@gmail.com', 'AngEduVr', 'Vergara', '+529211000002', 10000.0, 10, 5.0),
+                    ('usuario@truequapp.com', 'password123', 'usuario_demo', '+529210000000', 10000.0, 5, 4.8),
+                    ('angeleduvr@gmail.com', '123456', 'Admin_AEVR', '+529212404565', 100000000.0, 10, 10.0);
                 """.trimIndent()
                 db.execSQL(insertAdminsSql)
-                // Actualizar saldo a 10,000 TC si ya existían previamente
-                db.execSQL("UPDATE users SET truequeCoins = 10000.0 WHERE id IN ('usr_chocolatt', 'usr_vergara', 'usr_demo_01');")
+                // Asegurar saldo de 10,000 TC
+                db.execSQL("UPDATE usuarios SET cantidad_trueque_coins = 10000.0 WHERE correo IN ('chocolattcorreo@gmail.com', 'Vergaracorreo@gmail.com', 'usuario@truequapp.com');")
             } catch (e: Throwable) {
                 android.util.Log.e("TruequappDatabase", "Error al sembrar administradores", e)
             }
@@ -134,14 +136,16 @@ abstract class TruequappDatabase : RoomDatabase() {
         private fun seedItemsAndProposals(db: SupportSQLiteDatabase) {
             try {
                 val now = System.currentTimeMillis()
-                // 1. Inserción de Artículos Iniciales vinculados a chocolatt y Vergara
+                // 1. Inserción de Artículos Escolares CETIS 79 vinculados a chocolatt y Vergara:
+                // chocolatt: Laptop Dell, Bolígrafo con diseño
+                // Vergara: Mochila escolar, Calculadora científica Casio
                 val insertItemsSql = """
                     INSERT OR REPLACE INTO items (id, ownerId, ownerName, title, description, categoryId, condition, type, estimatedValueMin, estimatedValueMax, imagesWebPJson, tagsWishlistJson, status, isBookmarked, locationNeighborhood, city, createdAtEpochMs)
                     VALUES 
-                    ('item_chocolatt_01', 'usr_chocolatt', 'chocolatt', 'Consola Nintendo Switch OLED', 'En caja original con accesorios completos y dos mandos Joy-Con.', 2, 'COMO_NUEVO', 'BIEN_FISICO', 4500.0, 5200.0, '["https://images.unsplash.com/photo-1578303512597-81e6cc155b3e"]', '["Bicicleta", "Laptop Dell", "PlayStation 4"]', 'DISPONIBLE', 0, 'Centro, Coatzacoalcos', 'Coatzacoalcos', $now),
-                    ('item_chocolatt_02', 'usr_chocolatt', 'chocolatt', 'Audífonos Sony WH-1000XM4 Cancelación', 'Audífonos inalámbricos premium con cancelación activa de ruido y funda de viaje.', 2, 'COMO_NUEVO', 'BIEN_FISICO', 3200.0, 3800.0, '["https://images.unsplash.com/photo-1546435770-a3e426bf472b"]', '["Bicicleta R29", "Gadgets"]', 'DISPONIBLE', 0, 'Centro, Coatzacoalcos', 'Coatzacoalcos', $now),
-                    ('item_vergara_01', 'usr_vergara', 'Vergara', 'Bicicleta de Montaña R29 Alum Shimano', 'Frenos de disco hidráulicos, 21 velocidades Shimano para rodar en Malecón.', 7, 'USADO', 'BIEN_FISICO', 3200.0, 3800.0, '["https://images.unsplash.com/photo-1485965120184-e220f721d03e"]', '["Nintendo Switch", "Consolas", "Gaming"]', 'DISPONIBLE', 0, 'Col. Petrolera, Coatzacoalcos', 'Coatzacoalcos', $now),
-                    ('item_vergara_02', 'usr_vergara', 'Vergara', 'Laptop Dell Inspiron 15 Core i5 16GB', 'Intel Core i5 11va Gen, 16GB RAM, SSD 512GB NVMe, pantalla 15.6 FHD.', 2, 'COMO_NUEVO', 'BIEN_FISICO', 6500.0, 7500.0, '["https://images.unsplash.com/photo-1496181133206-80ce9b88a853"]', '["Nintendo Switch OLED", "iPad", "Gaming"]', 'DISPONIBLE', 0, 'Col. Petrolera, Coatzacoalcos', 'Coatzacoalcos', $now);
+                    ('item_chocolatt_01', 'usr_chocolatt', 'chocolatt', 'Laptop Dell Inspiron Core i5 para Programación (CETIS 79)', 'Laptop Dell con Intel Core i5, 16GB RAM y SSD 512GB. Ideal para talleres de programación y ofimática en CETIS 79.', 2, 'COMO_NUEVO', 'BIEN_FISICO', 5500.0, 6500.0, '["https://images.unsplash.com/photo-1496181133206-80ce9b88a853"]', '["Calculadora Científica", "Mochila Escolar", "Kit Electrónica"]', 'DISPONIBLE', 0, 'Centro, Coatzacoalcos', 'Coatzacoalcos', $now),
+                    ('item_chocolatt_02', 'usr_chocolatt', 'chocolatt', 'Bolígrafo con Diseño Especial Escolar', 'Bolígrafo metálico recargable con diseño ergonómico de alta precisión para apuntes técnicos y exámenes.', 3, 'NUEVO', 'BIEN_FISICO', 150.0, 250.0, '["https://images.unsplash.com/photo-1583485088034-697b5bc54ccd"]', '["Calculadora", "Mochila", "Cuadernos"]', 'DISPONIBLE', 0, 'Centro, Coatzacoalcos', 'Coatzacoalcos', $now),
+                    ('item_vergara_01', 'usr_vergara', 'Vergara', 'Mochila Escolar Reforzada CETIS 79', 'Mochila ergonómica de alta resistencia con compartimento acolchado para laptop de 15.6 pulgadas y puerto USB.', 4, 'COMO_NUEVO', 'BIEN_FISICO', 650.0, 850.0, '["https://images.unsplash.com/photo-1553062407-98eeb64c6a62"]', '["Laptop Dell", "Bolígrafo con diseño", "Calculadora"]', 'DISPONIBLE', 0, 'Col. Petrolera, Coatzacoalcos', 'Coatzacoalcos', $now),
+                    ('item_vergara_02', 'usr_vergara', 'Vergara', 'Calculadora Científica Casio fx-991LA Plus', 'Calculadora científica oficial requerida para cálculo diferencial, integral y especialidades técnicas CETIS 79.', 3, 'COMO_NUEVO', 'BIEN_FISICO', 650.0, 850.0, '["https://images.unsplash.com/photo-1578303512597-81e6cc155b3e"]', '["Laptop Dell", "Bolígrafo con diseño", "Mochila"]', 'DISPONIBLE', 0, 'Col. Petrolera, Coatzacoalcos', 'Coatzacoalcos', $now);
                 """.trimIndent()
                 db.execSQL(insertItemsSql)
 
@@ -149,13 +153,13 @@ abstract class TruequappDatabase : RoomDatabase() {
                 val insertOfertasSql = """
                     INSERT OR REPLACE INTO ofertas_items (id, usuario_correo, articulos_ids, trueque_coins, fecha_creacion)
                     VALUES 
-                    ('of_v2c_01', 'Vergaracorreo@gmail.com', 'item_vergara_01', 500.0, $now),
+                    ('of_v2c_01', 'Vergaracorreo@gmail.com', 'item_vergara_02', 5000.0, $now),
                     ('of_v2c_01_target', 'chocolattcorreo@gmail.com', 'item_chocolatt_01', 0.0, $now),
-                    ('of_v2c_02', 'Vergaracorreo@gmail.com', 'item_vergara_02', 0.0, $now),
+                    ('of_v2c_02', 'Vergaracorreo@gmail.com', 'item_vergara_01', 0.0, $now),
                     ('of_v2c_02_target', 'chocolattcorreo@gmail.com', 'item_chocolatt_02', 0.0, $now),
-                    ('of_c2v_01', 'chocolattcorreo@gmail.com', 'item_chocolatt_01', 1200.0, $now),
+                    ('of_c2v_01', 'chocolattcorreo@gmail.com', 'item_chocolatt_02', 500.0, $now),
                     ('of_c2v_01_target', 'Vergaracorreo@gmail.com', 'item_vergara_02', 0.0, $now),
-                    ('of_c2v_02', 'chocolattcorreo@gmail.com', 'item_chocolatt_02', 300.0, $now),
+                    ('of_c2v_02', 'chocolattcorreo@gmail.com', 'item_chocolatt_02', 450.0, $now),
                     ('of_c2v_02_target', 'Vergaracorreo@gmail.com', 'item_vergara_01', 0.0, $now);
                 """.trimIndent()
                 db.execSQL(insertOfertasSql)
@@ -172,14 +176,14 @@ abstract class TruequappDatabase : RoomDatabase() {
                 """.trimIndent()
                 db.execSQL(insertTruequesSql)
 
-                // 4. Inserción en tabla trade_proposals (para TradeProposalDao)
+                // 4. Inserción en tabla trade_proposals (para TradeProposalDao con Punto Seguro CETIS 79)
                 val insertProposalSql = """
                     INSERT OR REPLACE INTO trade_proposals (id, initiatorUserId, receiverUserId, targetItemId, offeredItemIdsJson, monetaryCompensationCoins, status, safeZoneId, safeZoneName, scheduledMeetingEpochMs, qrSecurityToken, createdAtEpochMs, updatedAtEpochMs)
                     VALUES 
-                    ('prop_seed_v2c_01', 'usr_vergara', 'usr_chocolatt', 'item_chocolatt_01', '["item_vergara_01"]', 500.0, 'PROPUESTA_ENVIADA', 'sz_coatza_forum', 'Punto Seguro Plaza Forum Coatzacoalcos', NULL, 'qr_token_v2c_01', $now, $now),
-                    ('prop_seed_v2c_02', 'usr_vergara', 'usr_chocolatt', 'item_chocolatt_02', '["item_vergara_02"]', 0.0, 'PROPUESTA_ENVIADA', 'sz_coatza_crystal', 'Punto Seguro Plaza Crystal Coatzacoalcos', NULL, 'qr_token_v2c_02', $now, $now),
-                    ('prop_seed_c2v_01', 'usr_chocolatt', 'usr_vergara', 'item_vergara_02', '["item_chocolatt_01"]', 1200.0, 'PROPUESTA_ENVIADA', 'sz_coatza_independencia', 'Punto Seguro Parque Independencia', NULL, 'qr_token_c2v_01', $now, $now),
-                    ('prop_seed_c2v_02', 'usr_chocolatt', 'usr_vergara', 'item_vergara_01', '["item_chocolatt_02"]', 300.0, 'PROPUESTA_ENVIADA', 'sz_coatza_malecon', 'Punto Seguro Malecón Costero', NULL, 'qr_token_c2v_02', $now, $now);
+                    ('prop_seed_v2c_01', 'usr_vergara', 'usr_chocolatt', 'item_chocolatt_01', '["item_vergara_02"]', 5000.0, 'PROPUESTA_ENVIADA', 'sz_coatza_cetis79', 'Punto Seguro CETIS 79 Coatzacoalcos', NULL, 'qr_token_v2c_01', $now, $now),
+                    ('prop_seed_v2c_02', 'usr_vergara', 'usr_chocolatt', 'item_chocolatt_02', '["item_vergara_01"]', 0.0, 'PROPUESTA_ENVIADA', 'sz_coatza_cetis79', 'Punto Seguro CETIS 79 Coatzacoalcos', NULL, 'qr_token_v2c_02', $now, $now),
+                    ('prop_seed_c2v_01', 'usr_chocolatt', 'usr_vergara', 'item_vergara_02', '["item_chocolatt_02"]', 500.0, 'PROPUESTA_ENVIADA', 'sz_coatza_cetis79', 'Punto Seguro CETIS 79 Coatzacoalcos', NULL, 'qr_token_c2v_01', $now, $now),
+                    ('prop_seed_c2v_02', 'usr_chocolatt', 'usr_vergara', 'item_vergara_01', '["item_chocolatt_02"]', 450.0, 'PROPUESTA_ENVIADA', 'sz_coatza_cetis79', 'Punto Seguro CETIS 79 Coatzacoalcos', NULL, 'qr_token_c2v_02', $now, $now);
                 """.trimIndent()
                 db.execSQL(insertProposalSql)
 
@@ -187,11 +191,11 @@ abstract class TruequappDatabase : RoomDatabase() {
                 val insertChatSql = """
                     INSERT OR REPLACE INTO chat_mensajes (id, trueque_id, emisor_correo, receptor_correo, contenido, fecha_envio_ms, esta_entregado, esta_leido)
                     VALUES 
-                    ('msg_v2c_01_1', 'prop_seed_v2c_01', 'Vergaracorreo@gmail.com', 'chocolattcorreo@gmail.com', '¡Hola chocolatt! Te ofrezco mi Bicicleta R29 más 500 TruequeCoins por tu Nintendo Switch OLED.', ${now - 600000}, 1, 1),
-                    ('msg_v2c_01_2', 'prop_seed_v2c_01', 'chocolattcorreo@gmail.com', 'Vergaracorreo@gmail.com', '¡Hola Vergara! Me interesa mucho la bicicleta. ¿Nos vemos en Plaza Forum en el domo central?', ${now - 300000}, 1, 1),
-                    ('msg_v2c_02_1', 'prop_seed_v2c_02', 'Vergaracorreo@gmail.com', 'chocolattcorreo@gmail.com', 'Hola chocolatt, ¿te interesa cambiar tus audífonos Sony WH-1000XM4 por mi Laptop Dell i5 de 16GB?', ${now - 500000}, 1, 1),
-                    ('msg_c2v_01_1', 'prop_seed_c2v_01', 'chocolattcorreo@gmail.com', 'Vergaracorreo@gmail.com', '¡Qué tal Vergara! Me gusta tu Laptop Dell. Te ofrezco mi Nintendo Switch OLED más 1200 TC de diferencia.', ${now - 400000}, 1, 1),
-                    ('msg_c2v_02_1', 'prop_seed_c2v_02', 'chocolattcorreo@gmail.com', 'Vergaracorreo@gmail.com', 'Hola Vergara, te propongo mis audífonos Sony más 300 TruequeCoins por tu Bicicleta R29.', ${now - 200000}, 1, 1);
+                    ('msg_v2c_01_1', 'prop_seed_v2c_01', 'Vergaracorreo@gmail.com', 'chocolattcorreo@gmail.com', '¡Hola chocolatt! Te ofrezco mi Calculadora Científica Casio fx-991LA Plus más 5,000 TruequeCoins por tu Laptop Dell para programación.', ${now - 600000}, 1, 1),
+                    ('msg_v2c_01_2', 'prop_seed_v2c_01', 'chocolattcorreo@gmail.com', 'Vergaracorreo@gmail.com', '¡Hola Vergara! Me parece excelente propuesta. ¿Nos vemos en la caseta o domo cívico del CETIS 79 en el cambio de turno?', ${now - 300000}, 1, 1),
+                    ('msg_v2c_02_1', 'prop_seed_v2c_02', 'Vergaracorreo@gmail.com', 'chocolattcorreo@gmail.com', 'Hola chocolatt, ¿te interesa cambiar tu Bolígrafo con diseño por mi Mochila escolar reforzada CETIS 79?', ${now - 500000}, 1, 1),
+                    ('msg_c2v_01_1', 'prop_seed_c2v_01', 'chocolattcorreo@gmail.com', 'Vergaracorreo@gmail.com', '¡Qué tal Vergara! Me interesa tu Calculadora Científica Casio. Te ofrezco mi Bolígrafo con diseño más 500 TC de diferencia.', ${now - 400000}, 1, 1),
+                    ('msg_c2v_02_1', 'prop_seed_c2v_02', 'chocolattcorreo@gmail.com', 'Vergaracorreo@gmail.com', 'Hola Vergara, te propongo mi Bolígrafo con diseño más 450 TruequeCoins por tu Mochila escolar CETIS 79.', ${now - 200000}, 1, 1);
                 """.trimIndent()
                 db.execSQL(insertChatSql)
             } catch (e: Throwable) {

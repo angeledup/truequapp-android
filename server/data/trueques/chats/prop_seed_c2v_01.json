@@ -1,13 +1,12 @@
 [
   {
     "id": "msg_c2v_01_1",
-    "proposalId": "prop_seed_c2v_01",
     "senderId": "usr_chocolatt",
     "senderEmail": "chocolattcorreo@gmail.com",
     "senderName": "chocolatt",
-    "content": "¡Qué tal Vergara! Me gusta tu Laptop Dell. Te ofrezco mi Nintendo Switch OLED más 1200 TC de diferencia.",
-    "timestampEpochMs": 1730999600000,
-    "isAuditLog": false,
+    "content": "¡Qué tal Vergara! Me interesa tu Calculadora Científica Casio. Te ofrezco mi Bolígrafo con diseño más 500 TC de diferencia.",
+    "timestampEpochMs": 1731000300000,
+    "isDelivered": true,
     "isRead": true
   }
 ]

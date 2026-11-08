@@ -68,15 +68,33 @@ class FakeUserSessionDataStore : UserSessionDataStore {
 class FakeUserDao : UserDao {
     val users = mutableMapOf<String, UserEntity>()
 
-    override fun getUserById(id: String): Flow<UserEntity?> = MutableStateFlow(users[id])
-    override suspend fun getUserByIdSync(id: String): UserEntity? = users[id]
-    override fun getUserByEmail(email: String): Flow<UserEntity?> = MutableStateFlow(users.values.find { it.email.equals(email, ignoreCase = true) })
+    override fun getUserById(id: String): Flow<UserEntity?> =
+        MutableStateFlow(users.values.find { it.id.equals(id, ignoreCase = true) || it.usuario.equals(id, ignoreCase = true) || it.correo.equals(id, ignoreCase = true) })
+    override suspend fun getUserByIdSync(id: String): UserEntity? =
+        users.values.find { it.id.equals(id, ignoreCase = true) || it.usuario.equals(id, ignoreCase = true) || it.correo.equals(id, ignoreCase = true) }
+    override suspend fun getUserByEmail(email: String): UserEntity? = users.values.find { it.email.equals(email, ignoreCase = true) }
     override suspend fun getUserByEmailSync(email: String): UserEntity? = users.values.find { it.email.equals(email, ignoreCase = true) }
+    override fun observeUserByEmail(correo: String): Flow<UserEntity?> = MutableStateFlow(users.values.find { it.email.equals(correo, ignoreCase = true) })
+    override suspend fun countByEmail(correo: String): Int = if (users.values.any { it.email.equals(correo, ignoreCase = true) }) 1 else 0
     override suspend fun getUserByIdentifierSync(identifier: String): UserEntity? =
         users.values.find { it.email.equals(identifier, ignoreCase = true) || it.name.equals(identifier, ignoreCase = true) }
     override suspend fun authenticate(email: String, passwordHash: String): UserEntity? = users.values.find { it.email == email && it.passwordHash == passwordHash }
-    override suspend fun insertUser(user: UserEntity) { users[user.id] = user }
-    override suspend fun updateUser(user: UserEntity) { users[user.id] = user }
+    override suspend fun insertUser(user: UserEntity) {
+        val key = users.keys.find {
+            users[it]?.email.equals(user.email, ignoreCase = true) ||
+            users[it]?.id.equals(user.id, ignoreCase = true) ||
+            it.equals(user.id, ignoreCase = true)
+        } ?: user.id
+        users[key] = user
+    }
+    override suspend fun updateUser(user: UserEntity) {
+        val key = users.keys.find {
+            users[it]?.email.equals(user.email, ignoreCase = true) ||
+            users[it]?.id.equals(user.id, ignoreCase = true) ||
+            it.equals(user.id, ignoreCase = true)
+        } ?: user.id
+        users[key] = user
+    }
     override suspend fun updateTruequeCoins(userId: String, availableCoins: Double, escrowCoins: Double) {
         users[userId]?.let { users[userId] = it.copy(truequeCoins = availableCoins, escrowCoins = escrowCoins) }
     }
@@ -119,7 +137,6 @@ class FakeUserDao : UserDao {
         users[user.id] = user.copy(bayesianRating = newRating)
         return 1
     }
-    override fun observeUserByEmail(correo: String): Flow<UserEntity?> = MutableStateFlow(users.values.find { it.email.equals(correo, ignoreCase = true) })
 }
 
 class TestDispatcherProvider(private val dispatcher: TestDispatcher) : DispatcherProvider {

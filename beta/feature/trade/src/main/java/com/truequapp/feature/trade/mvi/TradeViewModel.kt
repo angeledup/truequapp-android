@@ -67,57 +67,57 @@ class TradeViewModel @Inject constructor(
             TradeItem(
                 id = "item_chocolatt_01",
                 ownerId = "usr_chocolatt",
-                title = "Consola Nintendo Switch OLED",
-                description = "En caja original con accesorios completos y dos mandos Joy-Con.",
+                title = "Laptop Dell Inspiron Core i5 para Programación (CETIS 79)",
+                description = "Laptop Dell con Intel Core i5, 16GB RAM y SSD 512GB. Ideal para talleres de programación y ofimática en CETIS 79.",
                 categoryId = 2,
                 type = ItemType.BIEN_FISICO,
                 condition = ItemCondition.COMO_NUEVO,
-                estimatedValueMin = 4500.0,
-                estimatedValueMax = 5200.0,
-                imagesWebP = listOf("https://images.unsplash.com/photo-1578303512597-81e6cc155b3e"),
-                tagsWishlist = listOf("Bicicleta", "Laptop Dell", "PlayStation 4"),
+                estimatedValueMin = 5500.0,
+                estimatedValueMax = 6500.0,
+                imagesWebP = listOf("https://images.unsplash.com/photo-1496181133206-80ce9b88a853"),
+                tagsWishlist = listOf("Calculadora Científica", "Mochila Escolar", "Kit Electrónica"),
                 isAvailable = true
             ),
             TradeItem(
                 id = "item_chocolatt_02",
                 ownerId = "usr_chocolatt",
-                title = "Audífonos Sony WH-1000XM4 Cancelación",
-                description = "Audífonos inalámbricos premium con cancelación activa de ruido y funda de viaje.",
-                categoryId = 2,
+                title = "Bolígrafo con Diseño Especial Escolar",
+                description = "Bolígrafo metálico recargable con diseño ergonómico de alta precisión para apuntes técnicos y exámenes.",
+                categoryId = 3,
                 type = ItemType.BIEN_FISICO,
                 condition = ItemCondition.COMO_NUEVO,
-                estimatedValueMin = 3200.0,
-                estimatedValueMax = 3800.0,
-                imagesWebP = listOf("https://images.unsplash.com/photo-1546435770-a3e426bf472b"),
-                tagsWishlist = listOf("Bicicleta R29", "Gadgets"),
+                estimatedValueMin = 150.0,
+                estimatedValueMax = 250.0,
+                imagesWebP = listOf("https://images.unsplash.com/photo-1583485088034-697b5bc54ccd"),
+                tagsWishlist = listOf("Calculadora", "Mochila", "Cuadernos"),
                 isAvailable = true
             ),
             TradeItem(
                 id = "item_vergara_01",
                 ownerId = "usr_vergara",
-                title = "Bicicleta de Montaña R29 Alum Shimano",
-                description = "Frenos de disco hidráulicos, 21 velocidades Shimano para rodar en Malecón.",
-                categoryId = 7,
+                title = "Mochila Escolar Reforzada CETIS 79",
+                description = "Mochila ergonómica de alta resistencia con compartimento acolchado para laptop de 15.6 pulgadas y puerto USB.",
+                categoryId = 4,
                 type = ItemType.BIEN_FISICO,
-                condition = ItemCondition.USADO,
-                estimatedValueMin = 3200.0,
-                estimatedValueMax = 3800.0,
-                imagesWebP = listOf("https://images.unsplash.com/photo-1485965120184-e220f721d03e"),
-                tagsWishlist = listOf("Nintendo Switch", "Consolas", "Gaming"),
+                condition = ItemCondition.COMO_NUEVO,
+                estimatedValueMin = 650.0,
+                estimatedValueMax = 850.0,
+                imagesWebP = listOf("https://images.unsplash.com/photo-1553062407-98eeb64c6a62"),
+                tagsWishlist = listOf("Laptop Dell", "Bolígrafo con diseño", "Calculadora"),
                 isAvailable = true
             ),
             TradeItem(
                 id = "item_vergara_02",
                 ownerId = "usr_vergara",
-                title = "Laptop Dell Inspiron 15 Core i5 16GB",
-                description = "Intel Core i5 11va Gen, 16GB RAM, SSD 512GB NVMe, pantalla 15.6 FHD.",
-                categoryId = 2,
+                title = "Calculadora Científica Casio fx-991LA Plus",
+                description = "Calculadora científica oficial requerida para cálculo diferencial, integral y especialidades técnicas CETIS 79.",
+                categoryId = 3,
                 type = ItemType.BIEN_FISICO,
                 condition = ItemCondition.COMO_NUEVO,
-                estimatedValueMin = 6500.0,
-                estimatedValueMax = 7500.0,
-                imagesWebP = listOf("https://images.unsplash.com/photo-1496181133206-80ce9b88a853"),
-                tagsWishlist = listOf("Nintendo Switch OLED", "iPad", "Gaming"),
+                estimatedValueMin = 650.0,
+                estimatedValueMax = 850.0,
+                imagesWebP = listOf("https://images.unsplash.com/photo-1578303512597-81e6cc155b3e"),
+                tagsWishlist = listOf("Laptop Dell", "Bolígrafo con diseño", "Mochila"),
                 isAvailable = true
             ),
             TradeItem(
@@ -190,47 +190,47 @@ class TradeViewModel @Inject constructor(
 
         // 4 Propuestas semilla pre-cargadas (2 de Vergara hacia chocolatt, y 2 de chocolatt hacia Vergara)
         val defaultProposals = listOf(
-            // 1. De Vergara a chocolatt (Nintendo Switch x Bici + 500 TC)
+            // 1. De Vergara a chocolatt (Calculadora Casio x Laptop Dell + 5000 TC)
             TradeProposal(
                 id = "prop_seed_v2c_01",
                 requesterUserId = "Vergaracorreo@gmail.com",
                 receiverUserId = "chocolattcorreo@gmail.com",
-                offeredItemIds = listOf("item_vergara_01"),
+                offeredItemIds = listOf("item_vergara_02"),
                 targetItemId = "item_chocolatt_01",
-                compensatoryTruequeCoins = 500.0,
+                compensatoryTruequeCoins = 5000.0,
                 modality = TradeModality.HIBRIDO_CON_CREDITOS,
                 status = TradeStatus.PENDIENTE
             ),
-            // 2. De Vergara a chocolatt (Audífonos Sony x Laptop Dell)
+            // 2. De Vergara a chocolatt (Mochila Escolar x Bolígrafo con diseño)
             TradeProposal(
                 id = "prop_seed_v2c_02",
                 requesterUserId = "Vergaracorreo@gmail.com",
                 receiverUserId = "chocolattcorreo@gmail.com",
-                offeredItemIds = listOf("item_vergara_02"),
+                offeredItemIds = listOf("item_vergara_01"),
                 targetItemId = "item_chocolatt_02",
                 compensatoryTruequeCoins = 0.0,
                 modality = TradeModality.DIRECTO_1_A_1,
                 status = TradeStatus.PENDIENTE
             ),
-            // 3. De chocolatt a Vergara (Laptop Dell x Switch + 1200 TC)
+            // 3. De chocolatt a Vergara (Bolígrafo con diseño x Calculadora Casio + 500 TC)
             TradeProposal(
                 id = "prop_seed_c2v_01",
                 requesterUserId = "chocolattcorreo@gmail.com",
                 receiverUserId = "Vergaracorreo@gmail.com",
-                offeredItemIds = listOf("item_chocolatt_01"),
+                offeredItemIds = listOf("item_chocolatt_02"),
                 targetItemId = "item_vergara_02",
-                compensatoryTruequeCoins = 1200.0,
+                compensatoryTruequeCoins = 500.0,
                 modality = TradeModality.HIBRIDO_CON_CREDITOS,
                 status = TradeStatus.PENDIENTE
             ),
-            // 4. De chocolatt a Vergara (Bici R29 x Audífonos Sony + 300 TC)
+            // 4. De chocolatt a Vergara (Bolígrafo con diseño x Mochila Escolar + 450 TC)
             TradeProposal(
                 id = "prop_seed_c2v_02",
                 requesterUserId = "chocolattcorreo@gmail.com",
                 receiverUserId = "Vergaracorreo@gmail.com",
                 offeredItemIds = listOf("item_chocolatt_02"),
                 targetItemId = "item_vergara_01",
-                compensatoryTruequeCoins = 300.0,
+                compensatoryTruequeCoins = 450.0,
                 modality = TradeModality.HIBRIDO_CON_CREDITOS,
                 status = TradeStatus.PENDIENTE
             )

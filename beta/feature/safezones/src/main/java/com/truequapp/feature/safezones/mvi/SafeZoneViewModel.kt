@@ -44,6 +44,16 @@ class SafeZoneViewModel @Inject constructor(
     private fun seedInitialSafeZones() {
         val zones = listOf(
             SafeZonePoint(
+                id = "sz_coatza_cetis79",
+                name = "Punto Seguro CETIS 79 Coatzacoalcos",
+                addressDescription = "Av. Universidad Veracruzana Km 8, Col. Las Gaviotas / El Tesoro. Caseta de vigilancia acceso escolar y domo cívico",
+                coordinates = GeoCoordinates(18.1435, -94.4930),
+                openingHour = 7,
+                closingHour = 20,
+                hasVideoSurveillance = true,
+                isCampusUniversityPartner = true
+            ),
+            SafeZonePoint(
                 id = "sz_coatza_forum",
                 name = "Punto Seguro Plaza Forum Coatzacoalcos",
                 addressDescription = "Av. Universidad Veracruzana 2601, Col. El Palmar. Zona de domo central frente a vigilancia y cámaras 24/7",

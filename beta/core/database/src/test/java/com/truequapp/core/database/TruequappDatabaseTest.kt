@@ -35,15 +35,22 @@ class InMemoryTestUserDao : UserDao {
     }
 
     override fun getUserById(id: String): Flow<UserEntity?> =
-        usersFlow.map { list -> list.find { it.id == id } }
+        usersFlow.map { list -> list.find { it.id.equals(id, ignoreCase = true) || it.usuario.equals(id, ignoreCase = true) || it.correo.equals(id, ignoreCase = true) } }
 
-    override suspend fun getUserByIdSync(id: String): UserEntity? = usersMap[id]
+    override suspend fun getUserByIdSync(id: String): UserEntity? =
+        usersMap.values.find { it.id.equals(id, ignoreCase = true) || it.usuario.equals(id, ignoreCase = true) || it.correo.equals(id, ignoreCase = true) }
 
-    override fun getUserByEmail(email: String): Flow<UserEntity?> =
-        usersFlow.map { list -> list.find { it.email == email } }
+    override suspend fun getUserByEmail(email: String): UserEntity? =
+        usersMap.values.find { it.email.equals(email, ignoreCase = true) }
 
     override suspend fun getUserByEmailSync(email: String): UserEntity? =
         usersMap.values.find { it.email.equals(email, ignoreCase = true) }
+
+    override fun observeUserByEmail(correo: String): Flow<UserEntity?> =
+        usersFlow.map { list -> list.find { it.email.equals(correo, ignoreCase = true) } }
+
+    override suspend fun countByEmail(correo: String): Int =
+        if (usersMap.values.any { it.email.equals(correo, ignoreCase = true) }) 1 else 0
 
     override suspend fun getUserByIdentifierSync(identifier: String): UserEntity? =
         usersMap.values.find {
@@ -67,8 +74,8 @@ class InMemoryTestUserDao : UserDao {
     }
 
     override suspend fun updateTruequeCoins(userId: String, availableCoins: Double, escrowCoins: Double) {
-        val user = usersMap[userId] ?: return
-        usersMap[userId] = user.copy(truequeCoins = availableCoins, escrowCoins = escrowCoins)
+        val user = usersMap.values.find { it.id.equals(userId, ignoreCase = true) || it.usuario.equals(userId, ignoreCase = true) || it.correo.equals(userId, ignoreCase = true) } ?: return
+        usersMap[user.id] = user.copy(truequeCoins = availableCoins, escrowCoins = escrowCoins)
         emit()
     }
 
@@ -140,9 +147,6 @@ class InMemoryTestUserDao : UserDao {
         emit()
         return 1
     }
-
-    override fun observeUserByEmail(correo: String): Flow<UserEntity?> =
-        usersFlow.map { list -> list.find { it.email.equals(correo, ignoreCase = true) } }
 }
 
 class TruequappDatabaseTest {

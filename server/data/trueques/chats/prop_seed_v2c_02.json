@@ -1,13 +1,12 @@
 [
   {
     "id": "msg_v2c_02_1",
-    "proposalId": "prop_seed_v2c_02",
     "senderId": "usr_vergara",
     "senderEmail": "Vergaracorreo@gmail.com",
     "senderName": "Vergara",
-    "content": "Hola chocolatt, ¿te interesa cambiar tus audífonos Sony WH-1000XM4 por mi Laptop Dell i5 de 16GB?",
-    "timestampEpochMs": 1730999500000,
-    "isAuditLog": false,
+    "content": "Hola chocolatt, ¿te interesa cambiar tu Bolígrafo con diseño por mi Mochila escolar reforzada CETIS 79?",
+    "timestampEpochMs": 1731000200000,
+    "isDelivered": true,
     "isRead": true
   }
 ]
