@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.PhotoLibrary
@@ -56,7 +57,8 @@ fun ItemCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     isBookmarked: Boolean = false,
-    onToggleBookmark: (() -> Unit)? = null
+    onToggleBookmark: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null
 ) {
     val designCondition = when (item.condition) {
         ItemCondition.NUEVO -> DesignItemCondition.NEW
@@ -142,8 +144,30 @@ fun ItemCard(
                     }
                 }
 
-                // Botón para marcar publicación como favorita (esquina superior derecha)
-                if (onToggleBookmark != null) {
+                // Botón para borrar publicación (si es propia) o marcar como favorita
+                if (onDelete != null) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(6.dp)
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFB71C1C).copy(alpha = 0.85f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        IconButton(
+                            onClick = onDelete,
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Borrar publicación",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                } else if (onToggleBookmark != null) {
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopEnd)

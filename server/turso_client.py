@@ -288,6 +288,13 @@ def turso_save_table(table_name: str, items: list, prop_id: str = None):
     if stmts:
         execute_pipeline(stmts)
 
+def turso_delete_item(table_name: str, item_id: str):
+    """Elimina un registro de la tabla en Turso por su identificador primario."""
+    if not is_turso_configured():
+        return
+    stmts = [{"sql": f"DELETE FROM {table_name} WHERE id = ?;", "args": [item_id]}]
+    execute_pipeline(stmts)
+
 def sync_local_data_to_turso(usuarios_data: list, catalogo_data: list, propuestas_data: list, chats_dict: dict):
     """Sincroniza datos precargados si Turso se encuentra vacío."""
     if not is_turso_configured():

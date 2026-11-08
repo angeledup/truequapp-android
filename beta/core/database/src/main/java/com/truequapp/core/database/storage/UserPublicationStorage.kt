@@ -9,6 +9,9 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.concurrent.Executors
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -23,6 +26,9 @@ import javax.inject.Singleton
 class UserPublicationStorage @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
+    private val cloudBaseUrl = "https://truequapp-pi.vercel.app/api/catalogo"
+    private val networkExecutor = Executors.newSingleThreadExecutor()
+
     // -------------------------------------------------------------------------
     // ARCHIVOS PERSISTENTES
     // -------------------------------------------------------------------------
@@ -70,50 +76,85 @@ class UserPublicationStorage @Inject constructor(
         }
     }
 
+    private fun parseItemsFromJsonArray(jsonArray: JSONArray): List<TradeItem> {
+        val list = mutableListOf<TradeItem>()
+        for (i in 0 until jsonArray.length()) {
+            val obj = jsonArray.optJSONObject(i) ?: continue
+            val imagesArray = obj.optJSONArray("imagesWebP")
+            val images = mutableListOf<String>()
+            if (imagesArray != null) {
+                for (j in 0 until imagesArray.length()) {
+                    images.add(imagesArray.optString(j))
+                }
+            } else {
+                val singleImg = obj.optString("photoUrl")
+                if (singleImg.isNotBlank()) images.add(singleImg)
+            }
+
+            val tagsArray = obj.optJSONArray("tagsWishlist")
+            val tags = mutableListOf<String>()
+            if (tagsArray != null) {
+                for (j in 0 until tagsArray.length()) {
+                    tags.add(tagsArray.optString(j))
+                }
+            }
+
+            val typeStr = obj.optString("type", "BIEN_FISICO")
+            val itemType = try { ItemType.valueOf(typeStr) } catch (_: Exception) { ItemType.BIEN_FISICO }
+            val condStr = obj.optString("condition", "COMO_NUEVO")
+            val itemCond = try { ItemCondition.valueOf(condStr) } catch (_: Exception) { ItemCondition.COMO_NUEVO }
+            val statusStr = obj.optString("status", "DISPONIBLE")
+
+            list.add(
+                TradeItem(
+                    id = obj.optString("id", "item_$i"),
+                    ownerId = obj.optString("ownerId", obj.optString("ownerEmail", "usr_unknown")),
+                    title = obj.optString("title", "Artículo"),
+                    description = obj.optString("description", ""),
+                    categoryId = obj.optInt("categoryId", 1),
+                    type = itemType,
+                    condition = itemCond,
+                    estimatedValueMin = obj.optDouble("estimatedValueMin", 100.0),
+                    estimatedValueMax = obj.optDouble("estimatedValueMax", 300.0),
+                    imagesWebP = images,
+                    tagsWishlist = tags,
+                    isAvailable = statusStr == ItemStatus.DISPONIBLE.name
+                )
+            )
+        }
+        return list.distinctBy { it.id }
+    }
+
     private fun readItemsFromFile(file: File): List<TradeItem> {
         if (!file.exists()) return emptyList()
         return try {
             val jsonStr = file.readText()
             val jsonArray = JSONArray(jsonStr)
-            val list = mutableListOf<TradeItem>()
-            for (i in 0 until jsonArray.length()) {
-                val obj = jsonArray.getJSONObject(i)
-                val imagesArray = obj.optJSONArray("imagesWebP")
-                val images = mutableListOf<String>()
-                if (imagesArray != null) {
-                    for (j in 0 until imagesArray.length()) {
-                        images.add(imagesArray.getString(j))
-                    }
-                }
-
-                val tagsArray = obj.optJSONArray("tagsWishlist")
-                val tags = mutableListOf<String>()
-                if (tagsArray != null) {
-                    for (j in 0 until tagsArray.length()) {
-                        tags.add(tagsArray.getString(j))
-                    }
-                }
-
-                list.add(
-                    TradeItem(
-                        id = obj.getString("id"),
-                        ownerId = obj.getString("ownerId"),
-                        title = obj.getString("title"),
-                        description = obj.getString("description"),
-                        categoryId = obj.getInt("categoryId"),
-                        type = ItemType.valueOf(obj.getString("type")),
-                        condition = ItemCondition.valueOf(obj.getString("condition")),
-                        estimatedValueMin = obj.getDouble("estimatedValueMin"),
-                        estimatedValueMax = obj.getDouble("estimatedValueMax"),
-                        imagesWebP = images,
-                        tagsWishlist = tags,
-                        isAvailable = obj.optString("status") == ItemStatus.DISPONIBLE.name
-                    )
-                )
-            }
-            list.distinctBy { it.id }
+            parseItemsFromJsonArray(jsonArray)
         } catch (e: Exception) {
             emptyList()
+        }
+    }
+
+    private fun fetchFromCloud(): List<TradeItem>? {
+        return try {
+            val url = URL(cloudBaseUrl)
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.connectTimeout = 4000
+            conn.readTimeout = 4000
+            conn.setRequestProperty("Accept", "application/json")
+            if (conn.responseCode == 200) {
+                val text = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                conn.disconnect()
+                val jsonArray = JSONArray(text)
+                parseItemsFromJsonArray(jsonArray)
+            } else {
+                conn.disconnect()
+                null
+            }
+        } catch (_: Exception) {
+            null
         }
     }
 
@@ -122,6 +163,31 @@ class UserPublicationStorage @Inject constructor(
     // -------------------------------------------------------------------------
     @Synchronized
     fun getRemoteCatalogItems(): List<TradeItem> {
+        val isMain = try {
+            android.os.Looper.myLooper() == android.os.Looper.getMainLooper()
+        } catch (_: Exception) {
+            false
+        }
+
+        if (!isMain) {
+            val cloudItems = fetchFromCloud()
+            if (!cloudItems.isNullOrEmpty()) {
+                writeItemsToFile(serverCatalogFile, cloudItems)
+                writeItemsToFile(publicationsFile, cloudItems)
+                return cloudItems
+            }
+        } else {
+            networkExecutor.execute {
+                val cloudItems = fetchFromCloud()
+                if (!cloudItems.isNullOrEmpty()) {
+                    synchronized(this) {
+                        writeItemsToFile(serverCatalogFile, cloudItems)
+                        writeItemsToFile(publicationsFile, cloudItems)
+                    }
+                }
+            }
+        }
+
         // Si el archivo del servidor central aún no existe pero hay publicaciones previas, migrar
         if (!serverCatalogFile.exists() && publicationsFile.exists()) {
             val legacy = readItemsFromFile(publicationsFile)
@@ -141,6 +207,40 @@ class UserPublicationStorage @Inject constructor(
         writeItemsToFile(serverCatalogFile, current)
         // También actualizar copia legacy para compatibilidad
         writeItemsToFile(publicationsFile, current)
+
+        // Sincronizar en la nube (Vercel + Turso)
+        networkExecutor.execute {
+            try {
+                val url = URL(cloudBaseUrl)
+                val conn = url.openConnection() as HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.connectTimeout = 6000
+                conn.readTimeout = 6000
+                conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conn.doOutput = true
+                val obj = JSONObject().apply {
+                    put("id", item.id)
+                    put("ownerId", item.ownerId)
+                    put("title", item.title)
+                    put("description", item.description)
+                    put("categoryId", item.categoryId)
+                    put("type", item.type.name)
+                    put("condition", item.condition.name)
+                    put("estimatedValueMin", item.estimatedValueMin)
+                    put("estimatedValueMax", item.estimatedValueMax)
+                    put("imagesWebP", JSONArray(item.imagesWebP))
+                    put("tagsWishlist", JSONArray(item.tagsWishlist))
+                    put("status", if (item.isAvailable) "DISPONIBLE" else "PAUSADO")
+                }
+                conn.outputStream.use { os ->
+                    os.write(obj.toString().toByteArray(Charsets.UTF_8))
+                }
+                conn.responseCode
+                conn.disconnect()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     @Synchronized
@@ -149,6 +249,21 @@ class UserPublicationStorage @Inject constructor(
         current.removeIf { it.id == itemId }
         writeItemsToFile(serverCatalogFile, current)
         writeItemsToFile(publicationsFile, current)
+
+        // Eliminar en la nube (Vercel + Turso)
+        networkExecutor.execute {
+            try {
+                val deleteUrl = "$cloudBaseUrl/$itemId"
+                val conn = URL(deleteUrl).openConnection() as HttpURLConnection
+                conn.requestMethod = "DELETE"
+                conn.connectTimeout = 6000
+                conn.readTimeout = 6000
+                conn.responseCode
+                conn.disconnect()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
         return current
     }
 

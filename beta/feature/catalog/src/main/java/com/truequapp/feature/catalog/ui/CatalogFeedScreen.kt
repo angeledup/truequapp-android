@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.NearMe
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -157,6 +158,13 @@ fun CatalogFeedScreen(
                             IconButton(onClick = { onEvent(CatalogUiEvent.SearchQueryChanged("")) }) {
                                 Icon(Icons.Default.Clear, contentDescription = "Limpiar")
                             }
+                        }
+                        IconButton(onClick = { onEvent(CatalogUiEvent.RefreshCatalog) }) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Actualizar",
+                                tint = PaletteConfig.GoldChampagne
+                            )
                         }
                         IconButton(onClick = { showAdvancedFilters = !showAdvancedFilters }) {
                             Icon(
@@ -374,7 +382,10 @@ fun CatalogFeedScreen(
                             item = item,
                             onClick = { onNavigateToItemDetail(item.id) },
                             isBookmarked = state.bookmarkedItemIds.contains(item.id),
-                            onToggleBookmark = { onEvent(CatalogUiEvent.ToggleBookmark(item.id)) }
+                            onToggleBookmark = { onEvent(CatalogUiEvent.ToggleBookmark(item.id)) },
+                            onDelete = if (state.filterOnlyMyPublications || state.myInventory.any { it.id == item.id }) {
+                                { onEvent(CatalogUiEvent.DeleteItem(item.id)) }
+                            } else null
                         )
                     }
 

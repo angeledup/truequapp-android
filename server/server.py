@@ -393,6 +393,38 @@ class TruequappRequestHandler(BaseHTTPRequestHandler):
 
         self._send_json({"error": f"Ruta PUT {path} no encontrada"}, 404)
 
+    def do_DELETE(self):
+        parsed = urlparse(self.path)
+        query = parse_qs(parsed.query)
+        v_path = query.get("__path__", [None])[0]
+        if v_path is not None:
+            path = "/" + v_path.lstrip("/")
+        else:
+            raw_path = self.headers.get("x-matched-path") or self.headers.get("x-vercel-matched-path") or parsed.path
+            path = raw_path
+            if path.startswith("/api/index.py"):
+                path = path[len("/api/index.py"):] or "/"
+
+        item_id = None
+        if path.startswith("/api/catalogo/"):
+            item_id = path[len("/api/catalogo/"):].strip()
+        elif path == "/api/catalogo" or path == "/api/catalogo/":
+            item_id = query.get("id", [None])[0]
+
+        if item_id:
+            items = read_json_file(CATALOGO_FILE)
+            items = [it for it in items if it.get("id") != item_id]
+            write_json_file(CATALOGO_FILE, items)
+            if turso_client and turso_client.is_turso_configured():
+                try:
+                    turso_client.turso_delete_item("catalogo", item_id)
+                except Exception as e:
+                    print(f"[Turso Warning] Error al eliminar de Turso: {e}")
+            self._send_json({"success": True, "deletedId": item_id})
+            return
+
+        self._send_json({"error": f"Ruta DELETE {path} no encontrada"}, 404)
+
     def _render_dashboard(self):
         """Genera el tablero HTML para monitorear el servidor desde la computadora."""
         users = read_json_file(USUARIOS_FILE)
