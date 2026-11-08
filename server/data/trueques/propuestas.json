@@ -1,0 +1,21 @@
+[
+  {
+    "id": "prop_seed_chocolatt_vergara",
+    "initiatorUserId": "usr_vergara",
+    "initiatorEmail": "Vergaracorreo@gmail.com",
+    "receiverUserId": "usr_chocolatt",
+    "receiverEmail": "chocolattcorreo@gmail.com",
+    "targetItemId": "item_chocolatt_01",
+    "offeredItemIds": [
+      "item_vergara_01"
+    ],
+    "monetaryCompensationCoins": 500.0,
+    "status": "PROPUESTA_ENVIADA",
+    "esta_activa": true,
+    "safeZoneId": "sz_coatza_forum",
+    "safeZoneName": "Punto Seguro Plaza Forum Coatzacoalcos",
+    "createdAtEpochMs": 1731000000000,
+    "updatedAtEpochMs": 1731000000000
+  }
+]
+

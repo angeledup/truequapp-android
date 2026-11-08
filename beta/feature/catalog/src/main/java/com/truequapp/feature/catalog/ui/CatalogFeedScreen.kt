@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.NearMe
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
@@ -57,6 +58,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.truequapp.core.designsystem.component.TruequappTopAppBar
+import com.truequapp.core.designsystem.theme.PaletteConfig
 import com.truequapp.core.designsystem.theme.TruequappTheme
 import com.truequapp.core.domain.model.CategoryTaxonomy
 import com.truequapp.core.domain.model.ItemCondition
@@ -113,19 +115,26 @@ fun CatalogFeedScreen(
     Scaffold(
         topBar = {
             TruequappTopAppBar(
+                eyebrow = "Mercado Exclusivo",
                 title = "Explorar Trueques",
                 coinsBalance = state.truequeCoins.toInt(),
-                unreadNotifications = 0,
+                unreadNotifications = 1,
                 onCoinsClick = onCoinsClick
             )
         },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onNavigateToPublish,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
+                containerColor = PaletteConfig.GoldChampagne,
+                contentColor = PaletteConfig.DarkBackground,
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.size(56.dp)
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Publicar artículo")
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Publicar artículo",
+                    modifier = Modifier.size(28.dp)
+                )
             }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -294,10 +303,26 @@ fun CatalogFeedScreen(
                         Icon(
                             imageVector = Icons.Default.Bookmark,
                             contentDescription = null,
+                            tint = PaletteConfig.GoldChampagne,
                             modifier = Modifier.size(16.dp)
                         )
                     },
                     label = { Text("Guardados (${state.bookmarkedItemIds.size})") }
+                )
+
+                // Filtro de Mis Publicaciones
+                FilterChip(
+                    selected = state.filterOnlyMyPublications,
+                    onClick = { onEvent(CatalogUiEvent.ToggleMyPublicationsFilter) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Inventory2,
+                            contentDescription = null,
+                            tint = PaletteConfig.GoldChampagne,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    },
+                    label = { Text("Mis Publicaciones (${state.myInventory.size})") }
                 )
 
                 FilterChip(

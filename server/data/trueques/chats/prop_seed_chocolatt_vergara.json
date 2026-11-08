@@ -1,0 +1,23 @@
+[
+  {
+    "id": "msg_seed_01",
+    "proposalId": "prop_seed_chocolatt_vergara",
+    "senderId": "usr_vergara",
+    "senderName": "Vergara",
+    "content": "¡Hola chocolatt! Te propongo mi bicicleta R29 Shimano y 500 TC por tu Nintendo Switch OLED.",
+    "timestampEpochMs": 1731000010000,
+    "isAuditLog": false,
+    "isRead": true
+  },
+  {
+    "id": "msg_seed_02",
+    "proposalId": "prop_seed_chocolatt_vergara",
+    "senderId": "usr_chocolatt",
+    "senderName": "chocolatt",
+    "content": "¡Hola Vergara! Me parece excelente propuesta. ¿Nos vemos en Punto Seguro Plaza Forum Coatzacoalcos?",
+    "timestampEpochMs": 1731000020000,
+    "isAuditLog": false,
+    "isRead": true
+  }
+]
+

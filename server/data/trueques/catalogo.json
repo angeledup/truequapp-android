@@ -1,0 +1,102 @@
+[
+  {
+    "id": "item_chocolatt_01",
+    "ownerId": "usr_chocolatt",
+    "ownerEmail": "chocolattcorreo@gmail.com",
+    "ownerName": "chocolatt",
+    "title": "Consola Nintendo Switch OLED",
+    "description": "En caja original con accesorios completos y dos mandos Joy-Con.",
+    "categoryId": 2,
+    "condition": "COMO_NUEVO",
+    "type": "BIEN_FISICO",
+    "estimatedValueMin": 4500.0,
+    "estimatedValueMax": 5200.0,
+    "imagesWebP": [
+      "https://images.unsplash.com/photo-1578303512597-81e6cc155b3e"
+    ],
+    "tagsWishlist": [
+      "Bicicleta",
+      "Laptop Dell",
+      "PlayStation 4"
+    ],
+    "status": "DISPONIBLE",
+    "isBookmarked": false,
+    "locationNeighborhood": "Centro, Coatzacoalcos",
+    "city": "Coatzacoalcos"
+  },
+  {
+    "id": "item_chocolatt_02",
+    "ownerId": "usr_chocolatt",
+    "ownerEmail": "chocolattcorreo@gmail.com",
+    "ownerName": "chocolatt",
+    "title": "Audífonos Sony WH-1000XM4 Cancelación",
+    "description": "Audífonos premium con cancelación activa de ruido y funda de viaje.",
+    "categoryId": 2,
+    "condition": "COMO_NUEVO",
+    "type": "BIEN_FISICO",
+    "estimatedValueMin": 3200.0,
+    "estimatedValueMax": 3800.0,
+    "imagesWebP": [
+      "https://images.unsplash.com/photo-1546435770-a3e426bf472b"
+    ],
+    "tagsWishlist": [
+      "Bicicleta R29",
+      "Gadgets"
+    ],
+    "status": "DISPONIBLE",
+    "isBookmarked": false,
+    "locationNeighborhood": "Centro, Coatzacoalcos",
+    "city": "Coatzacoalcos"
+  },
+  {
+    "id": "item_vergara_01",
+    "ownerId": "usr_vergara",
+    "ownerEmail": "Vergaracorreo@gmail.com",
+    "ownerName": "Vergara",
+    "title": "Bicicleta de Montaña R29 Alum Shimano",
+    "description": "Frenos de disco hidráulicos, 21 velocidades Shimano para rodar en Malecón.",
+    "categoryId": 7,
+    "condition": "USADO",
+    "type": "BIEN_FISICO",
+    "estimatedValueMin": 3200.0,
+    "estimatedValueMax": 3800.0,
+    "imagesWebP": [
+      "https://images.unsplash.com/photo-1485965120184-e220f721d03e"
+    ],
+    "tagsWishlist": [
+      "Nintendo Switch",
+      "Consolas",
+      "Gaming"
+    ],
+    "status": "DISPONIBLE",
+    "isBookmarked": false,
+    "locationNeighborhood": "Col. Petrolera, Coatzacoalcos",
+    "city": "Coatzacoalcos"
+  },
+  {
+    "id": "item_vergara_02",
+    "ownerId": "usr_vergara",
+    "ownerEmail": "Vergaracorreo@gmail.com",
+    "ownerName": "Vergara",
+    "title": "Laptop Dell Inspiron 15 Core i5 16GB",
+    "description": "Intel Core i5 11va Gen, 16GB RAM, SSD 512GB NVMe, pantalla 15.6 FHD.",
+    "categoryId": 2,
+    "condition": "COMO_NUEVO",
+    "type": "BIEN_FISICO",
+    "estimatedValueMin": 6500.0,
+    "estimatedValueMax": 7500.0,
+    "imagesWebP": [
+      "https://images.unsplash.com/photo-1496181133206-80ce9b88a853"
+    ],
+    "tagsWishlist": [
+      "Nintendo Switch OLED",
+      "iPad",
+      "Gaming"
+    ],
+    "status": "DISPONIBLE",
+    "isBookmarked": false,
+    "locationNeighborhood": "Col. Petrolera, Coatzacoalcos",
+    "city": "Coatzacoalcos"
+  }
+]
+

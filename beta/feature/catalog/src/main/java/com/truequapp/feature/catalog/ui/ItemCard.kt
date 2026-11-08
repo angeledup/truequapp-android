@@ -1,11 +1,13 @@
 package com.truequapp.feature.catalog.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -38,14 +40,15 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.truequapp.core.designsystem.component.ConditionTag
 import com.truequapp.core.designsystem.component.ItemCondition as DesignItemCondition
+import com.truequapp.core.designsystem.theme.PaletteConfig
 import com.truequapp.core.designsystem.theme.TruequappTheme
 import com.truequapp.core.domain.model.ItemCondition
 import com.truequapp.core.domain.model.TradeItem
 
 /**
- * Tarjeta de artículo para la cuadrícula del catálogo de marketplace (CU008 / Fase 2).
+ * Tarjeta de artículo para la cuadrícula del catálogo de marketplace (CU008 / Fase 2 / Warm Studio).
  * Muestra fotografía WebP mediante Coil, condición física, rango de valor estimado,
- * distancia difusa, indicador de múltiples fotos y marcador de favoritos.
+ * distancia difusa, indicador de múltiples fotos y marcador de favoritos con estilo Obsidian/Gold.
  */
 @Composable
 fun ItemCard(
@@ -65,18 +68,26 @@ fun ItemCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .border(
+                width = 1.dp,
+                color = PaletteConfig.ObsidianBorder,
+                shape = RoundedCornerShape(16.dp)
+            )
             .clickable(onClick = onClick),
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
     ) {
         Column {
-            // Imagen del ítem (WebP con Coil) o placeholder
+            // Imagen del ítem (WebP con Coil) o placeholder con relación de aspecto cuadrada 1:1
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(135.dp)
-                    .clip(MaterialTheme.shapes.medium)
-                    .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                    .aspectRatio(1f)
+                    .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center
             ) {
                 if (item.imagesWebP.isNotEmpty()) {
@@ -90,7 +101,7 @@ fun ItemCard(
                     Icon(
                         imageVector = Icons.Default.Image,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                        tint = PaletteConfig.SmokyBronze.copy(alpha = 0.5f),
                         modifier = Modifier.size(48.dp)
                     )
                 }
@@ -110,20 +121,20 @@ fun ItemCard(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
                             .padding(6.dp)
-                            .background(Color.Black.copy(alpha = 0.65f), RoundedCornerShape(4.dp))
+                            .background(Color.Black.copy(alpha = 0.70f), RoundedCornerShape(6.dp))
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 imageVector = Icons.Default.PhotoLibrary,
                                 contentDescription = null,
-                                tint = Color.White,
+                                tint = PaletteConfig.GoldLight,
                                 modifier = Modifier.size(11.dp)
                             )
                             Spacer(modifier = Modifier.width(3.dp))
                             Text(
                                 text = "${item.imagesWebP.size}",
-                                color = Color.White,
+                                color = PaletteConfig.GoldLight,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -136,10 +147,10 @@ fun ItemCard(
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
-                            .padding(4.dp)
+                            .padding(6.dp)
                             .size(34.dp)
                             .clip(CircleShape)
-                            .background(Color.Black.copy(alpha = 0.45f)),
+                            .background(Color.Black.copy(alpha = 0.55f)),
                         contentAlignment = Alignment.Center
                     ) {
                         IconButton(
@@ -149,7 +160,7 @@ fun ItemCard(
                             Icon(
                                 imageVector = if (isBookmarked) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
                                 contentDescription = if (isBookmarked) "Quitar de guardados" else "Guardar publicación",
-                                tint = if (isBookmarked) TruequappTheme.colorScheme.primary else Color.White,
+                                tint = if (isBookmarked) PaletteConfig.GoldChampagne else PaletteConfig.DarkOnBackground,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -157,39 +168,41 @@ fun ItemCard(
                 }
             }
 
-            Column(modifier = Modifier.padding(10.dp)) {
+            Column(modifier = Modifier.padding(12.dp)) {
                 Text(
                     text = item.title,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
 
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(3.dp))
 
                 Text(
                     text = "Valor: \$${item.estimatedValueMin.toInt()} - \$${item.estimatedValueMax.toInt()}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.SemiBold
+                    color = PaletteConfig.GoldChampagne,
+                    fontWeight = FontWeight.Bold
                 )
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
                 // Distancia aproximada protegiendo la dirección real (RN-10) en Coatzacoalcos
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         imageVector = Icons.Default.LocationOn,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.secondary,
+                        tint = PaletteConfig.GoldDim,
                         modifier = Modifier.size(13.dp)
                     )
                     Spacer(modifier = Modifier.width(3.dp))
                     Text(
                         text = "~3.5 km • Coatzacoalcos",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = PaletteConfig.SmokyBronze,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
