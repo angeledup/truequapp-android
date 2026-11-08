@@ -163,11 +163,15 @@ class TruequappRequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
-        raw_path = self.headers.get("x-matched-path") or self.headers.get("x-vercel-matched-path") or parsed.path
-        path = raw_path
-        if path.startswith("/api/index.py"):
-            path = path[len("/api/index.py"):] or "/"
         query = parse_qs(parsed.query)
+        v_path = query.get("__path__", [None])[0]
+        if v_path is not None:
+            path = "/" + v_path.lstrip("/")
+        else:
+            raw_path = self.headers.get("x-matched-path") or self.headers.get("x-vercel-matched-path") or parsed.path
+            path = raw_path
+            if path.startswith("/api/index.py"):
+                path = path[len("/api/index.py"):] or "/"
 
         # 1. Health Check
         if path == "/api/health" or path == "/health":
@@ -235,10 +239,15 @@ class TruequappRequestHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urlparse(self.path)
-        raw_path = self.headers.get("x-matched-path") or self.headers.get("x-vercel-matched-path") or parsed.path
-        path = raw_path
-        if path.startswith("/api/index.py"):
-            path = path[len("/api/index.py"):] or "/"
+        query = parse_qs(parsed.query)
+        v_path = query.get("__path__", [None])[0]
+        if v_path is not None:
+            path = "/" + v_path.lstrip("/")
+        else:
+            raw_path = self.headers.get("x-matched-path") or self.headers.get("x-vercel-matched-path") or parsed.path
+            path = raw_path
+            if path.startswith("/api/index.py"):
+                path = path[len("/api/index.py"):] or "/"
         body = self._read_body()
 
         # 1. Login / Autenticación de Usuario (por correo o por nombre de usuario)
