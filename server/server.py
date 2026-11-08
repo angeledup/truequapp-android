@@ -19,6 +19,14 @@ import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
+try:
+    import turso_client
+except ImportError:
+    try:
+        from server import turso_client
+    except ImportError:
+        turso_client = None
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 USUARIOS_DIR = os.path.join(DATA_DIR, "usuarios")
@@ -34,22 +42,66 @@ db_lock = threading.Lock()
 
 def init_storage():
     """Asegura la creación de las dos carpetas de almacenamiento y archivos iniciales."""
-    os.makedirs(USUARIOS_DIR, exist_ok=True)
-    os.makedirs(CHATS_DIR, exist_ok=True)
+    try:
+        os.makedirs(USUARIOS_DIR, exist_ok=True)
+        os.makedirs(CHATS_DIR, exist_ok=True)
 
-    if not os.path.exists(USUARIOS_FILE):
-        with open(USUARIOS_FILE, "w", encoding="utf-8") as f:
-            json.dump([], f, indent=2)
+        if not os.path.exists(USUARIOS_FILE):
+            with open(USUARIOS_FILE, "w", encoding="utf-8") as f:
+                json.dump([], f, indent=2)
 
-    if not os.path.exists(CATALOGO_FILE):
-        with open(CATALOGO_FILE, "w", encoding="utf-8") as f:
-            json.dump([], f, indent=2)
+        if not os.path.exists(CATALOGO_FILE):
+            with open(CATALOGO_FILE, "w", encoding="utf-8") as f:
+                json.dump([], f, indent=2)
 
-    if not os.path.exists(PROPUESTAS_FILE):
-        with open(PROPUESTAS_FILE, "w", encoding="utf-8") as f:
-            json.dump([], f, indent=2)
+        if not os.path.exists(PROPUESTAS_FILE):
+            with open(PROPUESTAS_FILE, "w", encoding="utf-8") as f:
+                json.dump([], f, indent=2)
+    except Exception:
+        pass
+
+    # Si Turso está configurado vía variables de entorno, inicializar y sembrar
+    if turso_client and turso_client.is_turso_configured():
+        try:
+            turso_client.init_turso_tables()
+            u_data = []
+            if os.path.exists(USUARIOS_FILE):
+                with open(USUARIOS_FILE, "r", encoding="utf-8") as f:
+                    u_data = json.load(f)
+            c_data = []
+            if os.path.exists(CATALOGO_FILE):
+                with open(CATALOGO_FILE, "r", encoding="utf-8") as f:
+                    c_data = json.load(f)
+            p_data = []
+            if os.path.exists(PROPUESTAS_FILE):
+                with open(PROPUESTAS_FILE, "r", encoding="utf-8") as f:
+                    p_data = json.load(f)
+            chats_dict = {}
+            if os.path.exists(CHATS_DIR):
+                for fname in os.listdir(CHATS_DIR):
+                    if fname.endswith(".json"):
+                        pid = fname[:-5]
+                        with open(os.path.join(CHATS_DIR, fname), "r", encoding="utf-8") as f:
+                            chats_dict[pid] = json.load(f)
+            turso_client.sync_local_data_to_turso(u_data, c_data, p_data, chats_dict)
+        except Exception as e:
+            print(f"[Turso Warning] Error al inicializar/sincronizar Turso: {e}")
 
 def read_json_file(file_path):
+    if turso_client and turso_client.is_turso_configured():
+        try:
+            if os.path.abspath(file_path) == os.path.abspath(USUARIOS_FILE):
+                return turso_client.turso_read_table("usuarios")
+            if os.path.abspath(file_path) == os.path.abspath(CATALOGO_FILE):
+                return turso_client.turso_read_table("catalogo")
+            if os.path.abspath(file_path) == os.path.abspath(PROPUESTAS_FILE):
+                return turso_client.turso_read_table("propuestas")
+            if CHATS_DIR in os.path.abspath(file_path):
+                pid = os.path.splitext(os.path.basename(file_path))[0]
+                return turso_client.turso_read_table("chats", prop_id=pid)
+        except Exception as e:
+            print(f"[Turso Warning] Fallback a local tras error de lectura: {e}")
+
     with db_lock:
         if not os.path.exists(file_path):
             return []
@@ -60,10 +112,27 @@ def read_json_file(file_path):
             return []
 
 def write_json_file(file_path, data):
+    if turso_client and turso_client.is_turso_configured():
+        try:
+            if os.path.abspath(file_path) == os.path.abspath(USUARIOS_FILE):
+                turso_client.turso_save_table("usuarios", data)
+            elif os.path.abspath(file_path) == os.path.abspath(CATALOGO_FILE):
+                turso_client.turso_save_table("catalogo", data)
+            elif os.path.abspath(file_path) == os.path.abspath(PROPUESTAS_FILE):
+                turso_client.turso_save_table("propuestas", data)
+            elif CHATS_DIR in os.path.abspath(file_path):
+                pid = os.path.splitext(os.path.basename(file_path))[0]
+                turso_client.turso_save_table("chats", data, prop_id=pid)
+        except Exception as e:
+            print(f"[Turso Warning] Error al persistir en Turso: {e}")
+
     with db_lock:
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+        try:
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            with open(file_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
 
 class TruequappRequestHandler(BaseHTTPRequestHandler):
 
