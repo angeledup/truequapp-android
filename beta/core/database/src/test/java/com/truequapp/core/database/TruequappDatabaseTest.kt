@@ -80,6 +80,69 @@ class InMemoryTestUserDao : UserDao {
         usersMap.remove(userId)
         emit()
     }
+
+    override suspend fun getCoinsByEmail(correo: String): Double? =
+        usersMap.values.find { it.email.equals(correo, ignoreCase = true) }?.truequeCoins
+
+    override fun observeCoinsByEmail(correo: String): Flow<Double?> =
+        usersFlow.map { list -> list.find { it.email.equals(correo, ignoreCase = true) }?.truequeCoins }
+
+    override suspend fun reduceCoins(correo: String, amount: Double): Int {
+        val user = usersMap.values.find { it.email.equals(correo, ignoreCase = true) } ?: return 0
+        usersMap[user.id] = user.copy(truequeCoins = maxOf(0.0, user.truequeCoins - amount))
+        emit()
+        return 1
+    }
+
+    override suspend fun addCoins(correo: String, amount: Double): Int {
+        val user = usersMap.values.find { it.email.equals(correo, ignoreCase = true) } ?: return 0
+        usersMap[user.id] = user.copy(truequeCoins = user.truequeCoins + amount)
+        emit()
+        return 1
+    }
+
+    override suspend fun updateCoins(correo: String, newCoins: Double): Int {
+        val user = usersMap.values.find { it.email.equals(correo, ignoreCase = true) } ?: return 0
+        usersMap[user.id] = user.copy(truequeCoins = newCoins)
+        emit()
+        return 1
+    }
+
+    override suspend fun getCompletedTradesByEmail(correo: String): Int? =
+        usersMap.values.find { it.email.equals(correo, ignoreCase = true) }?.completedTrades
+
+    override fun observeCompletedTradesByEmail(correo: String): Flow<Int?> =
+        usersFlow.map { list -> list.find { it.email.equals(correo, ignoreCase = true) }?.completedTrades }
+
+    override suspend fun incrementCompletedTrades(correo: String): Int {
+        val user = usersMap.values.find { it.email.equals(correo, ignoreCase = true) } ?: return 0
+        usersMap[user.id] = user.copy(completedTrades = user.completedTrades + 1)
+        emit()
+        return 1
+    }
+
+    override suspend fun updateCompletedTrades(correo: String, count: Int): Int {
+        val user = usersMap.values.find { it.email.equals(correo, ignoreCase = true) } ?: return 0
+        usersMap[user.id] = user.copy(completedTrades = count)
+        emit()
+        return 1
+    }
+
+    override suspend fun getRatingByEmail(correo: String): Double? =
+        usersMap.values.find { it.email.equals(correo, ignoreCase = true) }?.bayesianRating
+
+    override fun observeRatingByEmail(correo: String): Flow<Double?> =
+        usersFlow.map { list -> list.find { it.email.equals(correo, ignoreCase = true) }?.bayesianRating }
+
+    override suspend fun updateRating(correo: String, newRating: Double): Int {
+        val user = usersMap.values.find { it.email.equals(correo, ignoreCase = true) } ?: return 0
+        usersMap[user.id] = user.copy(bayesianRating = newRating)
+        emit()
+        return 1
+    }
+
+    override fun observeUserByEmail(correo: String): Flow<UserEntity?> =
+        usersFlow.map { list -> list.find { it.email.equals(correo, ignoreCase = true) } }
 }
 
 class TruequappDatabaseTest {

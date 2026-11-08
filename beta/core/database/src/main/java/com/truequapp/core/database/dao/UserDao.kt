@@ -49,5 +49,56 @@ interface UserDao {
 
     @Query("DELETE FROM users WHERE id = :userId")
     suspend fun deleteUser(userId: String)
+
+    // =========================================================================
+    // CONSULTAS ATÓMICAS Y GESTIÓN DE COINS (UserRepository)
+    // =========================================================================
+
+    @Query("SELECT truequeCoins FROM users WHERE LOWER(email) = LOWER(:correo) LIMIT 1")
+    suspend fun getCoinsByEmail(correo: String): Double?
+
+    @Query("SELECT truequeCoins FROM users WHERE LOWER(email) = LOWER(:correo) LIMIT 1")
+    fun observeCoinsByEmail(correo: String): Flow<Double?>
+
+    @Query("UPDATE users SET truequeCoins = MAX(0.0, truequeCoins - :amount) WHERE LOWER(email) = LOWER(:correo)")
+    suspend fun reduceCoins(correo: String, amount: Double): Int
+
+    @Query("UPDATE users SET truequeCoins = truequeCoins + :amount WHERE LOWER(email) = LOWER(:correo)")
+    suspend fun addCoins(correo: String, amount: Double): Int
+
+    @Query("UPDATE users SET truequeCoins = :newCoins WHERE LOWER(email) = LOWER(:correo)")
+    suspend fun updateCoins(correo: String, newCoins: Double): Int
+
+    // =========================================================================
+    // CONSULTAS Y ACTUALIZACIONES DE TRUEQUES REALIZADOS
+    // =========================================================================
+
+    @Query("SELECT completedTrades FROM users WHERE LOWER(email) = LOWER(:correo) LIMIT 1")
+    suspend fun getCompletedTradesByEmail(correo: String): Int?
+
+    @Query("SELECT completedTrades FROM users WHERE LOWER(email) = LOWER(:correo) LIMIT 1")
+    fun observeCompletedTradesByEmail(correo: String): Flow<Int?>
+
+    @Query("UPDATE users SET completedTrades = completedTrades + 1 WHERE LOWER(email) = LOWER(:correo)")
+    suspend fun incrementCompletedTrades(correo: String): Int
+
+    @Query("UPDATE users SET completedTrades = :count WHERE LOWER(email) = LOWER(:correo)")
+    suspend fun updateCompletedTrades(correo: String, count: Int): Int
+
+    // =========================================================================
+    // CONSULTAS Y ACTUALIZACIONES DE CALIFICACIÓN (ESTRELLAS)
+    // =========================================================================
+
+    @Query("SELECT bayesianRating FROM users WHERE LOWER(email) = LOWER(:correo) LIMIT 1")
+    suspend fun getRatingByEmail(correo: String): Double?
+
+    @Query("SELECT bayesianRating FROM users WHERE LOWER(email) = LOWER(:correo) LIMIT 1")
+    fun observeRatingByEmail(correo: String): Flow<Double?>
+
+    @Query("UPDATE users SET bayesianRating = :newRating WHERE LOWER(email) = LOWER(:correo)")
+    suspend fun updateRating(correo: String, newRating: Double): Int
+
+    @Query("SELECT * FROM users WHERE LOWER(email) = LOWER(:correo) LIMIT 1")
+    fun observeUserByEmail(correo: String): Flow<UserEntity?>
 }
 

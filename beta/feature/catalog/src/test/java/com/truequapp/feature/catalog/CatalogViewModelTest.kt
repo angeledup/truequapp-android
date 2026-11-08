@@ -1,5 +1,6 @@
 package com.truequapp.feature.catalog
 
+import android.graphics.BitmapFactory
 import com.truequapp.core.common.dispatcher.DispatcherProvider
 import com.truequapp.core.datastore.UserSessionDataStore
 import com.truequapp.core.datastore.model.UserSession
@@ -73,6 +74,54 @@ class CatalogViewModelTest {
             userSessionDataStore = fakeDataStore,
             dispatchers = dispatchers
         )
+        viewModel.addTestItem(
+            TradeItem(
+                id = "item_001",
+                ownerId = "usr_alpha",
+                title = "Consola Nintendo Switch OLED",
+                description = "En caja original con accesorios completos y dos mandos Joy-Con.",
+                categoryId = 2,
+                type = ItemType.BIEN_FISICO,
+                condition = ItemCondition.COMO_NUEVO,
+                estimatedValueMin = 4500.0,
+                estimatedValueMax = 5200.0,
+                imagesWebP = listOf("https://images.unsplash.com/photo-1578303512597-81e6cc155b3e"),
+                tagsWishlist = listOf("PlayStation 4", "Tablet Samsung"),
+                isAvailable = true
+            )
+        )
+        viewModel.addTestItem(
+            TradeItem(
+                id = "item_002",
+                ownerId = "usr_beta",
+                title = "Cálculo de Stewart 8va Edición",
+                description = "Libro universitario para ingeniería UV, pasta dura sin rayones.",
+                categoryId = 3,
+                type = ItemType.BIEN_FISICO,
+                condition = ItemCondition.USADO,
+                estimatedValueMin = 500.0,
+                estimatedValueMax = 700.0,
+                imagesWebP = listOf("https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c"),
+                tagsWishlist = listOf("Álgebra Lineal", "Física Universitaria"),
+                isAvailable = true
+            )
+        )
+        viewModel.addTestItem(
+            TradeItem(
+                id = "item_003",
+                ownerId = "usr_gamma",
+                title = "Bicicleta de Montaña R29 Alum",
+                description = "Frenos de disco hidráulicos, 21 velocidades Shimano para rodar en Malecón.",
+                categoryId = 7,
+                type = ItemType.BIEN_FISICO,
+                condition = ItemCondition.USADO,
+                estimatedValueMin = 3200.0,
+                estimatedValueMax = 3800.0,
+                imagesWebP = listOf("https://images.unsplash.com/photo-1485965120184-e220f721d03e"),
+                tagsWishlist = listOf("Laptop", "Instrumentos"),
+                isAvailable = true
+            )
+        )
     }
 
     @AfterEach
@@ -94,25 +143,47 @@ class CatalogViewModelTest {
     }
 
     @Test
-    @DisplayName("CU005: Publicación válida con 1 sola imagen agrega el ítem al catálogo y lo guarda en mis publicaciones")
-    fun shouldPublishItemSuccessfully_withSingleImage() = runTest(testDispatcher) {
-        viewModel.onEvent(CatalogUiEvent.TitleChanged("Teclado Mecánico RGB"))
-        viewModel.onEvent(CatalogUiEvent.DescriptionChanged("Switches Brown, cable tipo C desmontable."))
+    @DisplayName("CU005: Selector Nativo admite hasta 6 fotos y publica el ítem en SQLite y mis publicaciones")
+    fun shouldPublishItemSuccessfully_withMultipleImagesUpTo6() = runTest(testDispatcher) {
+        viewModel.onEvent(CatalogUiEvent.TitleChanged("Laptop Dell XPS 15"))
+        viewModel.onEvent(CatalogUiEvent.DescriptionChanged("Pantalla OLED 4K, 32GB RAM, impecable."))
         viewModel.onEvent(CatalogUiEvent.CategoryChanged(1))
         viewModel.onEvent(CatalogUiEvent.ConditionChanged(ItemCondition.COMO_NUEVO))
-        viewModel.onEvent(CatalogUiEvent.ValueRangeChanged(800.0, 1100.0))
-        viewModel.onEvent(CatalogUiEvent.AddWishlistTag("Audífonos"))
-        viewModel.onEvent(CatalogUiEvent.ImageSelected("content://media/external/images/media/101"))
+        viewModel.onEvent(CatalogUiEvent.ValueRangeChanged(18000.0, 22000.0))
+        viewModel.onEvent(CatalogUiEvent.AddWishlistTag("MacBook Pro"))
+
+        // Seleccionar 4 fotos
+        val photos = listOf(
+            "content://media/external/images/media/101",
+            "content://media/external/images/media/102",
+            "content://media/external/images/media/103",
+            "content://media/external/images/media/104"
+        )
+        viewModel.onEvent(CatalogUiEvent.ImagesSelected(photos))
+        assertEquals(4, viewModel.uiState.value.selectedImageUris.size)
+
+        // Remover la segunda foto
+        viewModel.onEvent(CatalogUiEvent.RemoveSelectedImage(1))
+        assertEquals(3, viewModel.uiState.value.selectedImageUris.size)
 
         viewModel.onEvent(CatalogUiEvent.SubmitPublication)
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
         assertNull(state.errorMessage)
-        assertTrue(state.items.any { it.title == "Teclado Mecánico RGB" })
-        assertTrue(state.myInventory.any { it.title == "Teclado Mecánico RGB" })
-        val published = state.items.first { it.title == "Teclado Mecánico RGB" }
-        assertEquals(1, published.imagesWebP.size)
+        assertTrue(state.items.any { it.title == "Laptop Dell XPS 15" })
+        assertTrue(state.myInventory.any { it.title == "Laptop Dell XPS 15" })
+        val published = state.items.first { it.title == "Laptop Dell XPS 15" }
+        assertEquals(3, published.imagesWebP.size)
+    }
+
+    @Test
+    @DisplayName("CU005: Límite estricto de hasta 6 fotografías en selección por lote")
+    fun shouldCapImagesToMaximumOf6() = runTest(testDispatcher) {
+        val photos = (1..10).map { "content://media/external/images/media/$it" }
+        viewModel.onEvent(CatalogUiEvent.ImagesSelected(photos))
+
+        assertEquals(WebPImageCompressor.MAX_ALLOWED_PHOTOS, viewModel.uiState.value.selectedImageUris.size)
     }
 
     @Test
@@ -132,7 +203,7 @@ class CatalogViewModelTest {
 
         // Si el ítem ya no está disponible, no debe mostrarse en guardados activos
         val reservedItem = filtered.first().copy(status = ItemStatus.RESERVADO)
-        viewModel.onEvent(CatalogUiEvent.PauseItem(reservedItem.id)) // Cambia estado
+        viewModel.onEvent(CatalogUiEvent.PauseItem(reservedItem.id))
     }
 
     @Test
@@ -153,6 +224,55 @@ class CatalogViewModelTest {
         val state = viewModel.uiState.value
         assertEquals(1, state.filteredItems.size)
         assertEquals("Consola Nintendo Switch OLED", state.filteredItems.first().title)
+    }
+
+    @Test
+    @DisplayName("CU008: Filtrado por rango de valor estimado respeta límites mínimos y máximos")
+    fun shouldFilterItemsByEstimatedValueRange() = runTest(testDispatcher) {
+        advanceUntilIdle()
+
+        // Filtro de artículos entre $4000 y $6000 (Switch OLED ~$4850)
+        viewModel.onEvent(CatalogUiEvent.ValueFilterChanged(4000.0, 6000.0))
+
+        val state = viewModel.uiState.value
+        assertEquals(1, state.filteredItems.size)
+        assertEquals("Consola Nintendo Switch OLED", state.filteredItems.first().title)
+    }
+
+    @Test
+    @DisplayName("CU008: Paginación incremental carga artículos por bloques (Paging)")
+    fun shouldPaginateFeedIncrementally() = runTest(testDispatcher) {
+        advanceUntilIdle()
+
+        // Añadir 15 artículos de prueba
+        for (i in 1..15) {
+            viewModel.addTestItem(
+                TradeItem(
+                    id = "test_item_$i",
+                    ownerId = "usr_other_$i",
+                    title = "Artículo Paginado $i",
+                    description = "Descripción de prueba",
+                    categoryId = 1,
+                    type = ItemType.BIEN_FISICO,
+                    condition = ItemCondition.USADO,
+                    estimatedValue = com.truequapp.core.domain.model.EstimatedValueRange(100.0, 200.0),
+                    imagesWebP = emptyList(),
+                    tagsWishlist = emptyList(),
+                    status = ItemStatus.DISPONIBLE
+                )
+            )
+        }
+
+        val statePage1 = viewModel.uiState.value
+        assertEquals(1, statePage1.currentPage)
+        assertEquals(10, statePage1.paginatedItems.size)
+        assertTrue(statePage1.hasMorePages)
+
+        // Cargar siguiente página
+        viewModel.onEvent(CatalogUiEvent.LoadNextPage)
+        val statePage2 = viewModel.uiState.value
+        assertEquals(2, statePage2.currentPage)
+        assertTrue(statePage2.paginatedItems.size > 10)
     }
 
     @Test
@@ -186,6 +306,7 @@ class CatalogViewModelTest {
     @DisplayName("CU005: El umbral máximo de peso de imagen WebP debe ser estrictamente de 80 KB")
     fun shouldEnforce80KbThreshold() {
         assertEquals(81920L, WebPImageCompressor.MAX_IMAGE_SIZE_BYTES)
+        assertEquals(6, WebPImageCompressor.MAX_ALLOWED_PHOTOS)
     }
 
     @Test

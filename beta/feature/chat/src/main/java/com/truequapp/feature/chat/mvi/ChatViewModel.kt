@@ -3,11 +3,7 @@ package com.truequapp.feature.chat.mvi
 import androidx.lifecycle.viewModelScope
 import com.truequapp.core.common.dispatcher.DispatcherProvider
 import com.truequapp.core.common.mvi.BaseViewModel
-import com.truequapp.core.database.dao.ChatMessageDao
-import com.truequapp.core.database.dao.TradeProposalDao
-import com.truequapp.core.database.dao.UserDao
-import com.truequapp.core.database.entity.ChatMessageEntity
-import com.truequapp.core.database.mapper.toDomainModel
+import com.truequapp.core.database.entity.TruequeConOfertas
 import com.truequapp.core.datastore.UserSessionDataStore
 import com.truequapp.core.domain.model.TradeModality
 import com.truequapp.core.domain.model.TradeProposal
@@ -17,11 +13,12 @@ import com.truequapp.core.domain.rules.ChatAccessPermission
 import com.truequapp.core.domain.rules.ValidateDirectChatAccessUseCase
 import com.truequapp.core.network.websocket.SocketConnectionState
 import com.truequapp.core.network.websocket.SocketManager
+import com.truequapp.core.database.storage.UserPublicationStorage
+import com.truequapp.feature.chat.data.ChatRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
@@ -33,73 +30,15 @@ class ChatViewModel @Inject constructor(
     private val validateDirectChatAccessUseCase: ValidateDirectChatAccessUseCase = ValidateDirectChatAccessUseCase(),
     private val socketManager: SocketManager,
     private val userSessionDataStore: UserSessionDataStore,
-    private val tradeProposalDao: TradeProposalDao? = null,
-    private val userDao: UserDao? = null,
-    private val chatMessageDao: ChatMessageDao? = null,
-    private val dispatchers: DispatcherProvider
+    private val dispatchers: DispatcherProvider,
+    private val chatRepository: ChatRepository? = null,
+    private val userPublicationStorage: UserPublicationStorage? = null
 ) : BaseViewModel<ChatUiState, ChatUiEvent, ChatUiEffect>(ChatUiState()) {
 
     private val inMemoryProposals = mutableListOf<TradeProposal>()
 
     init {
-        seedProposals()
         observeSocketConnection()
-    }
-
-    private fun seedProposals() {
-        val proposals = listOf(
-            TradeProposal(
-                id = "prop_seed_chocolatt_vergara",
-                requesterUserId = "usr_vergara",
-                receiverUserId = "usr_chocolatt",
-                offeredItemIds = listOf("item_vergara_01"),
-                targetItemId = "item_chocolatt_01",
-                compensatoryTruequeCoins = 500.0,
-                modality = TradeModality.HIBRIDO_CON_CREDITOS,
-                status = TradeStatus.PENDIENTE
-            ),
-            TradeProposal(
-                id = "prop_active_01",
-                requesterUserId = "usr_current",
-                receiverUserId = "usr_beta",
-                offeredItemIds = listOf("item_user_01"),
-                targetItemId = "item_002",
-                compensatoryTruequeCoins = 100.0,
-                modality = TradeModality.HIBRIDO_CON_CREDITOS,
-                status = TradeStatus.PENDIENTE
-            ),
-            TradeProposal(
-                id = "prop_reserved_02",
-                requesterUserId = "usr_current",
-                receiverUserId = "usr_alpha",
-                offeredItemIds = listOf("item_user_02"),
-                targetItemId = "item_001",
-                compensatoryTruequeCoins = 2500.0,
-                modality = TradeModality.HIBRIDO_CON_CREDITOS,
-                status = TradeStatus.RESERVADO
-            ),
-            TradeProposal(
-                id = "prop_closed_recent",
-                requesterUserId = "usr_current",
-                receiverUserId = "usr_beta",
-                offeredItemIds = listOf("item_user_01"),
-                targetItemId = "item_002",
-                modality = TradeModality.DIRECTO_1_A_1,
-                status = TradeStatus.COMPLETADO,
-                createdAtEpochMs = System.currentTimeMillis() - (10 * 60 * 60 * 1000L) // Finalizado hace 10 horas (< 48h)
-            ),
-            TradeProposal(
-                id = "prop_closed_old",
-                requesterUserId = "usr_current",
-                receiverUserId = "usr_beta",
-                offeredItemIds = listOf("item_user_01"),
-                targetItemId = "item_002",
-                modality = TradeModality.DIRECTO_1_A_1,
-                status = TradeStatus.COMPLETADO,
-                createdAtEpochMs = System.currentTimeMillis() - (60 * 60 * 60 * 1000L) // Finalizado hace 60 horas (> 48h)
-            )
-        )
-        inMemoryProposals.addAll(proposals)
     }
 
     private fun observeSocketConnection() {
@@ -126,125 +65,66 @@ class ChatViewModel @Inject constructor(
 
     private fun initChat(proposalId: String, currentUserId: String) {
         viewModelScope.launch(dispatchers.io) {
-            val session = userSessionDataStore.sessionFlow.first()
-            val effectiveUserId = if (currentUserId.isNotBlank()) currentUserId else (session.userId ?: "usr_current")
+            val sessionEmail = userSessionDataStore.sessionFlow.firstOrNull()?.userEmail
+            val resolvedUserId = if (currentUserId.isNotBlank()) currentUserId else (sessionEmail ?: "angeleduvr@gmail.com")
 
-            // Chat de Ejemplo 1 interactivo con mensajes predeterminados
-            if (proposalId == "chat_ejemplo_1" || proposalId.contains("ejemplo")) {
-                val demoMessages = listOf(
-                    ChatMessageItem(
-                        id = "msg_ex_01",
-                        proposalId = proposalId,
-                        senderId = "usr_alpha",
-                        senderName = "Carlos R. (Chat Ejemplo 1)",
-                        content = "¡Hola! Vi tu publicación y me interesa hacer el trueque. ¿Te parece si coordinamos la entrega?",
-                        timestampEpochMs = System.currentTimeMillis() - 120000,
-                        isDelivered = true,
-                        isRead = true,
-                        isFromMe = false
-                    ),
-                    ChatMessageItem(
-                        id = "msg_ex_02",
-                        proposalId = proposalId,
-                        senderId = "usr_alpha",
-                        senderName = "Carlos R. (Chat Ejemplo 1)",
-                        content = "Podemos acordar en uno de los Puntos Seguros de Coatzacoalcos, como Plaza Forum o el Hemiciclo a los Niños Héroes en el Malecón.",
-                        timestampEpochMs = System.currentTimeMillis() - 60000,
-                        isDelivered = true,
-                        isRead = true,
-                        isFromMe = false
-                    )
-                )
-
-                withContext(dispatchers.main) {
-                    setState {
-                        copy(
-                            proposalId = proposalId,
-                            currentUserId = effectiveUserId,
-                            otherUserId = "usr_alpha",
-                            otherUserName = "Carlos R. (Chat Ejemplo 1)",
-                            permission = ChatAccessPermission.PERMITIDO_ESCRITURA_Y_LECTURA,
-                            isReadOnly = false,
-                            isAccessDenied = false,
-                            messages = demoMessages,
-                            errorMessage = null
-                        )
-                    }
-                }
-                return@launch
-            }
-
-            val proposalFromDb = tradeProposalDao?.getProposalByIdSync(proposalId)?.toDomainModel()
-            val rawProposal = proposalFromDb ?: inMemoryProposals.find { it.id == proposalId }
-
-            // Si la propuesta tiene "usr_current", mapearla al usuario activo de la sesión para evitar falsos rechazos de RN-03
-            val proposal = when {
-                rawProposal == null -> null
-                rawProposal.requesterUserId == "usr_current" -> rawProposal.copy(requesterUserId = effectiveUserId)
-                rawProposal.receiverUserId == "usr_current" -> rawProposal.copy(receiverUserId = effectiveUserId)
-                else -> rawProposal
+            val dbProposal = chatRepository?.getProposalById(proposalId)
+            val proposal = if (dbProposal != null) {
+                mapToTradeProposal(dbProposal)
+            } else {
+                inMemoryProposals.find { it.id == proposalId }
             }
 
             try {
                 // Regla RN-03: Validación canónica de acceso al chat
                 val permission = validateDirectChatAccessUseCase(
-                    userId = effectiveUserId,
+                    userId = resolvedUserId,
                     activeProposal = proposal
                 )
 
                 val isReadOnly = permission == ChatAccessPermission.SOLO_LECTURA_HISTORIAL
-                val otherUserId = if (proposal?.requesterUserId == effectiveUserId) proposal.receiverUserId else proposal?.requesterUserId.orEmpty()
-                val otherUserEntity = if (otherUserId.isNotBlank()) userDao?.getUserByIdSync(otherUserId) else null
-                val otherUserName = otherUserEntity?.name ?: if (otherUserId == "usr_alpha") "Carlos R. - Petrolera" else "Colega Truequero"
+                val otherUserId = if (proposal?.requesterUserId == resolvedUserId) proposal.receiverUserId else proposal?.requesterUserId.orEmpty()
+                val otherUserName = if (otherUserId == "usr_alpha") "GamerAlpha" else otherUserId.substringBefore("@").ifBlank { "ColegaTruequero" }
 
-                val initialMessages = listOf(
-                    ChatMessageItem(
-                        id = "msg_seed_01",
+                val allItems = userPublicationStorage?.loadPublishedItems().orEmpty()
+                val itemMap = allItems.associateBy { it.id }
+
+                val offeredIds = proposal?.offeredItemIds.orEmpty().ifEmpty {
+                    dbProposal?.ofertaA?.articulosIds?.split(",")?.filter { it.isNotBlank() }.orEmpty()
+                }
+                val targetId = proposal?.targetItemId ?: dbProposal?.ofertaB?.articulosIds.orEmpty()
+
+                val photosA = offeredIds.flatMap { id -> itemMap[id]?.imagesWebP.orEmpty() }
+                val photosB = itemMap[targetId]?.imagesWebP.orEmpty()
+
+                setState {
+                    copy(
                         proposalId = proposalId,
-                        senderId = otherUserId,
-                        senderName = otherUserName,
-                        content = "¡Hola! Vi tu oferta de trueque. ¿Te parece si coordinamos la entrega?",
-                        timestampEpochMs = System.currentTimeMillis() - 120000,
-                        isDelivered = true,
-                        isRead = true,
-                        isFromMe = false
+                        currentUserId = resolvedUserId,
+                        otherUserId = otherUserId,
+                        otherUserName = otherUserName,
+                        permission = permission,
+                        isReadOnly = isReadOnly,
+                        isAccessDenied = false,
+                        errorMessage = null,
+                        offerAPhotoUrls = photosA,
+                        offerBPhotoUrls = photosB
                     )
-                )
-
-                // Cargar mensajes persistidos de SQLite Room
-                val dbEntities = chatMessageDao?.getMessagesForProposalSync(proposalId).orEmpty()
-                val finalMessages = if (dbEntities.isNotEmpty()) {
-                    dbEntities.map { entity ->
-                        ChatMessageItem(
-                            id = entity.id,
-                            proposalId = entity.proposalId,
-                            senderId = entity.senderId,
-                            senderName = entity.senderName,
-                            content = entity.content,
-                            timestampEpochMs = entity.timestampEpochMs,
-                            isDelivered = true,
-                            isRead = entity.isRead,
-                            isFromMe = entity.senderId == effectiveUserId
-                        )
-                    }
-                } else {
-                    initialMessages
                 }
 
-                withContext(dispatchers.main) {
-                    setState {
-                        copy(
-                            proposalId = proposalId,
-                            currentUserId = effectiveUserId,
-                            otherUserId = otherUserId,
-                            otherUserName = otherUserName,
-                            permission = permission,
-                            isReadOnly = isReadOnly,
-                            isAccessDenied = false,
-                            messages = finalMessages,
-                            errorMessage = null
-                        )
+                if (chatRepository != null) {
+                    launch(dispatchers.main) {
+                        chatRepository.getMessagesForProposal(proposalId, resolvedUserId).collectLatest { dbMsgs ->
+                            if (dbMsgs.isNotEmpty()) {
+                                setState { copy(messages = dbMsgs) }
+                            }
+                        }
                     }
+                    launch(dispatchers.io) {
+                        chatRepository.markAsRead(proposalId, resolvedUserId)
+                    }
+                } else {
+                    setState { copy(messages = emptyList()) }
                 }
 
                 // Unirse a sala de chat si no está denegado
@@ -252,19 +132,41 @@ class ChatViewModel @Inject constructor(
                 listenToChatEvents(proposalId)
 
             } catch (e: BusinessRuleException.UnauthorizedChatAccessException) {
-                withContext(dispatchers.main) {
-                    setState {
-                        copy(
-                            proposalId = proposalId,
-                            currentUserId = effectiveUserId,
-                            isAccessDenied = true,
-                            errorMessage = e.message ?: "Acceso restringido por la regla RN-03."
-                        )
-                    }
+                setState {
+                    copy(
+                        proposalId = proposalId,
+                        currentUserId = resolvedUserId,
+                        isAccessDenied = true,
+                        errorMessage = e.message ?: "Acceso restringido por la regla RN-03."
+                    )
                 }
                 sendEffect(ChatUiEffect.ShowToast("RN-03: No tienes autorización para acceder a este chat."))
             }
         }
+    }
+
+    private fun mapToTradeProposal(t: TruequeConOfertas): TradeProposal {
+        val ofA = t.ofertaA
+        val ofB = t.ofertaB
+        val offeredList = ofA?.articulosIds?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
+        val target = ofB?.articulosIds?.split(",")?.firstOrNull() ?: ""
+        val coins = ofA?.truequeCoins ?: 0.0
+        val statusEnum = try {
+            TradeStatus.valueOf(t.trueque.estado)
+        } catch (e: Exception) {
+            TradeStatus.PENDIENTE
+        }
+        return TradeProposal(
+            id = t.trueque.id,
+            requesterUserId = t.trueque.usuarioACorreo,
+            receiverUserId = t.trueque.usuarioBCorreo,
+            offeredItemIds = offeredList,
+            targetItemId = target,
+            compensatoryTruequeCoins = coins,
+            modality = TradeModality.DIRECTO_1_A_1,
+            status = statusEnum,
+            createdAtEpochMs = t.trueque.fechaCreacion
+        )
     }
 
     private fun listenToChatEvents(proposalId: String) {
@@ -320,16 +222,11 @@ class ChatViewModel @Inject constructor(
         val text = state.messageInput.trim()
         if (text.isBlank()) return
 
-        val senderDisplayName = when (state.currentUserId) {
-            "usr_chocolatt" -> "chocolatt"
-            "usr_vergara" -> "Vergara"
-            else -> "Yo"
-        }
         val message = ChatMessageItem(
             id = "msg_${System.currentTimeMillis()}",
             proposalId = state.proposalId,
             senderId = state.currentUserId,
-            senderName = senderDisplayName,
+            senderName = "Yo",
             content = text,
             timestampEpochMs = System.currentTimeMillis(),
             isDelivered = true,
@@ -343,73 +240,34 @@ class ChatViewModel @Inject constructor(
                 messageInput = ""
             )
         }
-        sendEffect(ChatUiEffect.ScrollToBottom)
 
-        // Persistir en base de datos SQLite Room
         viewModelScope.launch(dispatchers.io) {
-            chatMessageDao?.insertMessage(
-                ChatMessageEntity(
-                    id = message.id,
-                    proposalId = message.proposalId,
-                    senderId = message.senderId,
-                    senderName = message.senderName,
-                    content = message.content,
-                    timestampEpochMs = message.timestampEpochMs,
-                    isAuditLog = false,
-                    isRead = false
-                )
+            chatRepository?.sendMessage(
+                proposalId = state.proposalId,
+                senderEmail = state.currentUserId,
+                receiverEmail = state.otherUserId,
+                content = text
             )
         }
 
-        // Respuesta interactiva automática para Chat Ejemplo 1
-        if (state.proposalId == "chat_ejemplo_1" || state.proposalId.contains("ejemplo")) {
-            viewModelScope.launch(dispatchers.io) {
-                delay(1200)
-                val autoReply = ChatMessageItem(
-                    id = "msg_reply_${System.currentTimeMillis()}",
-                    proposalId = state.proposalId,
-                    senderId = state.otherUserId,
-                    senderName = state.otherUserName,
-                    content = "¡Enterado! Me parece perfecto. Puedes pulsar arriba en el botón de 'Punto Seguro / Mapa' para ver las ubicaciones vigiladas en Coatzacoalcos.",
-                    timestampEpochMs = System.currentTimeMillis(),
-                    isDelivered = true,
-                    isRead = true,
-                    isFromMe = false
-                )
-                withContext(dispatchers.main) {
-                    setState { copy(messages = messages + autoReply) }
-                    sendEffect(ChatUiEffect.ScrollToBottom)
-                }
-            }
-            return
-        }
-
         socketManager.emitEvent("send_message", text)
-        handleSendTypingStatus(false)
+        sendEffect(ChatUiEffect.ScrollToBottom)
     }
 
     private fun handleReceiveMessage(message: ChatMessageItem) {
         setState {
             copy(messages = messages + message)
         }
-        sendEffect(ChatUiEffect.ScrollToBottom)
-        socketManager.emitEvent("message_read", message.id)
-
-        // Persistir mensaje recibido en SQLite Room
         viewModelScope.launch(dispatchers.io) {
-            chatMessageDao?.insertMessage(
-                ChatMessageEntity(
-                    id = message.id,
-                    proposalId = message.proposalId,
-                    senderId = message.senderId,
-                    senderName = message.senderName,
-                    content = message.content,
-                    timestampEpochMs = message.timestampEpochMs,
-                    isAuditLog = false,
-                    isRead = true
-                )
+            chatRepository?.saveIncomingMessage(
+                proposalId = message.proposalId,
+                senderEmail = message.senderId,
+                receiverEmail = currentState.currentUserId,
+                content = message.content
             )
         }
+        sendEffect(ChatUiEffect.ScrollToBottom)
+        socketManager.emitEvent("message_read", message.id)
     }
 
     override fun onCleared() {
@@ -424,4 +282,3 @@ class ChatViewModel @Inject constructor(
         inMemoryProposals.add(proposal)
     }
 }
-

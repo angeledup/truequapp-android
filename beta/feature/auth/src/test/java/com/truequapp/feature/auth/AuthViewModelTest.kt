@@ -83,6 +83,43 @@ class FakeUserDao : UserDao {
     override suspend fun getTruequeCoins(userId: String): Double? = users[userId]?.truequeCoins
     override fun getAllUsers(): Flow<List<UserEntity>> = MutableStateFlow(users.values.toList())
     override suspend fun deleteUser(userId: String) { users.remove(userId) }
+    override suspend fun getCoinsByEmail(correo: String): Double? = users.values.find { it.email.equals(correo, ignoreCase = true) }?.truequeCoins
+    override fun observeCoinsByEmail(correo: String): Flow<Double?> = MutableStateFlow(users.values.find { it.email.equals(correo, ignoreCase = true) }?.truequeCoins)
+    override suspend fun reduceCoins(correo: String, amount: Double): Int {
+        val user = users.values.find { it.email.equals(correo, ignoreCase = true) } ?: return 0
+        users[user.id] = user.copy(truequeCoins = maxOf(0.0, user.truequeCoins - amount))
+        return 1
+    }
+    override suspend fun addCoins(correo: String, amount: Double): Int {
+        val user = users.values.find { it.email.equals(correo, ignoreCase = true) } ?: return 0
+        users[user.id] = user.copy(truequeCoins = user.truequeCoins + amount)
+        return 1
+    }
+    override suspend fun updateCoins(correo: String, newCoins: Double): Int {
+        val user = users.values.find { it.email.equals(correo, ignoreCase = true) } ?: return 0
+        users[user.id] = user.copy(truequeCoins = newCoins)
+        return 1
+    }
+    override suspend fun getCompletedTradesByEmail(correo: String): Int? = users.values.find { it.email.equals(correo, ignoreCase = true) }?.completedTrades
+    override fun observeCompletedTradesByEmail(correo: String): Flow<Int?> = MutableStateFlow(users.values.find { it.email.equals(correo, ignoreCase = true) }?.completedTrades)
+    override suspend fun incrementCompletedTrades(correo: String): Int {
+        val user = users.values.find { it.email.equals(correo, ignoreCase = true) } ?: return 0
+        users[user.id] = user.copy(completedTrades = user.completedTrades + 1)
+        return 1
+    }
+    override suspend fun updateCompletedTrades(correo: String, count: Int): Int {
+        val user = users.values.find { it.email.equals(correo, ignoreCase = true) } ?: return 0
+        users[user.id] = user.copy(completedTrades = count)
+        return 1
+    }
+    override suspend fun getRatingByEmail(correo: String): Double? = users.values.find { it.email.equals(correo, ignoreCase = true) }?.bayesianRating
+    override fun observeRatingByEmail(correo: String): Flow<Double?> = MutableStateFlow(users.values.find { it.email.equals(correo, ignoreCase = true) }?.bayesianRating)
+    override suspend fun updateRating(correo: String, newRating: Double): Int {
+        val user = users.values.find { it.email.equals(correo, ignoreCase = true) } ?: return 0
+        users[user.id] = user.copy(bayesianRating = newRating)
+        return 1
+    }
+    override fun observeUserByEmail(correo: String): Flow<UserEntity?> = MutableStateFlow(users.values.find { it.email.equals(correo, ignoreCase = true) })
 }
 
 class TestDispatcherProvider(private val dispatcher: TestDispatcher) : DispatcherProvider {

@@ -37,6 +37,7 @@ import com.truequapp.feature.auth.ui.ProfileScreen
 import com.truequapp.feature.catalog.mvi.CatalogViewModel
 import com.truequapp.feature.catalog.ui.CatalogFeedScreen
 import com.truequapp.feature.catalog.ui.ItemPublishScreen
+import com.truequapp.feature.chat.mvi.ChatListViewModel
 import com.truequapp.feature.chat.mvi.ChatViewModel
 import com.truequapp.feature.chat.ui.ChatListScreen
 import com.truequapp.feature.chat.ui.ChatScreen
@@ -164,14 +165,17 @@ fun TruequappNavHost(
                 )
             }
 
-            // Bandeja de Chats Transaccionales entre Usuarios (CU018)
+            // Bandeja de Chats Transaccionales entre Usuarios (CU018 / Módulo 4)
             composable(Screen.ChatList.route) {
+                val chatListViewModel: ChatListViewModel = hiltViewModel()
+                val chatListState by chatListViewModel.uiState.collectAsStateWithLifecycle()
+
                 ChatListScreen(
+                    state = chatListState,
+                    effectFlow = chatListViewModel.uiEffect,
+                    onEvent = chatListViewModel::onEvent,
                     onNavigateToChat = { proposalId ->
                         navController.navigate(Screen.Chat.createRoute(proposalId))
-                    },
-                    onNavigateToCatalog = {
-                        navController.navigate(Screen.Catalog.route)
                     }
                 )
             }

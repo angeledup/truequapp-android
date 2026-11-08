@@ -34,7 +34,16 @@ data class UserEntity(
     val attendanceRate: Double = 1.0,
     val obfuscatedNeighborhood: String = "Centro, Coatzacoalcos", // Privacidad 500m (RN-10)
     val city: String = "Coatzacoalcos",
+    val completedTrades: Int = 0, // Contador de trueques completados
     val createdAtEpochMs: Long = System.currentTimeMillis(),
     val lastLoginEpochMs: Long = System.currentTimeMillis()
-)
+) {
+    // Propiedades de compatibilidad con código de Phase 2
+    val usuario: String get() = name
+    val correo: String get() = email
+    val numeroTelefonico: String get() = phoneNumber.orEmpty()
+    val calificacion: Double get() = bayesianRating
+    val cantidadTruequeCoins: Double get() = truequeCoins
+    val truequesRealizados: Int get() = completedTrades
+}
 

@@ -11,11 +11,14 @@ import com.truequapp.core.database.dao.SafeZoneDao
 import com.truequapp.core.database.dao.TradeItemDao
 import com.truequapp.core.database.dao.TradeProposalDao
 import com.truequapp.core.database.dao.UserDao
+import com.truequapp.core.database.dao.TruequeDao
 import com.truequapp.core.database.entity.ChatMessageEntity
 import com.truequapp.core.database.entity.LedgerEntryEntity
+import com.truequapp.core.database.entity.OfertaItemEntity
 import com.truequapp.core.database.entity.SafeZoneEntity
 import com.truequapp.core.database.entity.TradeItemEntity
 import com.truequapp.core.database.entity.TradeProposalEntity
+import com.truequapp.core.database.entity.TruequeEntity
 import com.truequapp.core.database.entity.UserEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -38,9 +41,11 @@ import kotlinx.coroutines.launch
         TradeProposalEntity::class,
         ChatMessageEntity::class,
         LedgerEntryEntity::class,
-        SafeZoneEntity::class
+        SafeZoneEntity::class,
+        OfertaItemEntity::class,
+        TruequeEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class TruequappDatabase : RoomDatabase() {
@@ -51,6 +56,7 @@ abstract class TruequappDatabase : RoomDatabase() {
     abstract fun chatMessageDao(): ChatMessageDao
     abstract fun ledgerEntryDao(): LedgerEntryDao
     abstract fun safeZoneDao(): SafeZoneDao
+    abstract fun truequeDao(): TruequeDao
 
     companion object {
         const val DATABASE_NAME = "truequapp_database.db"

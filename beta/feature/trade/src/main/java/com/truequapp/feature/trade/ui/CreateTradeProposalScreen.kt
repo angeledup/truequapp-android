@@ -1,5 +1,7 @@
 package com.truequapp.feature.trade.ui
 
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -51,7 +53,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.truequapp.core.designsystem.component.ConditionTag
@@ -178,7 +179,7 @@ fun CreateTradeProposalScreen(
                                 text = "Esta publicación te pertenece. En un trueque debe haber 2 partes distintas: una tú, y la otra un usuario interesado diferente. No puedes ser ambas partes a la vez ni intercambiar contigo mismo.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onErrorContainer,
-                                textAlign = TextAlign.Center
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                             TruequappPrimaryButton(
@@ -189,97 +190,98 @@ fun CreateTradeProposalScreen(
                     }
                 }
             } else {
-                // Sección 2: Selección de tus artículos (Opción A: Al menos 1)
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Ofrece de tu Catálogo",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "${state.selectedOfferedItemIds.size} seleccionados",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (state.hasMinimumItemsSelected) TruequappTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-                        )
-                    }
-                    if (!state.hasMinimumItemsSelected) {
-                        Text(
-                            text = "Obligatorio (Opción A): Debes seleccionar al menos un artículo propio.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
-                    }
-                }
-
-                if (state.availableUserItems.isEmpty()) {
-                    item {
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = "No tienes artículos disponibles en tu catálogo para ofrecer. Publica un artículo primero.",
-                                modifier = Modifier.padding(16.dp),
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                    }
-                } else {
-                    items(state.availableUserItems, key = { it.id }) { userItem ->
-                        SelectableItemRow(
-                            item = userItem,
-                            isSelected = state.selectedOfferedItemIds.contains(userItem.id),
-                            onToggle = { onEvent(TradeUiEvent.ToggleOfferedItemSelection(userItem.id)) }
-                        )
-                    }
-                }
-
-                // Sección 3: Compensación en TruequeCoins opcional
-                item {
+            // Sección 2: Selección de tus artículos (Opción A: Al menos 1)
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
-                        text = "Diferencial en TruequeCoins (Opcional)",
+                        text = "Ofrece de tu Catálogo",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = state.truequeCoinsInput,
-                        onValueChange = { onEvent(TradeUiEvent.OnTruequeCoinsChanged(it)) },
-                        label = { Text("Monto de TruequeCoins") },
-                        supportingText = {
-                            Text("Saldo disponible: ${String.format("%.0f", state.truequeCoins)} TC")
-                        },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                    Text(
+                        text = "${state.selectedOfferedItemIds.size} seleccionados",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (state.hasMinimumItemsSelected) TruequappTheme.colorScheme.primary else MaterialTheme.colorScheme.error
                     )
                 }
+                if (!state.hasMinimumItemsSelected) {
+                    Text(
+                        text = "Obligatorio (Opción A): Debes seleccionar al menos un artículo propio.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+            }
 
-                // Sección 4: Validador en tiempo real de la Regla RN-02 (Banda de Equivalencia del 40%)
+            val distinctUserItems = state.availableUserItems.distinctBy { it.id }
+            if (distinctUserItems.isEmpty()) {
                 item {
-                    EquivalenceRatioBadge(
-                        ratio = state.calculatedRatio,
-                        isValid = state.isRatioValid,
-                        hasMinimumItems = state.hasMinimumItemsSelected
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "No tienes artículos disponibles en tu catálogo para ofrecer. Publica un artículo primero.",
+                            modifier = Modifier.padding(16.dp),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+            } else {
+                items(distinctUserItems, key = { it.id }) { userItem ->
+                    SelectableItemRow(
+                        item = userItem,
+                        isSelected = state.selectedOfferedItemIds.contains(userItem.id),
+                        onToggle = { onEvent(TradeUiEvent.ToggleOfferedItemSelection(userItem.id)) }
                     )
                 }
+            }
 
-                // Sección 5: Botón de envío
-                item {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    TruequappPrimaryButton(
-                        text = if (state.isSubmitting) "Enviando..." else "Enviar Propuesta Formal",
-                        onClick = { onEvent(TradeUiEvent.SubmitProposal) },
-                        enabled = state.canSubmitProposal && !state.isSubmitting
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
-                }
+            // Sección 3: Compensación en TruequeCoins opcional
+            item {
+                Text(
+                    text = "Diferencial en TruequeCoins (Opcional)",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = state.truequeCoinsInput,
+                    onValueChange = { onEvent(TradeUiEvent.OnTruequeCoinsChanged(it)) },
+                    label = { Text("Monto de TruequeCoins") },
+                    supportingText = {
+                        Text("Saldo disponible: ${String.format("%.0f", state.truequeCoins)} TC")
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            }
+
+            // Sección 4: Validador en tiempo real de la Regla RN-02 (Banda de Equivalencia del 40%)
+            item {
+                EquivalenceRatioBadge(
+                    ratio = state.calculatedRatio,
+                    isValid = state.isRatioValid,
+                    hasMinimumItems = state.hasMinimumItemsSelected
+                )
+            }
+
+            // Sección 5: Botón de envío
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+                TruequappPrimaryButton(
+                    text = if (state.isSubmitting) "Enviando..." else "Enviar Propuesta Formal",
+                    onClick = { onEvent(TradeUiEvent.SubmitProposal) },
+                    enabled = state.canSubmitProposal && !state.isSubmitting
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+            }
             }
         }
     }
@@ -293,6 +295,18 @@ private fun TargetItemCard(item: TradeItem) {
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
+            if (item.imagesWebP.isNotEmpty()) {
+                AsyncImage(
+                    model = item.imagesWebP.first(),
+                    contentDescription = item.title,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(140.dp)
+                        .clip(RoundedCornerShape(12.dp)),
+                    contentScale = ContentScale.Crop
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -324,14 +338,17 @@ private fun TargetItemCard(item: TradeItem) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
+                val minVal = item.estimatedValue.minValue.takeIf { !it.isNaN() && !it.isInfinite() }?.toInt() ?: 0
+                val maxVal = item.estimatedValue.maxValue.takeIf { !it.isNaN() && !it.isInfinite() }?.toInt() ?: 0
+                val medianVal = item.estimatedValue.medianValue.takeIf { !it.isNaN() && !it.isInfinite() }?.toInt() ?: 0
                 Text(
-                    text = "Valor estimado: \$${item.estimatedValue.minValue.toInt()} - \$${item.estimatedValue.maxValue.toInt()}",
+                    text = "Valor estimado: \$$minVal - \$$maxVal",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = TruequappTheme.colorScheme.primary
                 )
                 Text(
-                    text = "Mediana: \$${item.estimatedValue.medianValue.toInt()}",
+                    text = "Mediana: \$$medianVal",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -376,14 +393,26 @@ private fun SelectableItemRow(
                 colors = CheckboxDefaults.colors(checkedColor = TruequappTheme.colorScheme.primary)
             )
             Spacer(modifier = Modifier.width(8.dp))
+            if (item.imagesWebP.isNotEmpty()) {
+                AsyncImage(
+                    model = item.imagesWebP.first(),
+                    contentDescription = item.title,
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(8.dp)),
+                    contentScale = ContentScale.Crop
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = item.title,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium
                 )
+                val med = item.estimatedValue.medianValue.takeIf { !it.isNaN() && !it.isInfinite() }?.toInt() ?: 0
                 Text(
-                    text = "Valor estimado: ~\$${item.estimatedValue.medianValue.toInt()}",
+                    text = "Valor estimado: ~\$$med",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -398,7 +427,8 @@ private fun EquivalenceRatioBadge(
     isValid: Boolean,
     hasMinimumItems: Boolean
 ) {
-    val percentage = (ratio * 100).coerceAtMost(200.0)
+    val safeRatio = if (ratio.isNaN() || ratio.isInfinite()) 0.0 else ratio
+    val percentage = (safeRatio * 100).coerceIn(0.0, 200.0)
     val color = if (isValid) TruequappTheme.colorScheme.primary else MaterialTheme.colorScheme.error
 
     Card(
@@ -436,8 +466,9 @@ private fun EquivalenceRatioBadge(
             }
 
             Spacer(modifier = Modifier.height(8.dp))
+            val progressFloat = (percentage / 100f).toFloat().coerceIn(0f, 1f)
             LinearProgressIndicator(
-                progress = { (percentage / 100f).toFloat().coerceIn(0f, 1f) },
+                progress = { if (progressFloat.isNaN()) 0f else progressFloat },
                 color = color,
                 trackColor = color.copy(alpha = 0.2f),
                 modifier = Modifier

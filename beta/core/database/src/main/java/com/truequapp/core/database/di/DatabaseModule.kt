@@ -7,6 +7,7 @@ import com.truequapp.core.database.dao.LedgerEntryDao
 import com.truequapp.core.database.dao.SafeZoneDao
 import com.truequapp.core.database.dao.TradeItemDao
 import com.truequapp.core.database.dao.TradeProposalDao
+import com.truequapp.core.database.dao.TruequeDao
 import com.truequapp.core.database.dao.UserDao
 import dagger.Module
 import dagger.Provides
@@ -53,4 +54,8 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideSafeZoneDao(database: TruequappDatabase): SafeZoneDao = database.safeZoneDao()
+
+    @Provides
+    @Singleton
+    fun provideTruequeDao(database: TruequappDatabase): TruequeDao = database.truequeDao()
 }

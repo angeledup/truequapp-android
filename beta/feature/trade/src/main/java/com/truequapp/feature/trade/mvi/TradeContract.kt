@@ -6,10 +6,11 @@ import com.truequapp.core.common.mvi.UiState
 import com.truequapp.core.domain.model.MeetingAppointment
 import com.truequapp.core.domain.model.TradeItem
 import com.truequapp.core.domain.model.TradeProposal
+import com.truequapp.core.database.entity.UserEntity
 import com.truequapp.core.domain.model.UserProfile
 
 /**
- * Estado inmutable de la interfaz de usuario para el módulo de negociación de trueques.
+ * Estado inmutable de la interfaz de usuario para el módulo de negociación de trueques y gestión de publicaciones propias.
  */
 data class TradeUiState(
     // Datos para creación de propuesta (CU009)
@@ -24,17 +25,24 @@ data class TradeUiState(
     val hasMinimumItemsSelected: Boolean = false, // Opción A: mínimo 1 artículo
     val canSubmitProposal: Boolean = false, // isRatioValid && hasMinimumItemsSelected
 
-    // Datos para gestión y listado de propuestas (CU010 / CU011 / CU012)
-    // Pestañas 'Activas' y 'Ofertas' solicitadas por el usuario
+    // Datos para gestión y listado de propuestas y publicaciones
+    // Pestañas 'Activas', 'Ofertas' y 'Mis Publicaciones'
     val activeProposals: List<TradeProposal> = emptyList(),
     val receivedOffers: List<TradeProposal> = emptyList(),
     val historyProposals: List<TradeProposal> = emptyList(),
-    val selectedTab: Int = 0, // 0: Activas, 1: Ofertas
+    val myPublications: List<TradeItem> = emptyList(),
+    val selectedTab: Int = 0, // 0: Activas, 1: Ofertas, 2: Mis Publicaciones
     val currentProposal: TradeProposal? = null,
     val negotiationTargetItem: TradeItem? = null,
     val negotiationOfferedItems: List<TradeItem> = emptyList(),
     val scheduledAppointment: MeetingAppointment? = null,
     val currentUserProfile: UserProfile? = null,
+
+    // Subpantalla de Detalle de Oferta Recibida (CU010 / CU012)
+    val selectedOfferProposal: TradeProposal? = null,
+    val selectedOfferProponentUser: UserEntity? = null,
+    val selectedOfferTargetItem: TradeItem? = null,
+    val selectedOfferOfferedItems: List<TradeItem> = emptyList(),
 
     // Diálogos y advertencias
     val showCounterOfferDialog: Boolean = false,
@@ -59,7 +67,7 @@ data class TradeUiState(
 }
 
 /**
- * Eventos e intenciones del usuario para el flujo de negociación de trueques.
+ * Eventos e intenciones del usuario para el flujo de negociación de trueques y publicaciones propias.
  */
 sealed interface TradeUiEvent : UiEvent {
     // Creación de propuesta (CU009)
@@ -69,10 +77,14 @@ sealed interface TradeUiEvent : UiEvent {
     data class OnCompensatoryCoinsChanged(val coinsStr: String) : TradeUiEvent
     data object SubmitProposal : TradeUiEvent
 
-    // Listado y consulta (Pestañas 'Activas' y 'Ofertas')
+    // Listado y consulta (Pestañas 'Activas', 'Ofertas' y 'Mis Publicaciones')
     data class LoadProposals(val userId: String) : TradeUiEvent
     data class SelectTab(val tabIndex: Int) : TradeUiEvent
     data class LoadProposalDetails(val proposalId: String, val currentUserId: String) : TradeUiEvent
+    data class OpenOfferDetail(val proposalId: String) : TradeUiEvent
+    data object CloseOfferDetail : TradeUiEvent
+    data object RefreshMyPublications : TradeUiEvent
+    data class DeletePublication(val itemId: String) : TradeUiEvent
 
     // Negociación: Aceptación con bloqueo ACID (CU010 / RN-01)
     data class AcceptProposal(val proposalId: String) : TradeUiEvent
