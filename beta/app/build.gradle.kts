@@ -14,8 +14,8 @@ android {
         applicationId = "com.truequapp"
         minSdk = 26
         targetSdk = 34
-        versionCode = 705
-        versionName = "0.7.5-beta"
+        versionCode = 900
+        versionName = "0.9.0-Ch"
         manifestPlaceholders["MAPS_API_KEY"] = project.findProperty("MAPS_API_KEY") as? String ?: "AIzaSy_Truequapp_DevMapsKey_Placeholder"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
