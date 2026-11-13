@@ -448,7 +448,15 @@ class TruequappRequestHandler(BaseHTTPRequestHandler):
 
     def do_PUT(self):
         parsed = urlparse(self.path)
-        path = parsed.path
+        query = parse_qs(parsed.query)
+        v_path = query.get("__path__", [None])[0]
+        if v_path is not None:
+            path = "/" + v_path.lstrip("/")
+        else:
+            raw_path = self.headers.get("x-matched-path") or self.headers.get("x-vercel-matched-path") or parsed.path
+            path = raw_path
+            if path.startswith("/api/index.py"):
+                path = path[len("/api/index.py"):] or "/"
         body = self._read_body()
 
         # Actualizar estado de una propuesta (Aceptar, Contraofertar, Rechazar, Cancelar)
