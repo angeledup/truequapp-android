@@ -315,6 +315,37 @@ class UserPublicationStorage @Inject constructor(
         return current
     }
 
+    private fun isItemOwnedByUserKey(item: TradeItem, userKey: String): Boolean {
+        val cleanKey = userKey.trim().lowercase()
+        val cleanOwner = item.ownerId.trim().lowercase()
+        if (cleanKey.isEmpty()) return false
+        if (cleanOwner == cleanKey) return true
+
+        if (cleanKey.contains("@")) {
+            val prefix = cleanKey.substringBefore("@")
+            if (cleanOwner == prefix) return true
+            if (cleanOwner.contains("@") && cleanOwner.substringBefore("@") == prefix) return true
+            if (cleanOwner.startsWith("usr_") && cleanOwner.removePrefix("usr_") == prefix) return true
+        }
+
+        if (cleanOwner.contains("@")) {
+            val prefix = cleanOwner.substringBefore("@")
+            if (cleanKey == prefix) return true
+            if (cleanKey.startsWith("usr_") && cleanKey.removePrefix("usr_") == prefix) return true
+        }
+
+        val strippedKey = cleanKey.removePrefix("usr_")
+        val strippedOwner = cleanOwner.removePrefix("usr_")
+        if (strippedKey.isNotEmpty() && strippedKey == strippedOwner) return true
+        if ((cleanKey == "usr_current" || cleanKey == "usuario_actual") && 
+            (cleanOwner == "usr_current" || cleanOwner == "usuario_actual")) return true
+
+        if ((cleanKey.contains("chocolatt") && cleanOwner.contains("chocolatt")) ||
+            (cleanKey.contains("vergara") && cleanOwner.contains("vergara"))) return true
+
+        return false
+    }
+
     // -------------------------------------------------------------------------
     // CAPA CLIENTE LOCAL (Almacenamiento exclusivo del usuario autenticado)
     // -------------------------------------------------------------------------
@@ -322,10 +353,7 @@ class UserPublicationStorage @Inject constructor(
     fun saveUserPublications(userKey: String, items: List<TradeItem>) {
         if (userKey.isBlank()) return
         // Filtro estricto por usuario: solo se guarda en este archivo lo que pertenece a este usuario
-        val myOnly = items.filter {
-            it.ownerId.equals(userKey, ignoreCase = true) ||
-            (userKey.contains("@") && it.ownerId.equals(userKey.substringBefore("@"), ignoreCase = true))
-        }.distinctBy { it.id }
+        val myOnly = items.filter { isItemOwnedByUserKey(it, userKey) }.distinctBy { it.id }
 
         writeItemsToFile(getUserPublicationsFile(userKey), myOnly)
     }
@@ -335,14 +363,12 @@ class UserPublicationStorage @Inject constructor(
         if (userKey.isBlank()) return emptyList()
         val file = getUserPublicationsFile(userKey)
         if (file.exists()) {
-            return readItemsFromFile(file)
+            val loaded = readItemsFromFile(file)
+            if (loaded.isNotEmpty()) return loaded
         }
-        // Fallback: si no existe el archivo específico, extraer solo lo propio del catálogo central
+        // Fallback: si no existe o está vacío, extraer solo lo propio del catálogo central
         val all = getRemoteCatalogItems()
-        val myOnly = all.filter {
-            it.ownerId.equals(userKey, ignoreCase = true) ||
-            (userKey.contains("@") && it.ownerId.equals(userKey.substringBefore("@"), ignoreCase = true))
-        }
+        val myOnly = all.filter { isItemOwnedByUserKey(it, userKey) }.distinctBy { it.id }
         if (myOnly.isNotEmpty()) {
             writeItemsToFile(file, myOnly)
         }

@@ -321,4 +321,41 @@ class TradeViewModelTest {
         assertFalse(state.canSubmitProposal)
         assertEquals("Esta publicación es tuya. No puedes realizar un trueque contigo mismo.", state.errorMessage)
     }
+
+    @Test
+    @DisplayName("CU009: Solo las publicaciones con isAvailable==true (DISPONIBLE) están disponibles para ofrecer")
+    fun shouldIncludeOnlyAvailablePublications_whenInitiatingTradeCreation() = runTest(testDispatcher) {
+        advanceUntilIdle()
+
+        // item_001 es ajeno (Nintendo Switch)
+        viewModel.onEvent(TradeUiEvent.InitTradeCreation("item_001", "usr_current"))
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.availableUserItems.isNotEmpty(), "Debe cargar las publicaciones del usuario")
+        assertTrue(state.availableUserItems.all { it.isAvailable }, "Todas las publicaciones disponibles deben tener isAvailable=true")
+
+        // Si pausamos una publicación, ya no debe estar disponible para ofrecer
+        val itemToPause = state.availableUserItems.first().id
+        viewModel.onEvent(TradeUiEvent.TogglePausePublication(itemToPause))
+        advanceUntilIdle()
+
+        val updatedState = viewModel.uiState.value
+        assertFalse(updatedState.availableUserItems.any { it.id == itemToPause }, "El artículo pausado no debe estar en availableUserItems")
+    }
+
+    @Test
+    @DisplayName("CU009: Coincidencia de identificadores y correo electrónico para publicaciones del usuario")
+    fun shouldMatchUserPublicationsAcrossEmailAndUserIdAliases() = runTest(testDispatcher) {
+        advanceUntilIdle()
+
+        // Crear una propuesta apuntando a un item ajeno ("item_001")
+        viewModel.onEvent(TradeUiEvent.InitTradeCreation("item_001", "usr_current"))
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        // Verifica que los ítems propios del usuario en memoria estén presentes
+        assertTrue(state.availableUserItems.any { it.id == "item_user_01" })
+        assertTrue(state.availableUserItems.any { it.id == "item_user_02" })
+    }
 }

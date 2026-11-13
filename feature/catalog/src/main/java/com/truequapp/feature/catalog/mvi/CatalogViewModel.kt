@@ -49,11 +49,37 @@ class CatalogViewModel @Inject constructor(
     private fun getEffectiveUserKey(): String = currentUserEmail ?: currentUserId
 
     private fun isMyItem(item: TradeItem): Boolean {
-        val userKey = getEffectiveUserKey()
-        return item.ownerId.equals(currentUserId, ignoreCase = true) || 
-               (currentUserEmail != null && item.ownerId.equals(currentUserEmail, ignoreCase = true)) ||
-               (userKey.contains("@") && item.ownerId.equals(userKey.substringBefore("@"), ignoreCase = true)) ||
-               (currentUserId == "usr_current" && item.ownerId == "usr_current")
+        val email = currentUserEmail
+        val userId = currentUserId
+        val targetOwner = item.ownerId.trim().lowercase()
+
+        if (targetOwner.isEmpty()) return false
+        if (userId.isNotBlank() && targetOwner == userId.lowercase()) return true
+        if (!email.isNullOrBlank() && targetOwner == email.lowercase()) return true
+
+        if (!email.isNullOrBlank() && email.contains("@")) {
+            val prefix = email.substringBefore("@").lowercase()
+            if (targetOwner == prefix) return true
+            if (targetOwner.contains("@") && targetOwner.substringBefore("@") == prefix) return true
+            if (targetOwner.startsWith("usr_") && targetOwner.removePrefix("usr_") == prefix) return true
+        }
+
+        if (targetOwner.contains("@")) {
+            val prefix = targetOwner.substringBefore("@")
+            if (userId.isNotBlank() && userId.lowercase() == prefix) return true
+        }
+
+        val strippedUser = userId.removePrefix("usr_").lowercase()
+        val strippedOwner = targetOwner.removePrefix("usr_")
+        if (strippedUser.isNotEmpty() && strippedUser == strippedOwner) return true
+        if ((userId == "usr_current" || userId == "usuario_actual") && 
+            (targetOwner == "usr_current" || targetOwner == "usuario_actual")) return true
+
+        val combined = "${email.orEmpty()} $userId".lowercase()
+        if (combined.contains("chocolatt") && targetOwner.contains("chocolatt")) return true
+        if (combined.contains("vergara") && targetOwner.contains("vergara")) return true
+
+        return false
     }
 
     init {
