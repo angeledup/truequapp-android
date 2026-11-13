@@ -73,41 +73,34 @@ class ChatRepository @Inject constructor(
 
         chatMessageDao.insertMessage(entity)
 
-        // Sincronizar en Localhost (si el servidor está activo) o en Vercel Cloud
-        val endpoints = listOf(
-            "http://10.0.2.2:8080/api/trueques/$proposalId/chat",
-            "https://truequapp-pi.vercel.app/api/trueques/$proposalId/chat"
-        )
+        // Sincronizar en la nube (Vercel Cloud / Turso)
+        val cloudUrl = "https://truequapp-pi.vercel.app/api/trueques/$proposalId/chat"
         java.util.concurrent.Executors.newSingleThreadExecutor().execute {
-            for (cloudUrl in endpoints) {
-                try {
-                    val conn = java.net.URL(cloudUrl).openConnection() as java.net.HttpURLConnection
-                    conn.requestMethod = "POST"
-                    conn.connectTimeout = 2000
-                    conn.readTimeout = 3000
-                    conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                    conn.doOutput = true
-                    val json = org.json.JSONObject().apply {
-                        put("id", messageId)
-                        put("proposalId", proposalId)
-                        put("emisorCorreo", senderEmail)
-                        put("senderId", senderEmail)
-                        put("senderName", senderEmail.substringBefore("@"))
-                        put("receptorCorreo", receiverEmail)
-                        put("contenido", content)
-                        put("content", content)
-                        put("fechaEnvioMs", timestamp)
-                        put("timestampEpochMs", timestamp)
-                    }
-                    conn.outputStream.use { os ->
-                        os.write(json.toString().toByteArray(Charsets.UTF_8))
-                    }
-                    val code = conn.responseCode
-                    conn.disconnect()
-                    if (code in 200..299) break
-                } catch (_: Exception) {
-                    // Intenta el siguiente endpoint (localhost -> cloud)
+            try {
+                val conn = java.net.URL(cloudUrl).openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.connectTimeout = 3000
+                conn.readTimeout = 4000
+                conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conn.doOutput = true
+                val json = org.json.JSONObject().apply {
+                    put("id", messageId)
+                    put("proposalId", proposalId)
+                    put("emisorCorreo", senderEmail)
+                    put("senderId", senderEmail)
+                    put("senderName", senderEmail.substringBefore("@"))
+                    put("receptorCorreo", receiverEmail)
+                    put("contenido", content)
+                    put("content", content)
+                    put("fechaEnvioMs", timestamp)
+                    put("timestampEpochMs", timestamp)
                 }
+                conn.outputStream.use { os ->
+                    os.write(json.toString().toByteArray(Charsets.UTF_8))
+                }
+                conn.responseCode
+                conn.disconnect()
+            } catch (_: Exception) {
             }
         }
 
@@ -174,52 +167,46 @@ class ChatRepository @Inject constructor(
     }
 
     suspend fun syncMessagesFromCloud(proposalId: String) {
-        val endpoints = listOf(
-            "http://10.0.2.2:8080/api/trueques/$proposalId/chat",
-            "https://truequapp-pi.vercel.app/api/trueques/$proposalId/chat"
-        )
-        for (cloudUrl in endpoints) {
-            try {
-                val url = java.net.URL(cloudUrl)
-                val conn = url.openConnection() as java.net.HttpURLConnection
-                conn.requestMethod = "GET"
-                conn.connectTimeout = 1500
-                conn.readTimeout = 2500
-                conn.setRequestProperty("Accept", "application/json")
-                if (conn.responseCode == 200) {
-                    val text = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-                    conn.disconnect()
-                    val jsonArray = org.json.JSONArray(text)
-                    val entities = mutableListOf<ChatMessageEntity>()
-                    for (i in 0 until jsonArray.length()) {
-                        val obj = jsonArray.optJSONObject(i) ?: continue
-                        val msgId = obj.optString("id", "msg_$i")
-                        val emisor = obj.optString("emisorCorreo", obj.optString("senderId", ""))
-                        val receptor = obj.optString("receptorCorreo", "")
-                        val contenido = obj.optString("contenido", obj.optString("content", ""))
-                        val fecha = obj.optLong("fechaEnvioMs", obj.optLong("timestampEpochMs", System.currentTimeMillis()))
-                        entities.add(
-                            ChatMessageEntity(
-                                id = msgId,
-                                truequeId = proposalId,
-                                emisorCorreo = emisor,
-                                receptorCorreo = receptor,
-                                contenido = contenido,
-                                fechaEnvioMs = fecha,
-                                estaEntregado = true,
-                                estaLeido = false
-                            )
+        val cloudUrl = "https://truequapp-pi.vercel.app/api/trueques/$proposalId/chat"
+        try {
+            val url = java.net.URL(cloudUrl)
+            val conn = url.openConnection() as java.net.HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.connectTimeout = 3000
+            conn.readTimeout = 4000
+            conn.setRequestProperty("Accept", "application/json")
+            if (conn.responseCode == 200) {
+                val text = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                conn.disconnect()
+                val jsonArray = org.json.JSONArray(text)
+                val entities = mutableListOf<ChatMessageEntity>()
+                for (i in 0 until jsonArray.length()) {
+                    val obj = jsonArray.optJSONObject(i) ?: continue
+                    val msgId = obj.optString("id", "msg_$i")
+                    val emisor = obj.optString("emisorCorreo", obj.optString("senderId", ""))
+                    val receptor = obj.optString("receptorCorreo", "")
+                    val contenido = obj.optString("contenido", obj.optString("content", ""))
+                    val fecha = obj.optLong("fechaEnvioMs", obj.optLong("timestampEpochMs", System.currentTimeMillis()))
+                    entities.add(
+                        ChatMessageEntity(
+                            id = msgId,
+                            truequeId = proposalId,
+                            emisorCorreo = emisor,
+                            receptorCorreo = receptor,
+                            contenido = contenido,
+                            fechaEnvioMs = fecha,
+                            estaEntregado = true,
+                            estaLeido = false
                         )
-                    }
-                    if (entities.isNotEmpty()) {
-                        chatMessageDao.insertMessages(entities)
-                    }
-                    break
-                } else {
-                    conn.disconnect()
+                    )
                 }
-            } catch (_: Exception) {
+                if (entities.isNotEmpty()) {
+                    chatMessageDao.insertMessages(entities)
+                }
+            } else {
+                conn.disconnect()
             }
+        } catch (_: Exception) {
         }
     }
 
@@ -229,27 +216,23 @@ class ChatRepository @Inject constructor(
      */
     suspend fun syncConversationsFromCloud(currentUserEmail: String) {
         if (currentUserEmail.isBlank()) return
-        val endpoints = listOf(
-            "http://10.0.2.2:8080/api/trueques?user=${java.net.URLEncoder.encode(currentUserEmail, "UTF-8")}",
-            "https://truequapp-pi.vercel.app/api/trueques?user=${java.net.URLEncoder.encode(currentUserEmail, "UTF-8")}"
-        )
-        for (cloudUrl in endpoints) {
-            try {
-                val url = java.net.URL(cloudUrl)
-                val conn = url.openConnection() as java.net.HttpURLConnection
-                conn.requestMethod = "GET"
-                conn.connectTimeout = 1500
-                conn.readTimeout = 2500
-                conn.setRequestProperty("Accept", "application/json")
-                if (conn.responseCode == 200) {
-                    val text = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-                    conn.disconnect()
-                    val jsonArray = org.json.JSONArray(text)
-                    for (i in 0 until jsonArray.length()) {
-                        val obj = jsonArray.optJSONObject(i) ?: continue
-                        val propId = obj.optString("id")
-                        if (propId.isBlank()) continue
-                        val uA = obj.optString("initiatorEmail").ifBlank { obj.optString("initiatorUserId", "") }
+        val cloudUrl = "https://truequapp-pi.vercel.app/api/trueques?user=${java.net.URLEncoder.encode(currentUserEmail, "UTF-8")}"
+        try {
+            val url = java.net.URL(cloudUrl)
+            val conn = url.openConnection() as java.net.HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.connectTimeout = 3000
+            conn.readTimeout = 4000
+            conn.setRequestProperty("Accept", "application/json")
+            if (conn.responseCode == 200) {
+                val text = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                conn.disconnect()
+                val jsonArray = org.json.JSONArray(text)
+                for (i in 0 until jsonArray.length()) {
+                    val obj = jsonArray.optJSONObject(i) ?: continue
+                    val propId = obj.optString("id")
+                    if (propId.isBlank()) continue
+                    val uA = obj.optString("initiatorEmail").ifBlank { obj.optString("initiatorUserId", "") }
                         val uB = obj.optString("receiverEmail").ifBlank { obj.optString("receiverUserId", "") }
                         val statusStr = obj.optString("status", "PENDIENTE")
                         val activa = obj.optBoolean("esta_activa", true)
@@ -295,13 +278,11 @@ class ChatRepository @Inject constructor(
                         // Sincronizar mensajes en tiempo real de esta propuesta
                         syncMessagesFromCloud(propId)
                     }
-                    break
                 } else {
                     conn.disconnect()
                 }
             } catch (_: Exception) {
             }
-        }
     }
 
     suspend fun getProposalById(proposalId: String): TruequeConOfertas? {

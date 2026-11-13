@@ -143,26 +143,22 @@ class TradeRepository @Inject constructor(
 
     suspend fun syncProposalsFromCloud(userEmail: String) {
         if (userEmail.isBlank()) return
-        val endpoints = listOf(
-            "http://10.0.2.2:8080/api/trueques?user=${java.net.URLEncoder.encode(userEmail, "UTF-8")}",
-            "https://truequapp-pi.vercel.app/api/trueques?user=${java.net.URLEncoder.encode(userEmail, "UTF-8")}"
-        )
-        for (cloudUrl in endpoints) {
-            try {
-                val url = java.net.URL(cloudUrl)
-                val conn = url.openConnection() as java.net.HttpURLConnection
-                conn.requestMethod = "GET"
-                conn.connectTimeout = 1500
-                conn.readTimeout = 2500
-                conn.setRequestProperty("Accept", "application/json")
-                if (conn.responseCode == 200) {
-                    val text = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-                    conn.disconnect()
-                    val jsonArray = org.json.JSONArray(text)
-                    for (i in 0 until jsonArray.length()) {
-                        val obj = jsonArray.optJSONObject(i) ?: continue
-                        val propId = obj.optString("id")
-                        if (propId.isBlank()) continue
+        val cloudUrl = "https://truequapp-pi.vercel.app/api/trueques?user=${java.net.URLEncoder.encode(userEmail, "UTF-8")}"
+        try {
+            val url = java.net.URL(cloudUrl)
+            val conn = url.openConnection() as java.net.HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.connectTimeout = 3000
+            conn.readTimeout = 4000
+            conn.setRequestProperty("Accept", "application/json")
+            if (conn.responseCode == 200) {
+                val text = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                conn.disconnect()
+                val jsonArray = org.json.JSONArray(text)
+                for (i in 0 until jsonArray.length()) {
+                    val obj = jsonArray.optJSONObject(i) ?: continue
+                    val propId = obj.optString("id")
+                    if (propId.isBlank()) continue
                         val uA = obj.optString("initiatorEmail").ifBlank { obj.optString("initiatorUserId", "") }
                         val uB = obj.optString("receiverEmail").ifBlank { obj.optString("receiverUserId", "") }
                         val statusStr = obj.optString("status", "PENDIENTE")
@@ -206,14 +202,11 @@ class TradeRepository @Inject constructor(
                         truequeDao.insertOfertaItem(ofB)
                         truequeDao.insertTrueque(tr)
                     }
-                    break
                 } else {
                     conn.disconnect()
                 }
             } catch (_: Exception) {
-                // Siguiente endpoint
             }
-        }
     }
 
     /**

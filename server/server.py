@@ -27,14 +27,6 @@ except ImportError:
     except ImportError:
         turso_client = None
 
-try:
-    import room_sqlite
-except ImportError:
-    try:
-        from server import room_sqlite
-    except ImportError:
-        room_sqlite = None
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 USUARIOS_DIR = os.path.join(DATA_DIR, "usuarios")
@@ -67,13 +59,6 @@ def init_storage():
                 json.dump([], f, indent=2)
     except Exception:
         pass
-
-    # Inicializar Base de Datos SQLite Room Localhost
-    if room_sqlite:
-        try:
-            room_sqlite.init_room_database()
-        except Exception as e:
-            print(f"[Room Warning] Error al inicializar Room SQLite: {e}")
 
     # Si Turso está configurado vía variables de entorno, inicializar y sembrar
     if turso_client and turso_client.is_turso_configured():
@@ -146,11 +131,6 @@ def write_json_file(file_path, data):
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
             with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
-            if room_sqlite:
-                try:
-                    room_sqlite.sync_json_to_sqlite()
-                except Exception:
-                    pass
         except Exception:
             pass
 
@@ -280,18 +260,15 @@ class TruequappRequestHandler(BaseHTTPRequestHandler):
             })
             return
 
-        # 5.2 Estado de Room Localhost SQLite
-        if path == "/api/room" or path == "/api/room/status":
-            room_db_path = os.path.join(DATA_DIR, "room_localhost.db")
-            db_exists = os.path.exists(room_db_path)
+        # 5.2 Estado de Base de Datos y Backend Cloud
+        if path == "/api/room" or path == "/api/room/status" or path == "/api/status":
+            turso_ok = bool(turso_client and turso_client.is_turso_configured())
             self._send_json({
                 "status": "ok",
-                "roomDatabase": "room_localhost.db",
-                "exists": db_exists,
-                "path": room_db_path,
-                "engine": "SQLite 3 (Android Room Schema)",
+                "environment": "Vercel Cloud",
+                "database": "Turso (libSQL Cloud)",
+                "tursoConfigured": turso_ok,
                 "endpoints": {
-                    "rooms": "/api/rooms",
                     "usuarios": "/api/usuarios",
                     "catalogo": "/api/catalogo",
                     "trueques": "/api/trueques"
