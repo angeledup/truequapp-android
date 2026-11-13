@@ -14,8 +14,8 @@ android {
         applicationId = "com.truequapp"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1001
-        versionName = "1.1"
+        versionCode = 900
+        versionName = "0.9.0-Ch"
         manifestPlaceholders["MAPS_API_KEY"] = project.findProperty("MAPS_API_KEY") as? String ?: "AIzaSy_Truequapp_DevMapsKey_Placeholder"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -55,6 +55,12 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+
+    testOptions {
+        unitTests.all {
+            it.useJUnitPlatform()
+        }
+    }
 }
 
 dependencies {
@@ -70,9 +76,6 @@ dependencies {
     implementation(project(":feature:trade"))
     implementation(project(":feature:chat"))
     implementation(project(":feature:safezones"))
-    implementation(project(":feature:swipe"))
-    implementation(project(":feature:wallet"))
-    implementation(project(":feature:reports"))
 
     // AndroidX & Lifecycle
     implementation(libs.androidx.core.ktx)

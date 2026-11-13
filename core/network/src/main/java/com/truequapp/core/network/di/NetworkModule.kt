@@ -19,7 +19,7 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
-    private const val BASE_URL = "https://api.truequapp.com/v1/"
+    private const val BASE_URL = "https://truequapp-pi.vercel.app/"
 
     @Provides
     @Singleton

@@ -36,60 +36,140 @@ class AuthViewModel @Inject constructor(
     private var countdownJob: Job? = null
 
     init {
+        ensureAdminAccountsSeeded()
         checkCurrentSession()
+    }
+
+    private fun ensureAdminAccountsSeeded() {
+        viewModelScope.launch(dispatchers.io) {
+            try {
+                val now = System.currentTimeMillis()
+                // Cuenta 1: chocolatt / chocolattcorreo@gmail.com / chocolatte
+                val existingChocolatt = userDao?.getUserByIdSync("usr_chocolatt")
+                    ?: userDao?.getUserByEmailSync("chocolattcorreo@gmail.com")
+                    ?: userDao?.getUserByIdentifierSync("chocolatt")
+                if (existingChocolatt == null) {
+                    userDao?.insertUser(
+                        UserEntity(
+                            id = "usr_chocolatt",
+                            email = "chocolattcorreo@gmail.com",
+                            name = "chocolatt",
+                            passwordHash = "chocolatte",
+                            phoneNumber = "+529211000001",
+                            authProvider = "EMAIL",
+                            isKycVerified = true,
+                            kycLevel = "TELEFONO_SMS_NIVEL_1",
+                            truequeCoins = 10000.0,
+                            escrowCoins = 0.0,
+                            bayesianRating = 4.9,
+                            ratingsCount = 15,
+                            attendanceRate = 1.0,
+                            obfuscatedNeighborhood = "Centro, Coatzacoalcos",
+                            city = "Coatzacoalcos",
+                            completedTrades = 0,
+                            createdAtEpochMs = now,
+                            lastLoginEpochMs = now
+                        )
+                    )
+                } else if (existingChocolatt.truequeCoins < 10000.0 || existingChocolatt.passwordHash != "chocolatte") {
+                    userDao?.updateUser(existingChocolatt.copy(truequeCoins = 10000.0, passwordHash = "chocolatte"))
+                }
+
+                // Cuenta 2: Vergara / Vergaracorreo@gmail.com / AngEduVr
+                val existingVergara = userDao?.getUserByIdSync("usr_vergara")
+                    ?: userDao?.getUserByEmailSync("Vergaracorreo@gmail.com")
+                    ?: userDao?.getUserByIdentifierSync("Vergara")
+                if (existingVergara == null) {
+                    userDao?.insertUser(
+                        UserEntity(
+                            id = "usr_vergara",
+                            email = "Vergaracorreo@gmail.com",
+                            name = "Vergara",
+                            passwordHash = "AngEduVr",
+                            phoneNumber = "+529211000002",
+                            authProvider = "EMAIL",
+                            isKycVerified = true,
+                            kycLevel = "TELEFONO_SMS_NIVEL_1",
+                            truequeCoins = 10000.0,
+                            escrowCoins = 0.0,
+                            bayesianRating = 4.9,
+                            ratingsCount = 14,
+                            attendanceRate = 1.0,
+                            obfuscatedNeighborhood = "Col. Petrolera, Coatzacoalcos",
+                            city = "Coatzacoalcos",
+                            completedTrades = 0,
+                            createdAtEpochMs = now,
+                            lastLoginEpochMs = now
+                        )
+                    )
+                } else if (existingVergara.truequeCoins < 10000.0 || existingVergara.passwordHash != "AngEduVr") {
+                    userDao?.updateUser(existingVergara.copy(truequeCoins = 10000.0, passwordHash = "AngEduVr"))
+                }
+            } catch (e: Throwable) {
+                android.util.Log.e("AuthViewModel", "Error al asegurar cuentas de administrador", e)
+            }
+        }
     }
 
     private fun checkCurrentSession() {
         viewModelScope.launch(dispatchers.io) {
-            userSessionDataStore.sessionFlow.collect { session ->
-                if (session.isAuthenticated && !session.userId.isNullOrBlank()) {
-                    val loggedUserId = session.userId.orEmpty()
-                    // 1. Cargar datos reales desde la base de datos local SQLite Room
-                    val dbUser = userDao?.getUserByIdSync(loggedUserId)
-                        ?: session.userEmail?.let { userDao?.getUserByEmailSync(it) }
+            try {
+                userSessionDataStore.sessionFlow.collect { session ->
+                    try {
+                        if (session.isAuthenticated && !session.userId.isNullOrBlank()) {
+                            val loggedUserId = session.userId.orEmpty()
+                            // 1. Cargar datos reales desde la base de datos local SQLite Room
+                            val dbUser = userDao?.getUserByIdSync(loggedUserId)
+                                ?: session.userEmail?.let { userDao?.getUserByEmailSync(it) }
 
-                    val finalName = dbUser?.name ?: session.userName ?: "Usuario Truequapp"
-                    val finalEmail = dbUser?.email ?: session.userEmail.orEmpty()
-                    val finalPhone = dbUser?.phoneNumber.orEmpty()
-                    val finalCoins = dbUser?.truequeCoins ?: session.truequeCoins
-                    val finalNeighborhood = dbUser?.obfuscatedNeighborhood?.ifBlank { "Centro, Coatzacoalcos" } ?: "Centro, Coatzacoalcos"
-                    val finalRating = dbUser?.bayesianRating ?: 4.8
-                    val finalAttendance = dbUser?.attendanceRate ?: 1.0
-                    val finalKyc = if (dbUser?.isKycVerified == true || session.isKycVerified) KycLevel.TELEFONO_SMS_NIVEL_1 else KycLevel.BASICO_NIVEL_0
+                            val finalName = dbUser?.name ?: session.userName ?: "Usuario Truequapp"
+                            val finalEmail = dbUser?.email ?: session.userEmail.orEmpty()
+                            val finalPhone = dbUser?.phoneNumber.orEmpty()
+                            val finalCoins = dbUser?.truequeCoins ?: session.truequeCoins
+                            val finalNeighborhood = dbUser?.obfuscatedNeighborhood?.ifBlank { "Centro, Coatzacoalcos" } ?: "Centro, Coatzacoalcos"
+                            val finalRating = dbUser?.bayesianRating ?: 4.8
+                            val finalAttendance = dbUser?.attendanceRate ?: 1.0
+                            val finalKyc = if (dbUser?.isKycVerified == true || session.isKycVerified) KycLevel.TELEFONO_SMS_NIVEL_1 else KycLevel.BASICO_NIVEL_0
 
-                    setState {
-                        copy(
-                            isLoggedIn = true,
-                            currentUserId = loggedUserId,
-                            userName = finalName,
-                            userEmail = finalEmail,
-                            userPhone = finalPhone,
-                            nameInput = finalName,
-                            emailInput = finalEmail,
-                            phoneInput = finalPhone,
-                            userNeighborhood = finalNeighborhood,
-                            obfuscatedNeighborhood = finalNeighborhood,
-                            kycLevel = finalKyc,
-                            truequeCoins = finalCoins,
-                            authProvider = dbUser?.authProvider ?: session.authProvider,
-                            googleEmail = if ((dbUser?.authProvider ?: session.authProvider) == "GOOGLE") finalEmail else null,
-                            userPhotoUrl = dbUser?.photoUrl ?: session.userPhotoUrl,
-                            bayesianRating = finalRating,
-                            attendanceRate = finalAttendance
-                        )
-                    }
-                } else {
-                    setState {
-                        copy(
-                            isLoggedIn = false,
-                            currentUserId = "",
-                            userName = "",
-                            userEmail = "",
-                            userPhone = "",
-                            truequeCoins = session.truequeCoins
-                        )
+                            setState {
+                                copy(
+                                    isLoggedIn = true,
+                                    currentUserId = loggedUserId,
+                                    userName = finalName,
+                                    userEmail = finalEmail,
+                                    userPhone = finalPhone,
+                                    nameInput = finalName,
+                                    emailInput = finalEmail,
+                                    phoneInput = finalPhone,
+                                    userNeighborhood = finalNeighborhood,
+                                    obfuscatedNeighborhood = finalNeighborhood,
+                                    kycLevel = finalKyc,
+                                    truequeCoins = finalCoins,
+                                    authProvider = dbUser?.authProvider ?: session.authProvider,
+                                    googleEmail = if ((dbUser?.authProvider ?: session.authProvider) == "GOOGLE") finalEmail else null,
+                                    userPhotoUrl = dbUser?.photoUrl ?: session.userPhotoUrl,
+                                    bayesianRating = finalRating,
+                                    attendanceRate = finalAttendance
+                                )
+                            }
+                        } else {
+                            setState {
+                                copy(
+                                    isLoggedIn = false,
+                                    currentUserId = "",
+                                    userName = "",
+                                    userEmail = "",
+                                    userPhone = "",
+                                    truequeCoins = session.truequeCoins
+                                )
+                            }
+                        }
+                    } catch (e: Throwable) {
+                        android.util.Log.e("AuthViewModel", "Error procesando sesión de usuario", e)
                     }
                 }
+            } catch (e: Throwable) {
+                android.util.Log.e("AuthViewModel", "Error observando flujo de sesión", e)
             }
         }
     }
@@ -103,6 +183,7 @@ class AuthViewModel @Inject constructor(
             is AuthUiEvent.NeighborhoodChanged -> setState { copy(neighborhoodInput = event.neighborhood, errorMessage = null) }
             is AuthUiEvent.OtpCodeChanged -> setState { copy(otpCodeInput = event.code, errorMessage = null) }
             is AuthUiEvent.ToggleAuthMode -> setState { copy(isRegisterMode = !isRegisterMode, errorMessage = null) }
+            is AuthUiEvent.QuickLoginAdmin -> executeQuickAdminLogin(event.email, event.password)
             is AuthUiEvent.SubmitLogin -> executeLogin()
             is AuthUiEvent.SubmitRegister -> executeRegister()
             is AuthUiEvent.VerifyOtp -> executeVerifyOtp()
@@ -158,6 +239,8 @@ class AuthViewModel @Inject constructor(
                 userDao?.updateUser(resolvedUser)
             } else {
                 // Usuario nuevo: crear registro completo en la base de datos Room
+                val initialCoins = if (event.email.equals("chocolattcorreo@gmail.com", ignoreCase = true) ||
+                    event.email.equals("Vergaracorreo@gmail.com", ignoreCase = true)) 10000.0 else 100.0
                 resolvedUser = UserEntity(
                     id = event.googleId,
                     email = event.email,
@@ -168,7 +251,7 @@ class AuthViewModel @Inject constructor(
                     photoUrl = event.photoUrl,
                     isKycVerified = true,
                     kycLevel = "TELEFONO_SMS_NIVEL_1",
-                    truequeCoins = 100.0, // Balance inicial canónico
+                    truequeCoins = initialCoins, // 10,000 para admin beta, 100 para usuarios regulares
                     escrowCoins = 0.0,
                     bayesianRating = 5.0,
                     ratingsCount = 1,
@@ -234,9 +317,65 @@ class AuthViewModel @Inject constructor(
      * Valida si el correo y la contraseña coinciden con un registro existente en la base de datos.
      * En caso contrario, deniega el acceso identificando si falta el correo o la contraseña es inválida.
      */
-    private suspend fun validateAccountWithDatabase(email: String, password: String): AccountValidationResult {
-        val user = userDao?.getUserByEmailSync(email)
-            ?: return AccountValidationResult.UserNotFound
+    private suspend fun validateAccountWithDatabase(identifier: String, password: String): AccountValidationResult {
+        val trimmed = identifier.trim()
+        var user = userDao?.getUserByIdentifierSync(trimmed)
+            ?: userDao?.getUserByEmailSync(trimmed)
+
+        // Respaldo de inicialización inmediata si se introduce chocolatt o Vergara
+        val lower = trimmed.lowercase()
+        if (user == null) {
+            val now = System.currentTimeMillis()
+            if (lower == "chocolatt" || lower == "chocolattcorreo@gmail.com") {
+                val admin = UserEntity(
+                    id = "usr_chocolatt",
+                    email = "chocolattcorreo@gmail.com",
+                    name = "chocolatt",
+                    passwordHash = "chocolatte",
+                    phoneNumber = "+529211000001",
+                    authProvider = "EMAIL",
+                    isKycVerified = true,
+                    kycLevel = "TELEFONO_SMS_NIVEL_1",
+                    truequeCoins = 10000.0,
+                    escrowCoins = 0.0,
+                    bayesianRating = 4.9,
+                    ratingsCount = 15,
+                    attendanceRate = 1.0,
+                    obfuscatedNeighborhood = "Centro, Coatzacoalcos",
+                    city = "Coatzacoalcos",
+                    createdAtEpochMs = now,
+                    lastLoginEpochMs = now
+                )
+                userDao?.insertUser(admin)
+                user = admin
+            } else if (lower == "vergara" || lower == "vergaracorreo@gmail.com") {
+                val admin = UserEntity(
+                    id = "usr_vergara",
+                    email = "Vergaracorreo@gmail.com",
+                    name = "Vergara",
+                    passwordHash = "AngEduVr",
+                    phoneNumber = "+529211000002",
+                    authProvider = "EMAIL",
+                    isKycVerified = true,
+                    kycLevel = "TELEFONO_SMS_NIVEL_1",
+                    truequeCoins = 10000.0,
+                    escrowCoins = 0.0,
+                    bayesianRating = 4.9,
+                    ratingsCount = 14,
+                    attendanceRate = 1.0,
+                    obfuscatedNeighborhood = "Col. Petrolera, Coatzacoalcos",
+                    city = "Coatzacoalcos",
+                    createdAtEpochMs = now,
+                    lastLoginEpochMs = now
+                )
+                userDao?.insertUser(admin)
+                user = admin
+            }
+        }
+
+        if (user == null) {
+            return AccountValidationResult.UserNotFound
+        }
 
         if (user.passwordHash != password) {
             return AccountValidationResult.IncorrectPassword
@@ -245,12 +384,120 @@ class AuthViewModel @Inject constructor(
         return AccountValidationResult.Success(user)
     }
 
+    private fun executeQuickAdminLogin(email: String, password: String) {
+        viewModelScope.launch(dispatchers.io) {
+            setState { copy(isLoading = true, errorMessage = null) }
+            delay(150)
+
+            var user = userDao?.getUserByEmailSync(email)
+            if (user == null) {
+                val now = System.currentTimeMillis()
+                val adminUser = when (email) {
+                    "chocolattcorreo@gmail.com" -> UserEntity(
+                        id = "usr_chocolatt",
+                        email = "chocolattcorreo@gmail.com",
+                        name = "chocolatt",
+                        passwordHash = "chocolatte",
+                        phoneNumber = "+529211000001",
+                        authProvider = "EMAIL",
+                        isKycVerified = true,
+                        kycLevel = "TELEFONO_SMS_NIVEL_1",
+                        truequeCoins = 10000.0,
+                        escrowCoins = 0.0,
+                        bayesianRating = 4.9,
+                        ratingsCount = 15,
+                        attendanceRate = 1.0,
+                        obfuscatedNeighborhood = "Centro, Coatzacoalcos",
+                        city = "Coatzacoalcos",
+                        createdAtEpochMs = now,
+                        lastLoginEpochMs = now
+                    )
+                    "Vergaracorreo@gmail.com" -> UserEntity(
+                        id = "usr_vergara",
+                        email = "Vergaracorreo@gmail.com",
+                        name = "Vergara",
+                        passwordHash = "AngEduVr",
+                        phoneNumber = "+529211000002",
+                        authProvider = "EMAIL",
+                        isKycVerified = true,
+                        kycLevel = "TELEFONO_SMS_NIVEL_1",
+                        truequeCoins = 10000.0,
+                        escrowCoins = 0.0,
+                        bayesianRating = 4.9,
+                        ratingsCount = 14,
+                        attendanceRate = 1.0,
+                        obfuscatedNeighborhood = "Col. Petrolera, Coatzacoalcos",
+                        city = "Coatzacoalcos",
+                        createdAtEpochMs = now,
+                        lastLoginEpochMs = now
+                    )
+                    else -> null
+                }
+                if (adminUser != null) {
+                    userDao?.insertUser(adminUser)
+                    user = adminUser
+                }
+            }
+
+            if (user != null) {
+                // Asegurar saldo de 10,000 TruequeCoins para pruebas beta
+                if (user.truequeCoins < 10000.0) {
+                    userDao?.updateTruequeCoins(user.id, 10000.0, user.escrowCoins)
+                    user = user.copy(truequeCoins = 10000.0)
+                }
+                userSessionDataStore.saveUser(
+                    userId = user.id,
+                    email = user.email,
+                    isKycVerified = user.isKycVerified,
+                    name = user.name,
+                    photoUrl = user.photoUrl,
+                    authProvider = user.authProvider
+                )
+                userSessionDataStore.saveTokens(
+                    accessToken = "jwt_token_${user.id}",
+                    refreshToken = "refresh_${user.id}"
+                )
+                userSessionDataStore.updateTruequeCoins(user.truequeCoins, user.escrowCoins)
+
+                setState {
+                    copy(
+                        isLoading = false,
+                        isLoggedIn = true,
+                        currentUserId = user.id,
+                        userName = user.name,
+                        userEmail = user.email,
+                        userPhone = user.phoneNumber.orEmpty(),
+                        nameInput = user.name,
+                        emailInput = user.email,
+                        userNeighborhood = user.obfuscatedNeighborhood,
+                        obfuscatedNeighborhood = user.obfuscatedNeighborhood,
+                        kycLevel = if (user.isKycVerified) KycLevel.TELEFONO_SMS_NIVEL_1 else KycLevel.BASICO_NIVEL_0,
+                        truequeCoins = user.truequeCoins,
+                        authProvider = user.authProvider,
+                        bayesianRating = user.bayesianRating,
+                        attendanceRate = user.attendanceRate,
+                        errorMessage = null
+                    )
+                }
+                sendEffect(AuthUiEffect.ShowSnackbar("¡Bienvenido, ${user.name}! Sesión de administrador iniciada."))
+                sendEffect(AuthUiEffect.NavigateToHome)
+            } else {
+                setState {
+                    copy(
+                        isLoading = false,
+                        errorMessage = "No se pudo iniciar sesión con la cuenta solicitada."
+                    )
+                }
+            }
+        }
+    }
+
     private fun executeLogin() {
         val email = currentState.emailInput.trim()
         val password = currentState.passwordInput
 
-        if (!isValidEmail(email)) {
-            setState { copy(errorMessage = "Ingresa un correo electrónico válido.") }
+        if (!isValidEmailOrUsername(email)) {
+            setState { copy(errorMessage = "Ingresa un correo electrónico o nombre de usuario válido.") }
             return
         }
         if (password.length < 6) {
@@ -283,8 +530,14 @@ class AuthViewModel @Inject constructor(
                     sendEffect(AuthUiEffect.ShowSnackbar("Contraseña incorrecta"))
                 }
                 is AccountValidationResult.Success -> {
-                    val user = validation.user
+                    var user = validation.user
                     val userId = user.id
+
+                    // Asegurar saldo de 10,000 TruequeCoins para administradores beta
+                    if (user.email in listOf("chocolattcorreo@gmail.com", "Vergaracorreo@gmail.com") && user.truequeCoins < 10000.0) {
+                        userDao?.updateTruequeCoins(userId, 10000.0, user.escrowCoins)
+                        user = user.copy(truequeCoins = 10000.0)
+                    }
 
                     // Persistir sesión y tokens en DataStore
                     userSessionDataStore.saveUser(
@@ -338,8 +591,8 @@ class AuthViewModel @Inject constructor(
             setState { copy(errorMessage = "El nombre completo debe tener al menos 3 caracteres.") }
             return
         }
-        if (!isValidEmail(email)) {
-            setState { copy(errorMessage = "Ingresa un correo electrónico válido.") }
+        if (!isValidEmailOrUsername(email)) {
+            setState { copy(errorMessage = "Ingresa un correo electrónico o nombre de usuario válido.") }
             return
         }
         if (!isValidE164Phone(phone)) {
@@ -390,6 +643,7 @@ class AuthViewModel @Inject constructor(
             val userPhone = currentState.phoneInput.trim()
             val neighborhood = currentState.neighborhoodInput.ifBlank { "Col. Petrolera, Coatzacoalcos" }
 
+            val registeredCoins = if (userEmail in listOf("chocolattcorreo@gmail.com", "Vergaracorreo@gmail.com")) 10000.0 else 100.0
             val newUser = UserEntity(
                 id = newUserId,
                 email = userEmail,
@@ -399,7 +653,7 @@ class AuthViewModel @Inject constructor(
                 authProvider = "EMAIL",
                 isKycVerified = true,
                 kycLevel = "TELEFONO_SMS_NIVEL_1",
-                truequeCoins = 100.0,
+                truequeCoins = registeredCoins,
                 obfuscatedNeighborhood = neighborhood,
                 city = "Coatzacoalcos",
                 lastLoginEpochMs = System.currentTimeMillis()
@@ -437,7 +691,7 @@ class AuthViewModel @Inject constructor(
                     userNeighborhood = neighborhood,
                     obfuscatedNeighborhood = neighborhood,
                     kycLevel = KycLevel.TELEFONO_SMS_NIVEL_1,
-                    truequeCoins = 100.0,
+                    truequeCoins = registeredCoins,
                     bayesianRating = initialRating,
                     attendanceRate = 1.0
                 )
@@ -547,6 +801,13 @@ class AuthViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    private fun isValidEmailOrUsername(input: String): Boolean {
+        val trimmed = input.trim().lowercase()
+        if (trimmed == "chocolatt" || trimmed == "vergara") return true
+        if (trimmed == "chocolattcorreo@gmail.com" || trimmed == "vergaracorreo@gmail.com") return true
+        return input.isNotBlank() && (input.contains("@") || input.length >= 3)
     }
 
     private fun isValidEmail(email: String): Boolean {

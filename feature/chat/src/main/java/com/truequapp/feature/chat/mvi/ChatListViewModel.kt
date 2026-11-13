@@ -1,102 +1,65 @@
 package com.truequapp.feature.chat.mvi
 
-import androidx.compose.ui.graphics.Color
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.truequapp.core.database.dao.TradeProposalDao
-import com.truequapp.core.database.dao.UserDao
+import com.truequapp.core.common.dispatcher.DispatcherProvider
+import com.truequapp.core.common.mvi.BaseViewModel
 import com.truequapp.core.datastore.UserSessionDataStore
-import com.truequapp.feature.chat.ui.ChatConversationSummary
+import com.truequapp.feature.chat.data.ChatConversationSummary
+import com.truequapp.feature.chat.data.ChatRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-data class ChatListUiState(
-    val conversations: List<ChatConversationSummary> = emptyList(),
-    val isLoading: Boolean = true
-)
-
+/**
+ * ViewModel que gestiona la pantalla del nuevo menú "Mensajes" (Módulo 4).
+ * Carga de forma reactiva todas las conversaciones vinculadas a trueques activos o en auditoría (RN-03).
+ */
 @HiltViewModel
 class ChatListViewModel @Inject constructor(
+    private val chatRepository: ChatRepository,
     private val userSessionDataStore: UserSessionDataStore,
-    private val tradeProposalDao: TradeProposalDao,
-    private val userDao: UserDao
-) : ViewModel() {
-
-    private val _uiState = MutableStateFlow(ChatListUiState())
-    val uiState: StateFlow<ChatListUiState> = _uiState.asStateFlow()
+    private val dispatchers: DispatcherProvider
+) : BaseViewModel<ChatListUiState, ChatListUiEvent, ChatListUiEffect>(ChatListUiState()) {
 
     init {
         loadConversations()
     }
 
-    fun loadConversations() {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
-            val session = userSessionDataStore.sessionFlow.first()
-            val userId = session.userId ?: "usr_current"
+    override fun onEvent(event: ChatListUiEvent) {
+        when (event) {
+            is ChatListUiEvent.Refresh -> loadConversations()
+            is ChatListUiEvent.OnConversationSelected -> {
+                sendEffect(ChatListUiEffect.NavigateToChat(event.proposalId))
+            }
+        }
+    }
 
-            val proposals = tradeProposalDao.getAllProposalsSync()
-            val userProposals = proposals.filter {
-                it.initiatorUserId == userId || it.receiverUserId == userId ||
-                it.initiatorUserId == "usr_current" || it.receiverUserId == "usr_current"
+    private fun loadConversations() {
+        viewModelScope.launch(dispatchers.io) {
+            setState { copy(isLoading = true) }
+            val session = userSessionDataStore.sessionFlow.first()
+            val userEmail = session.userEmail ?: "angeleduvr@gmail.com"
+
+            setState { copy(currentUserId = userEmail) }
+
+            // Sincronizar en segundo plano propuestas y mensajes desde la nube (Turso)
+            launch(dispatchers.io) {
+                try {
+                    chatRepository.syncConversationsFromCloud(userEmail)
+                } catch (_: Exception) {}
             }
 
-            val demoChat = ChatConversationSummary(
-                proposalId = "chat_ejemplo_1",
-                otherUserName = "Chat Ejemplo 1 (Carlos R.)",
-                lastMessagePreview = "¡Hola! Vi tu publicación y me interesa hacer el trueque...",
-                statusLabel = "Interactivo / Punto Seguro",
-                statusColor = Color(0xFF00897B)
-            )
-
-            val list = mutableListOf(demoChat)
-            if (userProposals.isNotEmpty()) {
-                val dbList = userProposals.map { p ->
-                    val otherId = if (p.initiatorUserId == userId) p.receiverUserId else p.initiatorUserId
-                    val otherUser = if (otherId.isNotBlank()) userDao.getUserByIdSync(otherId) else null
-                    val name = otherUser?.name ?: if (otherId == "usr_alpha") "Carlos R. - Petrolera" else "Colega Truequero"
-                    val (statusText, statusColor) = when (p.status) {
-                        "CONTRAOFERTADA" -> "Contraofertada" to Color(0xFF1565C0)
-                        "RESERVADO" -> "Reservado (RN-01)" to Color(0xFF2E7D32)
-                        "EN_ENTREGA" -> "En Entrega" to Color(0xFF00695C)
-                        else -> "Propuesta Activa" to Color(0xFFE65100)
-                    }
-                    ChatConversationSummary(
-                        proposalId = p.id,
-                        otherUserName = name,
-                        lastMessagePreview = "Toca para abrir el chat transaccional seguro (RN-03)",
-                        statusLabel = statusText,
-                        statusColor = statusColor
+            chatRepository.getConversations(userEmail).collectLatest { dbConversations ->
+                setState {
+                    copy(
+                        conversations = dbConversations,
+                        isLoading = false,
+                        errorMessage = null
                     )
                 }
-                list.addAll(dbList)
-            } else {
-                list.add(
-                    ChatConversationSummary(
-                        proposalId = "prop_active_01",
-                        otherUserName = "Carlos R. - Petrolera",
-                        lastMessagePreview = "¡Hola! Vi tu oferta de trueque. ¿Te parece si coordinamos?",
-                        statusLabel = "Propuesta Activa",
-                        statusColor = Color(0xFFE65100)
-                    )
-                )
-                list.add(
-                    ChatConversationSummary(
-                        proposalId = "prop_reserved_02",
-                        otherUserName = "Lucía M. - María de la Piedad",
-                        lastMessagePreview = "Perfecto, nos vemos en Punto Seguro Plaza Forum.",
-                        statusLabel = "Reservado (RN-01)",
-                        statusColor = Color(0xFF2E7D32)
-                    )
-                )
             }
-
-            _uiState.value = ChatListUiState(conversations = list, isLoading = false)
         }
     }
 }

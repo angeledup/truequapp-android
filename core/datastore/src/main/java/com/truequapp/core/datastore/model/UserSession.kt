@@ -12,7 +12,7 @@ data class UserSession(
     val userEmail: String? = null,
     val userPhotoUrl: String? = null,
     val isKycVerified: Boolean = false,
-    val truequeCoins: Double = 100.0,
+    val truequeCoins: Double = 10000.0,
     val escrowCoins: Double = 0.0,
     val authProvider: String = "EMAIL" // "GOOGLE", "PHONE", "EMAIL"
 ) {

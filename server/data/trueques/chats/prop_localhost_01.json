@@ -1,0 +1,31 @@
+[
+  {
+    "id": "msg_local_01",
+    "proposalId": "prop_localhost_01",
+    "truequeId": "prop_localhost_01",
+    "senderId": "chocolattcorreo@gmail.com",
+    "emisorCorreo": "chocolattcorreo@gmail.com",
+    "receptorCorreo": "Vergaracorreo@gmail.com",
+    "content": "¡Hola Vergara! Vi tu publicación de la Mochila Escolar en el catálogo local. Te ofrezco mi Laptop Dell en trueque.",
+    "contenido": "¡Hola Vergara! Vi tu publicación de la Mochila Escolar en el catálogo local. Te ofrezco mi Laptop Dell en trueque.",
+    "timestampEpochMs": 1731369700000,
+    "fechaEnvioMs": 1731369700000,
+    "estaEntregado": true,
+    "estaLeido": true
+  },
+  {
+    "id": "msg_local_02",
+    "proposalId": "prop_localhost_01",
+    "truequeId": "prop_localhost_01",
+    "senderId": "Vergaracorreo@gmail.com",
+    "emisorCorreo": "Vergaracorreo@gmail.com",
+    "receptorCorreo": "chocolattcorreo@gmail.com",
+    "content": "¡Hola Chocolatt! Me parece una excelente propuesta. ¿Podemos coordinar la entrega en el punto seguro de CETIS 79?",
+    "contenido": "¡Hola Chocolatt! Me parece una excelente propuesta. ¿Podemos coordinar la entrega en el punto seguro de CETIS 79?",
+    "timestampEpochMs": 1731369800000,
+    "fechaEnvioMs": 1731369800000,
+    "estaEntregado": true,
+    "estaLeido": false
+  }
+]
+

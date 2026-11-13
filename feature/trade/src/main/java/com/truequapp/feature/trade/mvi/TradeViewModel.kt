@@ -3,6 +3,8 @@ package com.truequapp.feature.trade.mvi
 import androidx.lifecycle.viewModelScope
 import com.truequapp.core.common.dispatcher.DispatcherProvider
 import com.truequapp.core.common.mvi.BaseViewModel
+import com.truequapp.core.database.repository.UserRepository
+import com.truequapp.core.database.storage.UserPublicationStorage
 import com.truequapp.core.datastore.UserSessionDataStore
 import com.truequapp.core.domain.model.GeoCoordinates
 import com.truequapp.core.domain.model.ItemCondition
@@ -17,23 +19,27 @@ import com.truequapp.core.domain.model.TradeModality
 import com.truequapp.core.domain.model.TradeProposal
 import com.truequapp.core.domain.model.TradeStatus
 import com.truequapp.core.domain.model.UserProfile
-import com.truequapp.core.database.dao.TradeItemDao
-import com.truequapp.core.database.dao.TradeProposalDao
-import com.truequapp.core.database.mapper.toDomainModel
-import com.truequapp.core.database.mapper.toEntity
 import com.truequapp.core.domain.rules.BusinessRuleException
 import com.truequapp.core.domain.rules.EvaluateCancellationWindowUseCase
 import com.truequapp.core.domain.rules.LockInventoryForTradeUseCase
 import com.truequapp.core.domain.rules.ValidateTradeValueUseCase
+import com.truequapp.feature.trade.data.TradeRepository
+import com.truequapp.feature.trade.data.toTradeProposal
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
- * ViewModel que orquesta el Motor de Propuestas de Trueque de la Fase 2 (CU009, CU010, CU011, CU012).
- * Aplica con rigor las reglas de negocio canónicas y persiste las propuestas en SQLite Room.
+ * ViewModel que orquesta el Motor de Propuestas de Trueque de la Fase 2 (CU009, CU010, CU011, CU012)
+ * y la gestión de "Mis Publicaciones" (eliminación y cancelación) trasladadas a la pantalla de Trueques.
+ * Aplica con rigor las reglas de negocio canónicas:
+ * - RN-01: Exclusividad y bloqueo atómico ACID de inventario.
+ * - RN-02: Umbral mínimo de valor del 40% (Banda de equivalencia).
+ * - RN-07: Ventana de cancelación y penalización de asistencia ante imprevistos (< 4h).
+ * - Persistencia local y consolidación de Oferta A, Oferta B y Trueque con flag 'esta_activa' (SQL Room).
  */
 @HiltViewModel
 class TradeViewModel @Inject constructor(
@@ -41,9 +47,10 @@ class TradeViewModel @Inject constructor(
     private val lockInventoryForTradeUseCase: LockInventoryForTradeUseCase = LockInventoryForTradeUseCase(),
     private val evaluateCancellationWindowUseCase: EvaluateCancellationWindowUseCase = EvaluateCancellationWindowUseCase(),
     private val userSessionDataStore: UserSessionDataStore,
-    private val tradeItemDao: TradeItemDao? = null,
-    private val tradeProposalDao: TradeProposalDao? = null,
-    private val dispatchers: DispatcherProvider
+    private val dispatchers: DispatcherProvider,
+    private val tradeRepository: TradeRepository? = null,
+    private val userPublicationStorage: UserPublicationStorage? = null,
+    private val userRepository: UserRepository? = null
 ) : BaseViewModel<TradeUiState, TradeUiEvent, TradeUiEffect>(TradeUiState()) {
 
     // Almacén en memoria de ítems y propuestas para sincronización local
@@ -57,6 +64,62 @@ class TradeViewModel @Inject constructor(
 
     private fun seedInitialData() {
         val seedItems = listOf(
+            TradeItem(
+                id = "item_chocolatt_01",
+                ownerId = "usr_chocolatt",
+                title = "Laptop Dell Inspiron Core i5 para Programación (CETIS 79)",
+                description = "Laptop Dell con Intel Core i5, 16GB RAM y SSD 512GB. Ideal para talleres de programación y ofimática en CETIS 79.",
+                categoryId = 2,
+                type = ItemType.BIEN_FISICO,
+                condition = ItemCondition.COMO_NUEVO,
+                estimatedValueMin = 5500.0,
+                estimatedValueMax = 6500.0,
+                imagesWebP = listOf("https://images.unsplash.com/photo-1496181133206-80ce9b88a853"),
+                tagsWishlist = listOf("Calculadora Científica", "Mochila Escolar", "Kit Electrónica"),
+                isAvailable = true
+            ),
+            TradeItem(
+                id = "item_chocolatt_02",
+                ownerId = "usr_chocolatt",
+                title = "Bolígrafo con Diseño Especial Escolar",
+                description = "Bolígrafo metálico recargable con diseño ergonómico de alta precisión para apuntes técnicos y exámenes.",
+                categoryId = 3,
+                type = ItemType.BIEN_FISICO,
+                condition = ItemCondition.COMO_NUEVO,
+                estimatedValueMin = 150.0,
+                estimatedValueMax = 250.0,
+                imagesWebP = listOf("https://images.unsplash.com/photo-1583485088034-697b5bc54ccd"),
+                tagsWishlist = listOf("Calculadora", "Mochila", "Cuadernos"),
+                isAvailable = true
+            ),
+            TradeItem(
+                id = "item_vergara_01",
+                ownerId = "usr_vergara",
+                title = "Mochila Escolar Reforzada CETIS 79",
+                description = "Mochila ergonómica de alta resistencia con compartimento acolchado para laptop de 15.6 pulgadas y puerto USB.",
+                categoryId = 4,
+                type = ItemType.BIEN_FISICO,
+                condition = ItemCondition.COMO_NUEVO,
+                estimatedValueMin = 650.0,
+                estimatedValueMax = 850.0,
+                imagesWebP = listOf("https://images.unsplash.com/photo-1553062407-98eeb64c6a62"),
+                tagsWishlist = listOf("Laptop Dell", "Bolígrafo con diseño", "Calculadora"),
+                isAvailable = true
+            ),
+            TradeItem(
+                id = "item_vergara_02",
+                ownerId = "usr_vergara",
+                title = "Calculadora Científica Casio fx-991LA Plus",
+                description = "Calculadora científica oficial requerida para cálculo diferencial, integral y especialidades técnicas CETIS 79.",
+                categoryId = 3,
+                type = ItemType.BIEN_FISICO,
+                condition = ItemCondition.COMO_NUEVO,
+                estimatedValueMin = 650.0,
+                estimatedValueMax = 850.0,
+                imagesWebP = listOf("https://images.unsplash.com/photo-1578303512597-81e6cc155b3e"),
+                tagsWishlist = listOf("Laptop Dell", "Bolígrafo con diseño", "Mochila"),
+                isAvailable = true
+            ),
             TradeItem(
                 id = "item_001",
                 ownerId = "usr_alpha",
@@ -116,68 +179,100 @@ class TradeViewModel @Inject constructor(
         )
         inMemoryItems.addAll(seedItems)
 
-        val seedProposals = listOf(
-            TradeProposal(
-                id = "prop_seed_101",
-                requesterUserId = "usr_beta",
-                receiverUserId = "usr_current",
-                offeredItemIds = listOf("item_002"),
-                targetItemId = "item_user_02",
-                compensatoryTruequeCoins = 250.0,
-                modality = TradeModality.HIBRIDO_CON_CREDITOS,
-                status = TradeStatus.PENDIENTE
-            )
-        )
-        inMemoryProposals.addAll(seedProposals)
-    }
-
-    private fun loadSessionUser() {
-        viewModelScope.launch(dispatchers.io) {
-            userSessionDataStore.sessionFlow.collect { session ->
-                val userId = session.userId ?: "usr_current"
-                val kyc = if (session.isKycVerified) KycLevel.TELEFONO_SMS_NIVEL_1 else KycLevel.BASICO_NIVEL_0
-                val userProfile = UserProfile(
-                    id = userId,
-                    fullName = session.userName ?: "Usuario Truequapp",
-                    username = "truequero_${userId.takeLast(4)}",
-                    email = session.userEmail ?: "user_${userId}@truequapp.com",
-                    phoneNumber = "+525500000000",
-                    kycLevel = kyc,
-                    attendanceRate = 1.0,
-                    location = ObfuscatedGeoLocation(
-                        neighborhoodName = "Centro, Coatzacoalcos",
-                        approximateCoordinates = GeoCoordinates(18.1486, -94.4208)
-                    )
-                )
-
-                setState {
-                    copy(
-                        currentUserId = userId,
-                        truequeCoins = session.truequeCoins,
-                        currentUserProfile = userProfile
-                    )
-                }
-                syncDataFromDatabase(userId)
+        // Sincronizar publicaciones del catálogo central (servidor simulado)
+        val savedPublications = userPublicationStorage?.getRemoteCatalogItems()
+            ?: userPublicationStorage?.loadPublishedItems().orEmpty()
+        savedPublications.forEach { saved ->
+            if (inMemoryItems.none { it.id == saved.id }) {
+                inMemoryItems.add(saved)
             }
         }
     }
 
-    private suspend fun syncDataFromDatabase(userId: String) {
-        // Cargar ítems de SQLite Room para que los artículos publicados por el usuario aparezcan disponibles
-        val dbItems = tradeItemDao?.getAllItemsSync().orEmpty()
-        if (dbItems.isNotEmpty()) {
-            inMemoryItems.clear()
-            inMemoryItems.addAll(dbItems.map { it.toDomainModel() })
+    private fun loadSessionUser() {
+        viewModelScope.launch(dispatchers.io) {
+            val session = userSessionDataStore.sessionFlow.first()
+            val userId = session.userId ?: "usr_current"
+            val userEmail = session.userEmail
+
+            // Consultar datos del usuario desde la base de datos SQL (Single Source of Truth)
+            val dbUser = if (!userEmail.isNullOrBlank()) {
+                userRepository?.getCurrentUser()
+            } else null
+
+            val coinsFromDb = dbUser?.cantidadTruequeCoins
+                ?: userRepository?.getCoins(userEmail)
+                ?: 100.0
+
+            val kyc = if (session.isKycVerified) KycLevel.TELEFONO_SMS_NIVEL_1 else KycLevel.BASICO_NIVEL_0
+            val userProfile = UserProfile(
+                id = userId,
+                fullName = dbUser?.usuario ?: "Usuario Truequapp",
+                username = dbUser?.usuario ?: "truequero_${userId.takeLast(4)}",
+                email = userEmail ?: "user_${userId}@truequapp.com",
+                phoneNumber = dbUser?.numeroTelefonico ?: "+525500000000",
+                kycLevel = kyc,
+                attendanceRate = 1.0,
+                location = ObfuscatedGeoLocation(
+                    neighborhoodName = "Zona Universitaria",
+                    approximateCoordinates = GeoCoordinates(19.4326, -99.1332)
+                )
+            )
+
+            loadUserPublications(userId)
+
+            if (!userEmail.isNullOrBlank()) {
+                tradeRepository?.syncProposalsFromCloud(userEmail)
+            }
+
+            setState {
+                copy(
+                    currentUserId = userId,
+                    truequeCoins = coinsFromDb,
+                    currentUserProfile = userProfile
+                )
+            }
+
+            // Observar en tiempo real las coins desde la base de datos
+            userRepository?.observeCoins(userEmail)?.collectLatest { realTimeCoins ->
+                setState { copy(truequeCoins = realTimeCoins) }
+            }
+        }
+    }
+
+    private fun isMyTradeItem(item: TradeItem, userId: String): Boolean {
+        val email = currentState.currentUserProfile?.email
+        return item.ownerId.equals(userId, ignoreCase = true) || 
+               (email != null && item.ownerId.equals(email, ignoreCase = true)) || 
+               (userId == "usr_current" && item.ownerId == "usr_current")
+    }
+
+    private fun loadUserPublications(userId: String) {
+        val activeSessionEmail = currentState.currentUserProfile?.email
+        val effectiveUserId = if (userId.isNotBlank() && userId != "usuario_actual") {
+            userId
+        } else {
+            activeSessionEmail ?: currentState.currentUserId.takeIf { it != "usuario_actual" } ?: "usr_current"
         }
 
-        // Cargar propuestas desde SQLite Room
-        val dbProposals = tradeProposalDao?.getAllProposalsSync().orEmpty()
-        if (dbProposals.isNotEmpty()) {
-            inMemoryProposals.clear()
-            inMemoryProposals.addAll(dbProposals.map { it.toDomainModel() })
-        }
+        // Cargar exclusivamente las publicaciones del usuario desde su archivo local
+        val userSpecific = userPublicationStorage?.loadUserPublications(effectiveUserId).orEmpty()
+        val userItems = if (userSpecific.isNotEmpty()) {
+            userSpecific.filter { isMyTradeItem(it, effectiveUserId) }
+        } else {
+            // Fallback al catálogo si el usuario aún no tiene archivo local
+            val all = userPublicationStorage?.getRemoteCatalogItems()
+                ?: userPublicationStorage?.loadPublishedItems().orEmpty()
+            val fromAll = all.filter { isMyTradeItem(it, effectiveUserId) }
+            if (fromAll.isNotEmpty()) {
+                userPublicationStorage?.saveUserPublications(effectiveUserId, fromAll)
+                fromAll
+            } else {
+                inMemoryItems.filter { isMyTradeItem(it, effectiveUserId) }
+            }
+        }.distinctBy { it.id }
 
-        loadProposals(userId)
+        setState { copy(myPublications = userItems) }
     }
 
     override fun onEvent(event: TradeUiEvent) {
@@ -190,6 +285,18 @@ class TradeViewModel @Inject constructor(
             is TradeUiEvent.LoadProposals -> loadProposals(event.userId)
             is TradeUiEvent.SelectTab -> setState { copy(selectedTab = event.tabIndex) }
             is TradeUiEvent.LoadProposalDetails -> loadProposalDetails(event.proposalId, event.currentUserId)
+            is TradeUiEvent.OpenOfferDetail -> openOfferDetail(event.proposalId)
+            is TradeUiEvent.CloseOfferDetail -> setState {
+                copy(
+                    selectedOfferProposal = null,
+                    selectedOfferProponentUser = null,
+                    selectedOfferTargetItem = null,
+                    selectedOfferOfferedItems = emptyList()
+                )
+            }
+            is TradeUiEvent.RefreshMyPublications -> loadUserPublications(currentState.currentUserId)
+            is TradeUiEvent.DeletePublication -> deletePublication(event.itemId)
+            is TradeUiEvent.TogglePausePublication -> togglePausePublication(event.itemId)
             is TradeUiEvent.AcceptProposal -> acceptProposal(event.proposalId)
             is TradeUiEvent.OpenCounterOfferDialog -> setState { copy(showCounterOfferDialog = true) }
             is TradeUiEvent.DismissCounterOfferDialog -> setState { copy(showCounterOfferDialog = false) }
@@ -205,19 +312,120 @@ class TradeViewModel @Inject constructor(
         }
     }
 
-    // CU009: Proponer Trueque Directo o Híbrido
-    private fun initTradeCreation(targetItemId: String, userId: String) {
-        val effectiveUserId = when {
-            userId.isNotBlank() -> userId
-            currentState.currentUserId.isNotBlank() -> currentState.currentUserId
-            else -> "usr_current"
+    // Gestión de Mis Publicaciones trasladadas a Trueques
+    private fun deletePublication(itemId: String) {
+        val item = inMemoryItems.find { it.id == itemId }
+            ?: currentState.myPublications.find { it.id == itemId }
+
+        if (item != null && item.status == ItemStatus.RESERVADO) {
+            setState {
+                copy(errorMessage = "RN-01: No se puede eliminar un artículo reservado en una transacción activa.")
+            }
+            return
         }
 
-        // 1. Buscar objetivo en memoria
-        var target = inMemoryItems.find { it.id == targetItemId }
+        inMemoryItems.removeIf { it.id == itemId }
+        val activeSessionEmail = currentState.currentUserProfile?.email
+        val effectiveUserId = activeSessionEmail ?: currentState.currentUserId
 
-        // 2. Anti-auto-trueque: 2 partes obligatorias (no puedes intercambiar contigo mismo)
-        if (target != null && target.ownerId == effectiveUserId) {
+        // Eliminar del servidor central y del archivo local del usuario
+        userPublicationStorage?.deleteItemFromServer(itemId)
+        userPublicationStorage?.deleteUserPublication(effectiveUserId, itemId)
+
+        val updatedPublications = currentState.myPublications.filter { it.id != itemId }
+        val updatedAvailable = currentState.availableUserItems.filter { it.id != itemId }
+
+        setState {
+            copy(
+                myPublications = updatedPublications,
+                availableUserItems = updatedAvailable
+            )
+        }
+
+        sendEffect(TradeUiEffect.ShowToast("Publicación eliminada correctamente."))
+    }
+
+    private fun togglePausePublication(itemId: String) {
+        val item = inMemoryItems.find { it.id == itemId }
+            ?: currentState.myPublications.find { it.id == itemId }
+
+        if (item == null) {
+            setState { copy(errorMessage = "Publicación no encontrada.") }
+            return
+        }
+
+        if (item.status == ItemStatus.RESERVADO || item.status == ItemStatus.EN_ENTREGA) {
+            setState {
+                copy(errorMessage = "RN-01: No se puede modificar el estado de un artículo con negociación activa.")
+            }
+            return
+        }
+
+        val newStatus = if (item.status == ItemStatus.PAUSADO) ItemStatus.DISPONIBLE else ItemStatus.PAUSADO
+        val isNowAvailable = newStatus == ItemStatus.DISPONIBLE
+        val updatedItem = item.copy(status = newStatus)
+
+        // Actualizar en memoria
+        val memIndex = inMemoryItems.indexOfFirst { it.id == itemId }
+        if (memIndex != -1) {
+            inMemoryItems[memIndex] = updatedItem
+        } else {
+            inMemoryItems.add(updatedItem)
+        }
+
+        val activeSessionEmail = currentState.currentUserProfile?.email
+        val effectiveUserId = activeSessionEmail ?: currentState.currentUserId
+
+        // Persistir en almacenamiento del servidor y local del usuario
+        userPublicationStorage?.updateItemOnServer(updatedItem)
+        userPublicationStorage?.updateUserPublication(effectiveUserId, updatedItem)
+
+        val updatedPublications = currentState.myPublications.map {
+            if (it.id == itemId) updatedItem else it
+        }
+
+        val updatedAvailable = if (isNowAvailable) {
+            if (currentState.availableUserItems.none { it.id == itemId }) {
+                currentState.availableUserItems + updatedItem
+            } else {
+                currentState.availableUserItems.map { if (it.id == itemId) updatedItem else it }
+            }
+        } else {
+            currentState.availableUserItems.filter { it.id != itemId }
+        }
+
+        setState {
+            copy(
+                myPublications = updatedPublications,
+                availableUserItems = updatedAvailable
+            )
+        }
+
+        val toastMsg = if (isNowAvailable) {
+            "Publicación reactivada y visible en el catálogo."
+        } else {
+            "Publicación pausada (oculta temporalmente del catálogo)."
+        }
+        sendEffect(TradeUiEffect.ShowToast(toastMsg))
+    }
+
+    // CU009: Proponer Trueque Directo o Híbrido
+    private fun initTradeCreation(targetItemId: String, userId: String) {
+        // Consultar el catálogo del servidor central remoto simulado
+        val remoteCatalog = userPublicationStorage?.getRemoteCatalogItems()
+            ?: userPublicationStorage?.loadPublishedItems().orEmpty()
+        val allCatalogItems = (inMemoryItems + remoteCatalog).distinctBy { it.id }
+        val target = allCatalogItems.find { it.id == targetItemId }
+
+        val activeSessionEmail = currentState.currentUserProfile?.email
+        val effectiveUserId = if (userId.isNotBlank() && userId != "usuario_actual") {
+            userId
+        } else {
+            activeSessionEmail ?: currentState.currentUserId.takeIf { it != "usuario_actual" } ?: "usr_current"
+        }
+
+        // Anti-auto-trueque: no puedes ofertar ni realizar un intercambio sobre tu propio artículo
+        if (target != null && (target.ownerId == effectiveUserId || isMyTradeItem(target, effectiveUserId))) {
             setState {
                 copy(
                     targetItem = target,
@@ -231,22 +439,14 @@ class TradeViewModel @Inject constructor(
             return
         }
 
-        // 3. Artículos disponibles del usuario
-        var userItems = inMemoryItems.filter {
-            it.ownerId == effectiveUserId && it.status == ItemStatus.DISPONIBLE && it.id != targetItemId
-        }
-
-        // Si el usuario no tiene ítems propios registrados aún, asociar ítems de inventario base al usuario activo
-        if (userItems.isEmpty() && (effectiveUserId == "usr_current" || effectiveUserId.startsWith("usr_demo"))) {
-            inMemoryItems.forEachIndexed { idx, itm ->
-                if (itm.id in listOf("item_user_01", "item_user_02")) {
-                    inMemoryItems[idx] = itm.copy(ownerId = effectiveUserId)
-                }
-            }
-            userItems = inMemoryItems.filter {
-                it.ownerId == effectiveUserId && it.status == ItemStatus.DISPONIBLE && it.id != targetItemId
-            }
-        }
+        // Cargar los artículos del usuario para ofertar desde su archivo local exclusivo
+        // REGLA: Solo se pueden seleccionar publicaciones que cumplan `it.isAvailable` (status == ItemStatus.DISPONIBLE)
+        val userSpecificItems = userPublicationStorage?.loadUserPublications(effectiveUserId).orEmpty()
+        val userItems = if (userSpecificItems.isNotEmpty()) {
+            userSpecificItems.filter { isMyTradeItem(it, effectiveUserId) && it.isAvailable }
+        } else {
+            allCatalogItems.filter { isMyTradeItem(it, effectiveUserId) && it.isAvailable }
+        }.distinctBy { it.id }
 
         setState {
             copy(
@@ -262,55 +462,18 @@ class TradeViewModel @Inject constructor(
                 errorMessage = null
             )
         }
-
-        // 4. Sincronizar en segundo plano si el artículo o nuevos ítems provienen de SQLite Room
-        if (tradeItemDao != null) {
-            viewModelScope.launch(dispatchers.io) {
-                if (target == null) {
-                    val dbTarget = tradeItemDao.getItemByIdSync(targetItemId)?.toDomainModel()
-                    if (dbTarget != null) {
-                        target = dbTarget
-                        if (inMemoryItems.none { it.id == dbTarget.id }) inMemoryItems.add(dbTarget)
-                        if (dbTarget.ownerId == effectiveUserId) {
-                            withContext(dispatchers.main) {
-                                setState {
-                                    copy(
-                                        targetItem = dbTarget,
-                                        availableUserItems = emptyList(),
-                                        canSubmitProposal = false,
-                                        errorMessage = "Esta publicación es tuya. No puedes realizar un trueque contigo mismo."
-                                    )
-                                }
-                            }
-                            return@launch
-                        }
-                    }
-                }
-
-                val dbItems = tradeItemDao.getAllItemsSync()
-                if (dbItems.isNotEmpty()) {
-                    val mapped = dbItems.map { it.toDomainModel() }
-                    mapped.forEach { m ->
-                        val idx = inMemoryItems.indexOfFirst { it.id == m.id }
-                        if (idx >= 0) inMemoryItems[idx] = m else inMemoryItems.add(m)
-                    }
-                    val updatedUserItems = inMemoryItems.filter {
-                        it.ownerId == effectiveUserId && it.status == ItemStatus.DISPONIBLE && it.id != targetItemId
-                    }
-                    withContext(dispatchers.main) {
-                        setState {
-                            copy(
-                                targetItem = target ?: targetItem,
-                                availableUserItems = updatedUserItems
-                            )
-                        }
-                    }
-                }
-            }
-        }
     }
 
     private fun toggleOfferedItem(itemId: String) {
+        val targetOfferItem = currentState.availableUserItems.find { it.id == itemId }
+        // Si el artículo no está disponible o no es seleccionable para trueque, se ignora la selección
+        if (targetOfferItem != null && !targetOfferItem.isAvailable) {
+            setState {
+                copy(errorMessage = "El artículo '${targetOfferItem.title}' no está disponible para intercambios.")
+            }
+            return
+        }
+
         val currentSelected = currentState.selectedOfferedItemIds.toMutableSet()
         if (currentSelected.contains(itemId)) {
             currentSelected.remove(itemId)
@@ -368,11 +531,6 @@ class TradeViewModel @Inject constructor(
             return
         }
 
-        if (target.ownerId == currentState.currentUserId) {
-            setState { copy(errorMessage = "Operación denegada: Un trueque requiere 2 partes distintas. No puedes ofertar por tu propio producto.") }
-            return
-        }
-
         if (!currentState.hasMinimumItemsSelected) {
             setState { copy(errorMessage = "Debes seleccionar al menos un artículo de tu catálogo (Opción A).") }
             return
@@ -414,9 +572,25 @@ class TradeViewModel @Inject constructor(
 
             inMemoryProposals.add(newProposal)
 
-            // Persistir la propuesta en SQLite Room
+            // Persistencia en SQLite Room conforme al boceto (Oferta A, Oferta B y Trueque con esta_activa = true)
+            val userEmail = currentState.currentUserProfile?.email ?: currentState.currentUserId
             viewModelScope.launch(dispatchers.io) {
-                tradeProposalDao?.insertProposal(newProposal.toEntity())
+                try {
+                    val targetEmail = if (target.ownerId.contains("@")) target.ownerId else {
+                        userRepository?.getUserByEmail(target.ownerId)?.correo ?: target.ownerId
+                    }
+                    tradeRepository?.saveProposal(
+                        proposal = newProposal,
+                        userACorreo = userEmail,
+                        userBCorreo = targetEmail
+                    )
+                    // Si se ofertaron coins compensatorias, reducirlas en la base de datos (Single Source of Truth)
+                    if (coins > 0.0) {
+                        userRepository?.reduceCoins(coins, userEmail)
+                    }
+                } catch (e: Exception) {
+                    // Silencioso o log de debug
+                }
             }
 
             sendEffect(TradeUiEffect.ShowToast("¡Propuesta enviada exitosamente!"))
@@ -433,30 +607,106 @@ class TradeViewModel @Inject constructor(
         }
     }
 
-    // Listado de Propuestas (Pestañas 'Activas' y 'Ofertas')
+    // Listado de Propuestas y Publicaciones (Pestañas 'Activas', 'Ofertas' y 'Mis Publicaciones')
     private fun loadProposals(userId: String) {
-        // Activas: Trueques iniciados por el usuario pendientes de respuesta, o en estado RESERVADO / EN_ENTREGA
-        val active = inMemoryProposals.filter {
-            (it.requesterUserId == userId && it.status == TradeStatus.PENDIENTE) ||
-            it.status in listOf(TradeStatus.RESERVADO, TradeStatus.EN_ENTREGA)
-        }
-        // Ofertas: Ofertas que otros usuarios te hacen respecto a tus artículos, o contraofertas recibidas sobre tu propuesta inicial
-        val offers = inMemoryProposals.filter {
-            (it.receiverUserId == userId && it.status in listOf(TradeStatus.PENDIENTE, TradeStatus.CONTRAOFERTADA)) ||
-            (it.requesterUserId == userId && it.status == TradeStatus.CONTRAOFERTADA)
-        }
-        val history = inMemoryProposals.filter {
-            (it.requesterUserId == userId || it.receiverUserId == userId) &&
-            it.status in listOf(TradeStatus.COMPLETADO, TradeStatus.CANCELADO, TradeStatus.RECHAZADO, TradeStatus.EXPIRADO)
-        }
+        val userEmail = currentState.currentUserProfile?.email ?: userId
 
-        setState {
-            copy(
-                activeProposals = active,
-                receivedOffers = offers,
-                historyProposals = history,
-                isLoading = false
-            )
+        viewModelScope.launch(dispatchers.io) {
+            // Sincronizar propuestas desde la nube (Turso) antes de leer la base de datos local
+            try {
+                if (userEmail.isNotBlank()) {
+                    tradeRepository?.syncProposalsFromCloud(userEmail)
+                }
+            } catch (_: Exception) {
+            }
+
+            // Sincronizar desde la base de datos SQL local si existe el repositorio
+            try {
+                val dbProposalsEmail = tradeRepository?.getActiveProposalsForUser(userEmail)?.firstOrNull().orEmpty()
+                val dbProposalsId = if (!userId.equals(userEmail, ignoreCase = true)) {
+                    tradeRepository?.getActiveProposalsForUser(userId)?.firstOrNull().orEmpty()
+                } else emptyList()
+
+                (dbProposalsEmail + dbProposalsId).forEach { activeTrueque ->
+                    val domainProp = activeTrueque.toTradeProposal()
+                    val idx = inMemoryProposals.indexOfFirst { it.id == domainProp.id }
+                    if (idx == -1) {
+                        inMemoryProposals.add(domainProp)
+                    } else {
+                        inMemoryProposals[idx] = domainProp
+                    }
+                }
+            } catch (e: Exception) {
+                // Continuar en caso de entorno de prueba sin BD
+            }
+
+            // Sincronizar publicaciones del usuario
+            loadUserPublications(userId)
+
+            fun isReceiver(prop: TradeProposal): Boolean {
+                return prop.receiverUserId.equals(userEmail, ignoreCase = true) ||
+                       prop.receiverUserId.equals(userId, ignoreCase = true) ||
+                       (userEmail?.contains("chocolatt", ignoreCase = true) == true && prop.receiverUserId.contains("chocolatt", ignoreCase = true)) ||
+                       (userEmail?.contains("vergara", ignoreCase = true) == true && prop.receiverUserId.contains("vergara", ignoreCase = true)) ||
+                       (userId.contains("chocolatt", ignoreCase = true) && prop.receiverUserId.contains("chocolatt", ignoreCase = true)) ||
+                       (userId.contains("vergara", ignoreCase = true) && prop.receiverUserId.contains("vergara", ignoreCase = true)) ||
+                       (userId == "usr_current" && prop.receiverUserId == "usr_current")
+            }
+
+            fun isRequester(prop: TradeProposal): Boolean {
+                return prop.requesterUserId.equals(userEmail, ignoreCase = true) ||
+                       prop.requesterUserId.equals(userId, ignoreCase = true) ||
+                       (userEmail?.contains("chocolatt", ignoreCase = true) == true && prop.requesterUserId.contains("chocolatt", ignoreCase = true)) ||
+                       (userEmail?.contains("vergara", ignoreCase = true) == true && prop.requesterUserId.contains("vergara", ignoreCase = true)) ||
+                       (userId.contains("chocolatt", ignoreCase = true) && prop.requesterUserId.contains("chocolatt", ignoreCase = true)) ||
+                       (userId.contains("vergara", ignoreCase = true) && prop.requesterUserId.contains("vergara", ignoreCase = true)) ||
+                       (userId == "usr_current" && prop.requesterUserId == "usr_current")
+            }
+
+            // Activas: Trueques iniciados por el usuario pendientes de respuesta, o en estado RESERVADO / EN_ENTREGA
+            val active = inMemoryProposals.filter {
+                (isRequester(it) && it.status == TradeStatus.PENDIENTE) ||
+                it.status in listOf(TradeStatus.RESERVADO, TradeStatus.EN_ENTREGA)
+            }
+            // Ofertas: Ofertas que otros usuarios te hacen respecto a tus artículos, o contraofertas recibidas sobre tu propuesta inicial
+            val offers = inMemoryProposals.filter {
+                (isReceiver(it) && it.status in listOf(TradeStatus.PENDIENTE, TradeStatus.CONTRAOFERTADA)) ||
+                (isRequester(it) && it.status == TradeStatus.CONTRAOFERTADA)
+            }
+            val history = inMemoryProposals.filter {
+                (isRequester(it) || isReceiver(it)) &&
+                it.status in listOf(TradeStatus.COMPLETADO, TradeStatus.CANCELADO, TradeStatus.RECHAZADO, TradeStatus.EXPIRADO)
+            }
+
+            setState {
+                copy(
+                    activeProposals = active,
+                    receivedOffers = offers,
+                    historyProposals = history,
+                    isLoading = false
+                )
+            }
+        }
+    }
+
+    private fun openOfferDetail(proposalId: String) {
+        val proposal = inMemoryProposals.find { it.id == proposalId } ?: return
+        val remoteCatalog = userPublicationStorage?.getRemoteCatalogItems()
+            ?: userPublicationStorage?.loadPublishedItems().orEmpty()
+        val allItems = (inMemoryItems + remoteCatalog).distinctBy { it.id }
+        val targetItem = allItems.find { it.id == proposal.targetItemId }
+        val offeredItems = allItems.filter { proposal.offeredItemIds.contains(it.id) }
+
+        viewModelScope.launch(dispatchers.io) {
+            val proponent = userRepository?.getUserByEmail(proposal.requesterUserId)
+            setState {
+                copy(
+                    selectedOfferProposal = proposal,
+                    selectedOfferProponentUser = proponent,
+                    selectedOfferTargetItem = targetItem,
+                    selectedOfferOfferedItems = offeredItems
+                )
+            }
         }
     }
 
@@ -467,8 +717,11 @@ class TradeViewModel @Inject constructor(
             return
         }
 
-        val targetItem = inMemoryItems.find { it.id == proposal.targetItemId }
-        val offeredItems = inMemoryItems.filter { proposal.offeredItemIds.contains(it.id) }
+        val remoteCatalog = userPublicationStorage?.getRemoteCatalogItems()
+            ?: userPublicationStorage?.loadPublishedItems().orEmpty()
+        val allItems = (inMemoryItems + remoteCatalog).distinctBy { it.id }
+        val targetItem = allItems.find { it.id == proposal.targetItemId }
+        val offeredItems = allItems.filter { proposal.offeredItemIds.contains(it.id) }
 
         // Si se encuentra en EN_ENTREGA, pre-crear o cargar cita en Safe Zone
         val appointment = if (proposal.status == TradeStatus.EN_ENTREGA || proposal.status == TradeStatus.RESERVADO) {
@@ -476,10 +729,10 @@ class TradeViewModel @Inject constructor(
                 id = "meeting_${proposal.id}",
                 tradeId = proposal.id,
                 safeZone = SafeZonePoint(
-                    id = "sz_coatza_forum",
-                    name = "Punto Seguro Plaza Forum Coatzacoalcos",
-                    addressDescription = "Av. Universidad Veracruzana 2601, domo central frente a vigilancia 24/7",
-                    coordinates = GeoCoordinates(18.1415, -94.4852)
+                    id = "sz_01",
+                    name = "Punto Seguro Estación Central",
+                    addressDescription = "Módulo de vigilancia y videocámaras 24/7",
+                    coordinates = GeoCoordinates(19.4326, -99.1332)
                 ),
                 scheduledTimeEpochMs = System.currentTimeMillis() + (2 * 60 * 60 * 1000L) // Cita en 2 horas (para prueba de RN-07)
             )
@@ -500,8 +753,11 @@ class TradeViewModel @Inject constructor(
     // CU010: Aceptar Propuesta y Bloqueo Atómico ACID (RN-01)
     private fun acceptProposal(proposalId: String) {
         val proposal = inMemoryProposals.find { it.id == proposalId } ?: return
-        val targetItem = inMemoryItems.find { it.id == proposal.targetItemId } ?: return
-        val offeredItems = inMemoryItems.filter { proposal.offeredItemIds.contains(it.id) }
+        val remoteCatalog = userPublicationStorage?.getRemoteCatalogItems()
+            ?: userPublicationStorage?.loadPublishedItems().orEmpty()
+        val allItems = (inMemoryItems + remoteCatalog).distinctBy { it.id }
+        val targetItem = allItems.find { it.id == proposal.targetItemId } ?: inMemoryItems.find { it.id == proposal.targetItemId } ?: return
+        val offeredItems = allItems.filter { proposal.offeredItemIds.contains(it.id) }
 
         try {
             val lockResult = lockInventoryForTradeUseCase(
@@ -531,16 +787,18 @@ class TradeViewModel @Inject constructor(
                 if (itemIndex != -1) {
                     inMemoryItems[itemIndex] = lockedItem
                 }
+                userPublicationStorage?.updateItemOnServer(lockedItem)
             }
 
-            // Persistir aceptación y bloqueo en SQLite Room
+            // Persistir aceptación en base de datos (pasa a RESERVADO y mantiene esta_activa = true)
             viewModelScope.launch(dispatchers.io) {
-                tradeProposalDao?.updateProposal(lockResult.acceptedProposal.toEntity())
-                lockResult.affectedPendingProposalsToCancelOrPause.forEach { conflicting ->
-                    tradeProposalDao?.updateProposal(conflicting.toEntity())
-                }
-                lockResult.lockedItems.forEach { lockedItem ->
-                    tradeItemDao?.updateItem(lockedItem.toEntity())
+                try {
+                    tradeRepository?.updateProposalStatus(proposalId, TradeStatus.RESERVADO)
+                    lockResult.affectedPendingProposalsToCancelOrPause.forEach { conflicting ->
+                        tradeRepository?.updateProposalStatus(conflicting.id, TradeStatus.CANCELADO)
+                    }
+                } catch (e: Exception) {
+                    // Silencioso o log
                 }
             }
 
@@ -552,7 +810,8 @@ class TradeViewModel @Inject constructor(
                 )
             }
 
-            sendEffect(TradeUiEffect.ShowToast("¡Propuesta aceptada! Inventario asegurado en estado RESERVADO."))
+            sendEffect(TradeUiEffect.ShowToast("¡Propuesta aceptada! El chat ha sido habilitado."))
+            sendEffect(TradeUiEffect.NavigateToChat(proposal.id))
         } catch (e: BusinessRuleException.ExclusivityLockException) {
             setState { copy(errorMessage = "Error RN-01: ${e.message}") }
         } catch (e: Exception) {
@@ -580,6 +839,10 @@ class TradeViewModel @Inject constructor(
         val proposal = currentState.currentProposal ?: return
         val target = currentState.negotiationTargetItem ?: return
         val newCoins = currentState.counterOfferTruequeCoinsInput.toDoubleOrNull() ?: 0.0
+        if (userRepository != null && newCoins > currentState.truequeCoins) {
+            setState { copy(errorMessage = "Saldo insuficiente en TruequeCoins para emitir esta contraoferta.") }
+            return
+        }
         val newOfferedItems = inMemoryItems.filter { currentState.counterOfferOfferedItemIds.contains(it.id) }
 
         try {
@@ -597,9 +860,20 @@ class TradeViewModel @Inject constructor(
                 inMemoryProposals[index] = updatedProposal
             }
 
-            // Persistir contraoferta en SQLite Room
+            // Persistir contraoferta en la base de datos (estado CONTRAOFERTADA con esta_activa = true)
             viewModelScope.launch(dispatchers.io) {
-                tradeProposalDao?.updateProposal(updatedProposal.toEntity())
+                try {
+                    val targetEmail = if (target.ownerId.contains("@")) target.ownerId else {
+                        userRepository?.getUserByEmail(target.ownerId)?.correo ?: target.ownerId
+                    }
+                    tradeRepository?.submitCounterOffer(
+                        proposalId = proposal.id,
+                        newOfferedItemIds = newOfferedItems.map { it.id },
+                        newTruequeCoins = newCoins
+                    )
+                } catch (e: Exception) {
+                    // Silencioso o log
+                }
             }
 
             setState {
@@ -626,10 +900,17 @@ class TradeViewModel @Inject constructor(
         if (index != -1) {
             val rejected = inMemoryProposals[index].copy(status = TradeStatus.RECHAZADO)
             inMemoryProposals[index] = rejected
-            viewModelScope.launch(dispatchers.io) {
-                tradeProposalDao?.updateProposal(rejected.toEntity())
-            }
             setState { copy(currentProposal = rejected) }
+
+            // Persistir rechazo en base de datos (pasa a esta_activa = false)
+            viewModelScope.launch(dispatchers.io) {
+                try {
+                    tradeRepository?.updateProposalStatus(proposalId, TradeStatus.RECHAZADO)
+                } catch (e: Exception) {
+                    // Silencioso o log
+                }
+            }
+
             sendEffect(TradeUiEffect.ShowToast("Propuesta rechazada formalmente."))
             sendEffect(TradeUiEffect.NavigateBack)
         }
@@ -696,10 +977,12 @@ class TradeViewModel @Inject constructor(
             inMemoryProposals[pIndex] = updatedProposal
         }
 
+        // Persistir cancelación en base de datos (pasa a esta_activa = false)
         viewModelScope.launch(dispatchers.io) {
-            tradeProposalDao?.updateProposal(updatedProposal.toEntity())
-            if (targetItem?.status == ItemStatus.RESERVADO) {
-                tradeItemDao?.updateItem(targetItem.copy(status = ItemStatus.DISPONIBLE).toEntity())
+            try {
+                tradeRepository?.updateProposalStatus(proposal.id, TradeStatus.CANCELADO)
+            } catch (e: Exception) {
+                // Silencioso o log
             }
         }
 

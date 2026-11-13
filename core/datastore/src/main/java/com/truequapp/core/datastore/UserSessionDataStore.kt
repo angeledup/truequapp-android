@@ -27,7 +27,7 @@ interface UserSessionDataStore {
     suspend fun updateTruequeCoins(available: Double, escrow: Double? = null) {}
     suspend fun getAccessToken(): String?
     suspend fun getRefreshToken(): String?
-    suspend fun getTruequeCoins(): Double = 100.0
+    suspend fun getTruequeCoins(): Double = 10000.0
     suspend fun clearSession()
 }
 
@@ -48,7 +48,7 @@ class UserSessionDataStoreImpl @Inject constructor(
         private val KEY_ESCROW_COINS = doublePreferencesKey("escrow_coins")
         private val KEY_AUTH_PROVIDER = stringPreferencesKey("auth_provider")
 
-        const val DEFAULT_INITIAL_COINS = 100.0
+        const val DEFAULT_INITIAL_COINS = 10000.0
     }
 
     override val sessionFlow: Flow<UserSession> = dataStore.data.map { prefs ->

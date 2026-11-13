@@ -3,9 +3,7 @@ package com.truequapp.navigation
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
-import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.SwapHoriz
@@ -30,43 +28,44 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.truequapp.auth.ui.LoginRoute
+import com.truequapp.auth.ui.LoginViewModel
+import com.truequapp.auth.ui.RegisterRoute
+import com.truequapp.auth.ui.RegisterViewModel
 import com.truequapp.core.designsystem.theme.TruequappTheme
-import com.truequapp.feature.auth.mvi.AuthViewModel
-import com.truequapp.feature.auth.ui.AuthScreen
-import com.truequapp.feature.auth.ui.ProfileScreen
 import com.truequapp.feature.catalog.mvi.CatalogViewModel
 import com.truequapp.feature.catalog.ui.CatalogFeedScreen
 import com.truequapp.feature.catalog.ui.ItemPublishScreen
+import com.truequapp.feature.chat.mvi.ChatListViewModel
 import com.truequapp.feature.chat.mvi.ChatViewModel
 import com.truequapp.feature.chat.ui.ChatListScreen
 import com.truequapp.feature.chat.ui.ChatScreen
-import com.truequapp.feature.reports.ui.LiquidityDashboardScreen
 import com.truequapp.feature.safezones.mvi.SafeZoneViewModel
 import com.truequapp.feature.safezones.ui.AccountDeletionScreen
 import com.truequapp.feature.safezones.ui.DisputeReportScreen
 import com.truequapp.feature.safezones.ui.QrExchangeScreen
 import com.truequapp.feature.safezones.ui.SafeZoneSelectionScreen
 import com.truequapp.feature.safezones.ui.TradeReviewScreen
-import com.truequapp.feature.swipe.ui.SwipeScreen
 import com.truequapp.feature.trade.mvi.TradeUiEvent
 import com.truequapp.feature.trade.mvi.TradeViewModel
 import com.truequapp.feature.trade.ui.CreateTradeProposalScreen
 import com.truequapp.feature.trade.ui.TradeListScreen
 import com.truequapp.feature.trade.ui.TradeNegotiationScreen
-import com.truequapp.feature.wallet.ui.WalletScreen
+import com.truequapp.profile.ui.ProfileRoute
+import com.truequapp.profile.ui.ProfileViewModel
 
 @Composable
 fun TruequappNavHost(
     navController: NavHostController = rememberNavController()
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route ?: Screen.Catalog.route
+    val currentRoute = navBackStackEntry?.destination?.route ?: Screen.Login.route
 
     val topLevelRoutes = listOf(
         Screen.Catalog.route,
-        Screen.Swipe.route,
         Screen.Trades.route,
-        Screen.ChatList.route,
+        Screen.Messages.route,
+        Screen.SafeZones.route,
         Screen.Profile.route
     )
     val shouldShowBottomBar = currentRoute in topLevelRoutes
@@ -80,9 +79,9 @@ fun TruequappNavHost(
                 ) {
                     val items = listOf(
                         Triple(Screen.Catalog, Icons.Default.Home, "Catálogo"),
-                        Triple(Screen.Swipe, Icons.Default.AutoAwesome, "Swipe"),
                         Triple(Screen.Trades, Icons.Default.SwapHoriz, "Trueques"),
-                        Triple(Screen.ChatList, Icons.AutoMirrored.Filled.Chat, "Chats"),
+                        Triple(Screen.Messages, Icons.AutoMirrored.Filled.Chat, "Mensajes"),
+                        Triple(Screen.SafeZones, Icons.Default.Place, "Zonas"),
                         Triple(Screen.Profile, Icons.Default.AccountCircle, "Perfil")
                     )
 
@@ -90,7 +89,7 @@ fun TruequappNavHost(
                         val selected = currentRoute == screen.route
                         NavigationBarItem(
                             icon = { Icon(icon, contentDescription = label) },
-                            label = { Text(label, fontSize = 10.sp) },
+                            label = { Text(label, fontSize = 11.sp) },
                             selected = selected,
                             onClick = {
                                 if (currentRoute != screen.route) {
@@ -116,9 +115,52 @@ fun TruequappNavHost(
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = Screen.Auth.route,
+            startDestination = Screen.Login.route,
             modifier = Modifier.padding(innerPadding)
         ) {
+            // Pantalla de Inicio de Sesión SQL (Fase 2)
+            composable(Screen.Login.route) {
+                val loginViewModel: LoginViewModel = hiltViewModel()
+                LoginRoute(
+                    viewModel = loginViewModel,
+                    onNavigateToRegister = {
+                        navController.navigate(Screen.Register.route)
+                    },
+                    onLoginSuccess = {
+                        navController.navigate(Screen.Catalog.route) {
+                            popUpTo(Screen.Login.route) { inclusive = true }
+                        }
+                    }
+                )
+            }
+
+            // Pantalla de Registro de Cuenta con 7 Columnas SQL (Fase 2)
+            composable(Screen.Register.route) {
+                val registerViewModel: RegisterViewModel = hiltViewModel()
+                RegisterRoute(
+                    viewModel = registerViewModel,
+                    onNavigateBackToLogin = { _ ->
+                        navController.popBackStack()
+                    }
+                )
+            }
+
+            // Compatibilidad para Screen.Auth
+            composable(Screen.Auth.route) {
+                val loginViewModel: LoginViewModel = hiltViewModel()
+                LoginRoute(
+                    viewModel = loginViewModel,
+                    onNavigateToRegister = {
+                        navController.navigate(Screen.Register.route)
+                    },
+                    onLoginSuccess = {
+                        navController.navigate(Screen.Catalog.route) {
+                            popUpTo(Screen.Auth.route) { inclusive = true }
+                        }
+                    }
+                )
+            }
+
             // Marketplace Feed (CU008)
             composable(Screen.Catalog.route) {
                 val catalogViewModel: CatalogViewModel = hiltViewModel()
@@ -129,23 +171,17 @@ fun TruequappNavHost(
                     effectFlow = catalogViewModel.uiEffect,
                     onEvent = catalogViewModel::onEvent,
                     onNavigateToItemDetail = { targetItemId ->
-                        navController.navigate(Screen.CreateTrade.createRoute(targetItemId))
+                        if (navController.currentDestination?.route == Screen.Catalog.route) {
+                            navController.navigate(Screen.CreateTrade.createRoute(targetItemId)) {
+                                launchSingleTop = true
+                            }
+                        }
                     },
                     onNavigateToPublish = {
                         navController.navigate(Screen.PublishItem.route)
                     },
                     onCoinsClick = {
-                        navController.navigate(Screen.Wallet.route)
-                    }
-                )
-            }
-
-            // Modo Exploración Swipe (CU017 / Fase 4)
-            composable(Screen.Swipe.route) {
-                SwipeScreen(
-                    onNavigateBack = { navController.popBackStack() },
-                    onNavigateToProposal = { targetItemId ->
-                        navController.navigate(Screen.CreateTrade.createRoute(targetItemId))
+                        navController.navigate(Screen.Trades.route)
                     }
                 )
             }
@@ -157,12 +193,13 @@ fun TruequappNavHost(
 
                 ItemPublishScreen(
                     state = catalogState,
+                    effectFlow = catalogViewModel.uiEffect,
                     onEvent = catalogViewModel::onEvent,
                     onNavigateBack = { navController.popBackStack() }
                 )
             }
 
-            // Listado de Propuestas Activas e Historial
+            // Listado de Propuestas Activas e Historial (Trueques)
             composable(Screen.Trades.route) {
                 val tradeViewModel: TradeViewModel = hiltViewModel()
                 val tradeState by tradeViewModel.uiState.collectAsStateWithLifecycle()
@@ -179,23 +216,33 @@ fun TruequappNavHost(
                 )
             }
 
-            // Bandeja de Chats Transaccionales entre Usuarios (CU018)
-            composable(Screen.ChatList.route) {
+            // Menú Principal: Listado de Mensajes / Chats Transaccionales (Módulo 4)
+            composable(Screen.Messages.route) {
+                val chatListViewModel: ChatListViewModel = hiltViewModel()
+                val chatListState by chatListViewModel.uiState.collectAsStateWithLifecycle()
+
                 ChatListScreen(
+                    state = chatListState,
+                    effectFlow = chatListViewModel.uiEffect,
+                    onEvent = chatListViewModel::onEvent,
                     onNavigateToChat = { proposalId ->
                         navController.navigate(Screen.Chat.createRoute(proposalId))
-                    },
-                    onNavigateToCatalog = {
-                        navController.navigate(Screen.Catalog.route)
                     }
                 )
             }
 
-            // Monedero Digital TruequeCoins y Custodia Escrow (CU013, CU014, CU015, CU016 / Fase 4)
-            composable(Screen.Wallet.route) {
-                WalletScreen(
-                    onNavigateBack = { navController.popBackStack() },
-                    onNavigateToTrades = { navController.navigate(Screen.Trades.route) }
+            // Bandeja de Chats Transaccionales (Ruta alias)
+            composable(Screen.ChatList.route) {
+                val chatListViewModel: ChatListViewModel = hiltViewModel()
+                val chatListState by chatListViewModel.uiState.collectAsStateWithLifecycle()
+
+                ChatListScreen(
+                    state = chatListState,
+                    effectFlow = chatListViewModel.uiEffect,
+                    onEvent = chatListViewModel::onEvent,
+                    onNavigateToChat = { proposalId ->
+                        navController.navigate(Screen.Chat.createRoute(proposalId))
+                    }
                 )
             }
 
@@ -208,8 +255,10 @@ fun TruequappNavHost(
                 val tradeViewModel: TradeViewModel = hiltViewModel()
                 val tradeState by tradeViewModel.uiState.collectAsStateWithLifecycle()
 
-                LaunchedEffect(targetItemId, tradeState.currentUserId) {
-                    tradeViewModel.onEvent(TradeUiEvent.InitTradeCreation(targetItemId, tradeState.currentUserId))
+                LaunchedEffect(targetItemId) {
+                    if (targetItemId.isNotBlank()) {
+                        tradeViewModel.onEvent(TradeUiEvent.InitTradeCreation(targetItemId, ""))
+                    }
                 }
 
                 CreateTradeProposalScreen(
@@ -225,7 +274,7 @@ fun TruequappNavHost(
                 )
             }
 
-            // Detalle de Negociación (CU010, CU011, CU012, RN-01, RN-07)
+            // Detalle y Negociación de Propuesta (CU010, CU011, CU012, RN-01, RN-07)
             composable(
                 route = Screen.TradeNegotiation.route,
                 arguments = listOf(navArgument("proposalId") { type = NavType.StringType })
@@ -273,15 +322,15 @@ fun TruequappNavHost(
                 )
             }
 
-            // Puntos Seguros Geoespaciales Google Maps (CU019 / Fase 3)
+            // Puntos Seguros Geoespaciales (CU019 / Punto Seguro CETIS 79)
             composable(Screen.SafeZones.route) {
                 val safeZoneViewModel: SafeZoneViewModel = hiltViewModel()
                 val safeZoneState by safeZoneViewModel.uiState.collectAsStateWithLifecycle()
 
                 SafeZoneSelectionScreen(
-                    tradeId = "trade-default-01",
-                    currentUserId = "usr-demo",
-                    counterpartUserId = "usr-counterpart",
+                    tradeId = "prop_seed_v2c_01",
+                    currentUserId = "usr_chocolatt",
+                    counterpartUserId = "usr_vergara",
                     state = safeZoneState,
                     effectFlow = safeZoneViewModel.uiEffect,
                     onEvent = safeZoneViewModel::onEvent,
@@ -364,45 +413,14 @@ fun TruequappNavHost(
                 )
             }
 
-            // Panel de Liquidez & Exportación PDF (CU021 / Fase 5)
-            composable(Screen.Reports.route) {
-                LiquidityDashboardScreen(
-                    onNavigateBack = { navController.popBackStack() }
-                )
-            }
-
-            // Perfil de Usuario y KYC (CU003, CU004, RN-09, RN-10)
+            // Perfil de Usuario con información real de la base de datos SQL (Fase 2)
             composable(Screen.Profile.route) {
-                val authViewModel: AuthViewModel = hiltViewModel()
-                val authState by authViewModel.uiState.collectAsStateWithLifecycle()
-
-                ProfileScreen(
-                    state = authState,
-                    onEvent = authViewModel::onEvent,
-                    onNavigateToWallet = { navController.navigate(Screen.Wallet.route) },
-                    onNavigateToSafeZones = { navController.navigate(Screen.SafeZones.route) },
-                    onNavigateToReports = { navController.navigate(Screen.Reports.route) },
-                    onNavigateToAccountDeletion = { navController.navigate(Screen.AccountDeletion.route) },
-                    onNavigateToAuth = {
-                        navController.navigate(Screen.Auth.route) {
+                val profileViewModel: ProfileViewModel = hiltViewModel()
+                ProfileRoute(
+                    viewModel = profileViewModel,
+                    onLogoutSuccess = {
+                        navController.navigate(Screen.Login.route) {
                             popUpTo(0) { inclusive = true }
-                        }
-                    }
-                )
-            }
-
-            // Autenticación SMS OTP (CU001, CU023)
-            composable(Screen.Auth.route) {
-                val authViewModel: AuthViewModel = hiltViewModel()
-                val authState by authViewModel.uiState.collectAsStateWithLifecycle()
-
-                AuthScreen(
-                    state = authState,
-                    effectFlow = authViewModel.uiEffect,
-                    onEvent = authViewModel::onEvent,
-                    onNavigateToHome = {
-                        navController.navigate(Screen.Catalog.route) {
-                            popUpTo(Screen.Auth.route) { inclusive = true }
                         }
                     }
                 )

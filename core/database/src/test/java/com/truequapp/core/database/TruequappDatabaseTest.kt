@@ -35,18 +35,33 @@ class InMemoryTestUserDao : UserDao {
     }
 
     override fun getUserById(id: String): Flow<UserEntity?> =
-        usersFlow.map { list -> list.find { it.id == id } }
+        usersFlow.map { list -> list.find { it.id.equals(id, ignoreCase = true) || it.usuario.equals(id, ignoreCase = true) || it.correo.equals(id, ignoreCase = true) } }
 
-    override suspend fun getUserByIdSync(id: String): UserEntity? = usersMap[id]
+    override suspend fun getUserByIdSync(id: String): UserEntity? =
+        usersMap.values.find { it.id.equals(id, ignoreCase = true) || it.usuario.equals(id, ignoreCase = true) || it.correo.equals(id, ignoreCase = true) }
 
-    override fun getUserByEmail(email: String): Flow<UserEntity?> =
-        usersFlow.map { list -> list.find { it.email == email } }
+    override suspend fun getUserByEmail(email: String): UserEntity? =
+        usersMap.values.find { it.email.equals(email, ignoreCase = true) }
 
     override suspend fun getUserByEmailSync(email: String): UserEntity? =
-        usersMap.values.find { it.email == email }
+        usersMap.values.find { it.email.equals(email, ignoreCase = true) }
+
+    override fun observeUserByEmail(correo: String): Flow<UserEntity?> =
+        usersFlow.map { list -> list.find { it.email.equals(correo, ignoreCase = true) } }
+
+    override suspend fun countByEmail(correo: String): Int =
+        if (usersMap.values.any { it.email.equals(correo, ignoreCase = true) }) 1 else 0
+
+    override suspend fun getUserByIdentifierSync(identifier: String): UserEntity? =
+        usersMap.values.find {
+            it.email.equals(identifier, ignoreCase = true) || it.name.equals(identifier, ignoreCase = true)
+        }
 
     override suspend fun authenticate(email: String, passwordHash: String): UserEntity? =
-        usersMap.values.find { it.email == email && it.passwordHash == passwordHash }
+        usersMap.values.find {
+            (it.email.equals(email, ignoreCase = true) || it.name.equals(email, ignoreCase = true)) &&
+            it.passwordHash == passwordHash
+        }
 
     override suspend fun insertUser(user: UserEntity) {
         usersMap[user.id] = user
@@ -59,8 +74,8 @@ class InMemoryTestUserDao : UserDao {
     }
 
     override suspend fun updateTruequeCoins(userId: String, availableCoins: Double, escrowCoins: Double) {
-        val user = usersMap[userId] ?: return
-        usersMap[userId] = user.copy(truequeCoins = availableCoins, escrowCoins = escrowCoins)
+        val user = usersMap.values.find { it.id.equals(userId, ignoreCase = true) || it.usuario.equals(userId, ignoreCase = true) || it.correo.equals(userId, ignoreCase = true) } ?: return
+        usersMap[user.id] = user.copy(truequeCoins = availableCoins, escrowCoins = escrowCoins)
         emit()
     }
 
@@ -71,6 +86,66 @@ class InMemoryTestUserDao : UserDao {
     override suspend fun deleteUser(userId: String) {
         usersMap.remove(userId)
         emit()
+    }
+
+    override suspend fun getCoinsByEmail(correo: String): Double? =
+        usersMap.values.find { it.email.equals(correo, ignoreCase = true) }?.truequeCoins
+
+    override fun observeCoinsByEmail(correo: String): Flow<Double?> =
+        usersFlow.map { list -> list.find { it.email.equals(correo, ignoreCase = true) }?.truequeCoins }
+
+    override suspend fun reduceCoins(correo: String, amount: Double): Int {
+        val user = usersMap.values.find { it.email.equals(correo, ignoreCase = true) } ?: return 0
+        usersMap[user.id] = user.copy(truequeCoins = maxOf(0.0, user.truequeCoins - amount))
+        emit()
+        return 1
+    }
+
+    override suspend fun addCoins(correo: String, amount: Double): Int {
+        val user = usersMap.values.find { it.email.equals(correo, ignoreCase = true) } ?: return 0
+        usersMap[user.id] = user.copy(truequeCoins = user.truequeCoins + amount)
+        emit()
+        return 1
+    }
+
+    override suspend fun updateCoins(correo: String, newCoins: Double): Int {
+        val user = usersMap.values.find { it.email.equals(correo, ignoreCase = true) } ?: return 0
+        usersMap[user.id] = user.copy(truequeCoins = newCoins)
+        emit()
+        return 1
+    }
+
+    override suspend fun getCompletedTradesByEmail(correo: String): Int? =
+        usersMap.values.find { it.email.equals(correo, ignoreCase = true) }?.completedTrades
+
+    override fun observeCompletedTradesByEmail(correo: String): Flow<Int?> =
+        usersFlow.map { list -> list.find { it.email.equals(correo, ignoreCase = true) }?.completedTrades }
+
+    override suspend fun incrementCompletedTrades(correo: String): Int {
+        val user = usersMap.values.find { it.email.equals(correo, ignoreCase = true) } ?: return 0
+        usersMap[user.id] = user.copy(completedTrades = user.completedTrades + 1)
+        emit()
+        return 1
+    }
+
+    override suspend fun updateCompletedTrades(correo: String, count: Int): Int {
+        val user = usersMap.values.find { it.email.equals(correo, ignoreCase = true) } ?: return 0
+        usersMap[user.id] = user.copy(completedTrades = count)
+        emit()
+        return 1
+    }
+
+    override suspend fun getRatingByEmail(correo: String): Double? =
+        usersMap.values.find { it.email.equals(correo, ignoreCase = true) }?.bayesianRating
+
+    override fun observeRatingByEmail(correo: String): Flow<Double?> =
+        usersFlow.map { list -> list.find { it.email.equals(correo, ignoreCase = true) }?.bayesianRating }
+
+    override suspend fun updateRating(correo: String, newRating: Double): Int {
+        val user = usersMap.values.find { it.email.equals(correo, ignoreCase = true) } ?: return 0
+        usersMap[user.id] = user.copy(bayesianRating = newRating)
+        emit()
+        return 1
     }
 }
 
@@ -215,5 +290,63 @@ class TruequappDatabaseTest {
         assertEquals(18.1415, safeZone.latitude)
         assertEquals(-94.4852, safeZone.longitude)
         assertEquals("Coatzacoalcos", safeZone.city)
+    }
+
+    @Test
+    @DisplayName("Valida autenticación de cuentas admin chocolatt y Vergara con 10,000 TruequeCoins por correo o usuario")
+    fun adminAccounts_authenticateByEmailOrUsernameWith10000Coins() = runBlocking {
+        val chocolatt = UserEntity(
+            id = "usr_chocolatt",
+            email = "chocolattcorreo@gmail.com",
+            name = "chocolatt",
+            passwordHash = "chocolatte",
+            phoneNumber = "+529211000001",
+            authProvider = "EMAIL",
+            isKycVerified = true,
+            kycLevel = "TELEFONO_SMS_NIVEL_1",
+            truequeCoins = 10000.0,
+            city = "Coatzacoalcos"
+        )
+        val vergara = UserEntity(
+            id = "usr_vergara",
+            email = "Vergaracorreo@gmail.com",
+            name = "Vergara",
+            passwordHash = "AngEduVr",
+            phoneNumber = "+529211000002",
+            authProvider = "EMAIL",
+            isKycVerified = true,
+            kycLevel = "TELEFONO_SMS_NIVEL_1",
+            truequeCoins = 10000.0,
+            city = "Coatzacoalcos"
+        )
+        userDao.insertUser(chocolatt)
+        userDao.insertUser(vergara)
+
+        // 1. Validar por correo
+        val authChocolattEmail = userDao.authenticate("chocolattcorreo@gmail.com", "chocolatte")
+        assertNotNull(authChocolattEmail)
+        assertEquals(10000.0, authChocolattEmail?.truequeCoins)
+
+        val authVergaraEmail = userDao.authenticate("Vergaracorreo@gmail.com", "AngEduVr")
+        assertNotNull(authVergaraEmail)
+        assertEquals(10000.0, authVergaraEmail?.truequeCoins)
+
+        // 2. Validar por nombre de usuario
+        val authChocolattUser = userDao.authenticate("chocolatt", "chocolatte")
+        assertNotNull(authChocolattUser)
+        assertEquals("chocolattcorreo@gmail.com", authChocolattUser?.email)
+
+        val authVergaraUser = userDao.authenticate("Vergara", "AngEduVr")
+        assertNotNull(authVergaraUser)
+        assertEquals("Vergaracorreo@gmail.com", authVergaraUser?.email)
+
+        // 3. Validar búsqueda por identificador case-insensitive
+        val byLowerIdentifier = userDao.getUserByIdentifierSync("vergara")
+        assertNotNull(byLowerIdentifier)
+        assertEquals("usr_vergara", byLowerIdentifier?.id)
+
+        val byLowerEmail = userDao.getUserByEmailSync("vergaracorreo@gmail.com")
+        assertNotNull(byLowerEmail)
+        assertEquals("usr_vergara", byLowerEmail?.id)
     }
 }

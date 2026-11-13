@@ -7,6 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,10 +30,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddPhotoAlternate
-import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.MonetizationOn
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Title
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -47,8 +47,14 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import android.widget.Toast
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,21 +64,27 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.truequapp.core.designsystem.component.TruequappPrimaryButton
+import com.truequapp.core.designsystem.theme.PaletteConfig
 import com.truequapp.core.designsystem.theme.TruequappTheme
 import com.truequapp.core.domain.model.CategoryTaxonomy
 import com.truequapp.core.domain.model.ItemCondition
+import com.truequapp.feature.catalog.compressor.WebPImageCompressor
+import com.truequapp.feature.catalog.mvi.CatalogUiEffect
 import com.truequapp.feature.catalog.mvi.CatalogUiEvent
 import com.truequapp.feature.catalog.mvi.CatalogUiState
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collectLatest
 
 /**
- * Pantalla de Registro y Publicación de Artículo con Compresión WebP nativa (< 80 KB).
- * Restringe la publicación a un máximo estricto de 1 sola fotografía y valida la regla RN-11.
+ * Pantalla de Registro y Publicación de Artículo con Compresión WebP nativa (< 80 KB)
+ * y PhotoPicker nativo de Google Play para hasta 6 fotografías (CU005 / Fase 2).
  */
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -80,15 +92,60 @@ fun ItemPublishScreen(
     state: CatalogUiState,
     onEvent: (CatalogUiEvent) -> Unit,
     onNavigateBack: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    effectFlow: Flow<CatalogUiEffect>? = null
 ) {
+    val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    var showSuccessDialog by remember { mutableStateOf(false) }
     var tagInput by remember { mutableStateOf("") }
 
-    // PhotoPicker nativo de Android: Estrictamente 1 sola fotografía
-    val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri: Uri? ->
-        onEvent(CatalogUiEvent.ImageSelected(uri?.toString()))
+    LaunchedEffect(effectFlow) {
+        effectFlow?.collectLatest { effect ->
+            when (effect) {
+                is CatalogUiEffect.ItemPublishedSuccess -> {
+                    showSuccessDialog = true
+                    try {
+                        Toast.makeText(context, "🎉 ¡Tu publicación ha sido subida exitosamente!", Toast.LENGTH_LONG).show()
+                    } catch (_: Exception) {}
+                }
+                is CatalogUiEffect.ShowSnackbar -> {
+                    snackbarHostState.showSnackbar(effect.message)
+                }
+                else -> Unit
+            }
+        }
+    }
+
+    // Selector Nativo de Imágenes: hasta 6 fotos sin permisos invasivos de almacenamiento
+    val multiplePhotoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = WebPImageCompressor.MAX_ALLOWED_PHOTOS)
+    ) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) {
+            val stringUris = uris.map { it.toString() }
+            onEvent(CatalogUiEvent.ImagesSelected(stringUris))
+        }
+    }
+
+    val fallbackPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) {
+            val stringUris = uris.take(WebPImageCompressor.MAX_ALLOWED_PHOTOS).map { it.toString() }
+            onEvent(CatalogUiEvent.ImagesSelected(stringUris))
+        }
+    }
+
+    val launchPhotoPicker = {
+        try {
+            multiplePhotoPickerLauncher.launch(
+                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            )
+        } catch (_: Exception) {
+            try {
+                fallbackPickerLauncher.launch("image/*")
+            } catch (_: Exception) { }
+        }
     }
 
     Scaffold(
@@ -105,6 +162,7 @@ fun ItemPublishScreen(
                 )
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         modifier = modifier.fillMaxSize()
     ) { innerPadding ->
         Column(
@@ -114,84 +172,158 @@ fun ItemPublishScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            Text(
-                text = "Fotografía del Artículo (1 Imagen Máximo)",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "Se convertirá automáticamente a formato WebP (< 80 KB) con eliminación total de metadatos GPS.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            // Sección: Selector de Imágenes (Hasta 6 fotos)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Fotografías del Artículo",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "${state.selectedImageUris.size} / ${WebPImageCompressor.MAX_ALLOWED_PHOTOS} fotos",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TruequappTheme.colorScheme.primary
+                )
+            }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
-            // Tarjeta de foto única: subir o previsualizar
-            if (state.selectedImageUri != null) {
-                Box(
+            // Banner informativo de privacidad y optimización WebP
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Security,
+                        contentDescription = null,
+                        tint = TruequappTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Compresión WebP automática (< 80 KB) con eliminación total de metadatos GPS para proteger tu domicilio.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Galería horizontal de fotografías seleccionadas
+            if (state.selectedImageUris.isNotEmpty()) {
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(200.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .border(1.dp, TruequappTheme.colorScheme.primary, RoundedCornerShape(16.dp))
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    AsyncImage(
-                        model = state.selectedImageUri,
-                        contentDescription = "Foto del artículo",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-
-                    // Botón para eliminar o cambiar foto
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(8.dp)
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(Color.Black.copy(alpha = 0.65f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        IconButton(
-                            onClick = { onEvent(CatalogUiEvent.ImageSelected(null)) },
-                            modifier = Modifier.size(36.dp)
+                    state.selectedImageUris.forEachIndexed { index, uriStr ->
+                        Box(
+                            modifier = Modifier
+                                .size(140.dp, 160.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Remover fotografía",
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
+                            AsyncImage(
+                                model = uriStr,
+                                contentDescription = "Foto $index",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
                             )
+
+                            // Botón de eliminar foto
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(6.dp)
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.Black.copy(alpha = 0.65f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                IconButton(
+                                    onClick = { onEvent(CatalogUiEvent.RemoveSelectedImage(index)) },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Remover foto",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+
+                            // Badge foto principal para la primera imagen
+                            if (index == 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomStart)
+                                        .padding(6.dp)
+                                        .background(TruequappTheme.colorScheme.primary, RoundedCornerShape(4.dp))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "Principal",
+                                        color = Color.White,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
                         }
                     }
 
-                    // Badge de compresión WebP
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(8.dp)
-                            .background(TruequappTheme.colorScheme.primary.copy(alpha = 0.85f), RoundedCornerShape(6.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "WebP Lossy (< 80 KB) • GPS purgado",
-                            color = Color.White,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                    // Botón para agregar más fotos si no ha alcanzado el límite de 6
+                    if (state.selectedImageUris.size < WebPImageCompressor.MAX_ALLOWED_PHOTOS) {
+                        Card(
+                            modifier = Modifier
+                                .size(120.dp, 160.dp)
+                                .clickable { launchPhotoPicker() },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxSize(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AddPhotoAlternate,
+                                    contentDescription = "Agregar más fotos",
+                                    tint = TruequappTheme.colorScheme.primary,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "Agregar más",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 12.sp,
+                                    color = TruequappTheme.colorScheme.primary
+                                )
+                            }
+                        }
                     }
                 }
             } else {
+                // Card inicial cuando no hay fotos seleccionadas
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(140.dp)
-                        .clickable {
-                            photoPickerLauncher.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                            )
-                        },
+                        .clickable { launchPhotoPicker() },
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
                 ) {
@@ -202,19 +334,19 @@ fun ItemPublishScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.AddPhotoAlternate,
-                            contentDescription = "Seleccionar fotografía",
+                            contentDescription = "Seleccionar fotos",
                             tint = TruequappTheme.colorScheme.primary,
-                            modifier = Modifier.size(40.dp)
+                            modifier = Modifier.size(44.dp)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Seleccionar 1 Imagen",
+                            text = "Seleccionar hasta 6 Fotografías",
                             fontWeight = FontWeight.Bold,
                             style = MaterialTheme.typography.bodyMedium,
                             color = TruequappTheme.colorScheme.primary
                         )
                         Text(
-                            text = "Toca para abrir la galería de fotos",
+                            text = "PhotoPicker nativo sin permisos intrusivos de almacenamiento",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -305,7 +437,7 @@ fun ItemPublishScreen(
             Spacer(modifier = Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
-                    value = state.newEstimatedValueMin.toInt().toString(),
+                    value = if (state.newEstimatedValueMin > 0) state.newEstimatedValueMin.toInt().toString() else "",
                     onValueChange = {
                         val min = it.toDoubleOrNull() ?: 0.0
                         onEvent(CatalogUiEvent.ValueRangeChanged(min, state.newEstimatedValueMax))
@@ -315,7 +447,7 @@ fun ItemPublishScreen(
                     modifier = Modifier.weight(1f)
                 )
                 OutlinedTextField(
-                    value = state.newEstimatedValueMax.toInt().toString(),
+                    value = if (state.newEstimatedValueMax > 0) state.newEstimatedValueMax.toInt().toString() else "",
                     onValueChange = {
                         val max = it.toDoubleOrNull() ?: 0.0
                         onEvent(CatalogUiEvent.ValueRangeChanged(state.newEstimatedValueMin, max))
@@ -340,7 +472,7 @@ fun ItemPublishScreen(
                 OutlinedTextField(
                     value = tagInput,
                     onValueChange = { tagInput = it },
-                    placeholder = { Text("Ej. Nintendo Switch, Libros...") },
+                    placeholder = { Text("Ej. Consolas, Libros, Celular...") },
                     singleLine = true,
                     modifier = Modifier.weight(1f)
                 )
@@ -370,21 +502,37 @@ fun ItemPublishScreen(
                 }
             }
 
-            // Error si lo hay
+            // Error si lo hay (incluyendo infracción RN-11)
             state.errorMessage?.let { error ->
                 Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = error,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium
-                )
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = error,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
             if (state.isPublishing) {
-                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     CircularProgressIndicator(color = TruequappTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Procesando y comprimiendo a WebP (< 80 KB)...",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             } else {
                 TruequappPrimaryButton(
@@ -395,5 +543,44 @@ fun ItemPublishScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+
+    if (showSuccessDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showSuccessDialog = false
+                onNavigateBack()
+            },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    tint = PaletteConfig.SafeZoneVerified,
+                    modifier = Modifier.size(48.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "¡Publicación Exitosa!",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            },
+            text = {
+                Text(
+                    text = "Tu publicación ha sido subida y guardada exitosamente en el catálogo de Truequapp. Ya se encuentra disponible para todos los usuarios.",
+                    fontSize = 14.sp
+                )
+            },
+            confirmButton = {
+                TruequappPrimaryButton(
+                    text = "Aceptar y Volver al Catálogo",
+                    onClick = {
+                        showSuccessDialog = false
+                        onNavigateBack()
+                    }
+                )
+            }
+        )
     }
 }

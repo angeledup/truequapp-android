@@ -1,4 +1,4 @@
-rootProject.name = "truequapp-android"
+rootProject.name = "truequapp-beta"
 
 pluginManagement {
     repositories {
@@ -28,7 +28,4 @@ include(":feature:catalog")
 include(":feature:trade")
 include(":feature:chat")
 include(":feature:safezones")
-include(":feature:swipe")
-include(":feature:wallet")
-include(":feature:reports")
 

@@ -196,6 +196,52 @@ fun ProfileScreen(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Editar Datos del Perfil (BD)", fontSize = 13.sp)
                 }
+
+                // Selector Rápido de Administrador Beta (Para probar trueques entre cuentas)
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 14.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "🔄 Alternar Cuenta Beta (1 Toque)",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        if (state.userEmail == "chocolattcorreo@gmail.com") {
+                            androidx.compose.material3.Button(
+                                onClick = {
+                                    onEvent(AuthUiEvent.QuickLoginAdmin("Vergaracorreo@gmail.com", "AngEduVr"))
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color(0xFF0D47A1))
+                            ) {
+                                Text("👤 Cambiar a cuenta de Vergara (10k TC)", color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+                        } else {
+                            androidx.compose.material3.Button(
+                                onClick = {
+                                    onEvent(AuthUiEvent.QuickLoginAdmin("chocolattcorreo@gmail.com", "chocolatte"))
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color(0xFF5D4037))
+                            ) {
+                                Text("🍫 Cambiar a cuenta de chocolatt (10k TC)", color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
             } else {
                 Text(
                     text = "Modo Invitado",

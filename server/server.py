@@ -27,6 +27,14 @@ except ImportError:
     except ImportError:
         turso_client = None
 
+try:
+    import room_sqlite
+except ImportError:
+    try:
+        from server import room_sqlite
+    except ImportError:
+        room_sqlite = None
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 USUARIOS_DIR = os.path.join(DATA_DIR, "usuarios")
@@ -59,6 +67,13 @@ def init_storage():
                 json.dump([], f, indent=2)
     except Exception:
         pass
+
+    # Inicializar Base de Datos SQLite Room Localhost
+    if room_sqlite:
+        try:
+            room_sqlite.init_room_database()
+        except Exception as e:
+            print(f"[Room Warning] Error al inicializar Room SQLite: {e}")
 
     # Si Turso está configurado vía variables de entorno, inicializar y sembrar
     if turso_client and turso_client.is_turso_configured():
@@ -131,6 +146,11 @@ def write_json_file(file_path, data):
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
             with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
+            if room_sqlite:
+                try:
+                    room_sqlite.sync_json_to_sqlite()
+                except Exception:
+                    pass
         except Exception:
             pass
 
@@ -230,9 +250,63 @@ class TruequappRequestHandler(BaseHTTPRequestHandler):
                 self._send_json(messages)
                 return
 
+        # 5.1 Endpoint para Salas de Chat (Rooms) en Localhost
+        if path == "/api/rooms" or path == "/api/rooms/":
+            proposals = read_json_file(PROPUESTAS_FILE)
+            rooms = []
+            for p in proposals:
+                pid = p.get("id")
+                chat_file = os.path.join(CHATS_DIR, f"{pid}.json")
+                msgs = read_json_file(chat_file) if os.path.exists(chat_file) else []
+                rooms.append({
+                    "roomId": pid,
+                    "proposal": p,
+                    "totalMessages": len(msgs),
+                    "lastMessage": msgs[-1] if msgs else None
+                })
+            self._send_json(rooms)
+            return
+
+        if path.startswith("/api/rooms/"):
+            room_id = path.replace("/api/rooms/", "").strip()
+            proposals = read_json_file(PROPUESTAS_FILE)
+            prop = next((p for p in proposals if p.get("id") == room_id), None)
+            chat_file = os.path.join(CHATS_DIR, f"{room_id}.json")
+            msgs = read_json_file(chat_file) if os.path.exists(chat_file) else []
+            self._send_json({
+                "roomId": room_id,
+                "proposal": prop,
+                "messages": msgs
+            })
+            return
+
+        # 5.2 Estado de Room Localhost SQLite
+        if path == "/api/room" or path == "/api/room/status":
+            room_db_path = os.path.join(DATA_DIR, "room_localhost.db")
+            db_exists = os.path.exists(room_db_path)
+            self._send_json({
+                "status": "ok",
+                "roomDatabase": "room_localhost.db",
+                "exists": db_exists,
+                "path": room_db_path,
+                "engine": "SQLite 3 (Android Room Schema)",
+                "endpoints": {
+                    "rooms": "/api/rooms",
+                    "usuarios": "/api/usuarios",
+                    "catalogo": "/api/catalogo",
+                    "trueques": "/api/trueques"
+                }
+            })
+            return
+
         # 6. Tablero Visual HTML de Monitoreo Local
         if path == "/" or path == "/dashboard":
             self._render_dashboard()
+            return
+
+        # 6.1 Simulador Móvil Interactivo en el Navegador
+        if path == "/app" or path == "/simulator" or path == "/web":
+            self._render_web_app()
             return
 
         self._send_json({"error": f"Ruta GET {path} no encontrada"}, 404)
@@ -359,6 +433,39 @@ class TruequappRequestHandler(BaseHTTPRequestHandler):
                 write_json_file(chat_file, messages)
                 self._send_json({"success": True, "message": body}, 201)
                 return
+
+        # 7. Crear o Registrar Room (Sala de Chat / Propuesta de Trueque)
+        if path == "/api/rooms" or path == "/api/rooms/":
+            initiator = body.get("initiatorUserId", "").lower()
+            receiver = body.get("receiverUserId", "").lower()
+            proposals = read_json_file(PROPUESTAS_FILE)
+            prop_id = body.get("id") or body.get("roomId") or f"prop_local_{len(proposals)+1}"
+            body["id"] = prop_id
+            body["esta_activa"] = True
+            body.setdefault("status", "PENDIENTE")
+            proposals.insert(0, body)
+            write_json_file(PROPUESTAS_FILE, proposals)
+
+            initial_msg = body.get("initialMessage")
+            if initial_msg:
+                chat_file = os.path.join(CHATS_DIR, f"{prop_id}.json")
+                msg_entry = {
+                    "id": f"msg_{prop_id}_1",
+                    "proposalId": prop_id,
+                    "truequeId": prop_id,
+                    "senderId": body.get("initiatorEmail", initiator),
+                    "emisorCorreo": body.get("initiatorEmail", initiator),
+                    "receptorCorreo": body.get("receiverEmail", receiver),
+                    "content": initial_msg,
+                    "contenido": initial_msg,
+                    "timestampEpochMs": int(os.times().system * 1000),
+                    "estaEntregado": True,
+                    "estaLeido": False
+                }
+                write_json_file(chat_file, [msg_entry])
+
+            self._send_json({"success": True, "roomId": prop_id, "room": body}, 201)
+            return
 
         self._send_json({"error": f"Ruta POST {path} no encontrada"}, 404)
 
@@ -495,7 +602,10 @@ class TruequappRequestHandler(BaseHTTPRequestHandler):
             <h1>Truequapp Central Server</h1>
             <div class="folder-tag">Servidor Local & Preparado para Vercel</div>
         </div>
-        <div class="badge">● Activo (Port 8080)</div>
+        <div style="display:flex; align-items:center; gap:10px;">
+            <a href="/app" style="background:#E5B869; color:#121214; padding:8px 16px; border-radius:8px; text-decoration:none; font-weight:bold; font-size:13px; display:inline-flex; align-items:center; gap:6px;">📱 Abrir App en Navegador</a>
+            <div class="badge">● Activo (Port 8080)</div>
+        </div>
     </div>
 
     <div class="grid">
@@ -526,7 +636,458 @@ class TruequappRequestHandler(BaseHTTPRequestHandler):
                 Valor: ${it.get("estimatedValueMin")} - ${it.get("estimatedValueMax")} • Dueño: {it.get("ownerName", it.get("ownerId"))}
             </div>''' for it in items)}
         </div>
+
+        <div class="card">
+            <span class="folder-tag">server/data/room_localhost.db</span>
+            <h2>Room SQLite & Chat Rooms ({len(proposals)})</h2>
+            <div style="font-size:12px; color:#A1A1AA; margin-bottom:10px;">
+                Motor SQLite nativo compatible con Android Room (<code>usuarios</code>, <code>articulos</code>, <code>propuestas</code>, <code>mensajes</code>).
+            </div>
+            {"".join(f'''<div class="item">
+                <strong>Room: {p.get("id")}</strong><br/>
+                Participantes: {p.get("initiatorUserId")} & {p.get("receiverUserId")}<br/>
+                <span style="color:#E5B869;">💬 Mensajes: {len(read_json_file(os.path.join(CHATS_DIR, f"{p.get('id')}.json")))}</span> • <a href="/api/rooms/{p.get('id')}" target="_blank" style="color:#60A5FA; text-decoration:none;">Ver JSON</a>
+            </div>''' for p in proposals) if proposals else '<div class="item">Sin rooms activos.</div>'}
+        </div>
     </div>
+</body>
+</html>"""
+        self._set_headers(200, "text/html")
+        self.wfile.write(html.encode("utf-8"))
+
+    def _render_web_app(self):
+        """Genera el cliente web móvil interactivo de Truequapp para ejecutarse en el navegador."""
+        html = """<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+    <title>Truequapp Web — Simulador Móvil Oficial</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', -apple-system, sans-serif; }
+        body { background: #0c0c0e; color: #f4f4f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 12px; }
+        .phone-frame {
+            width: 100%; max-width: 440px; height: 90vh; max-height: 860px;
+            background: #141418; border-radius: 36px; border: 3px solid #27272e;
+            display: flex; flex-direction: column; overflow: hidden;
+            box-shadow: 0 25px 60px -15px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.06);
+            position: relative;
+        }
+        /* Top App Bar */
+        .top-bar {
+            background: #18181e; padding: 16px 18px 12px; border-bottom: 1px solid #27272e;
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        .brand-row { display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 18px; font-weight: 700; color: #E5B869; display: flex; align-items: center; gap: 8px; }
+        .user-switch {
+            background: #23232b; color: #e4e4e7; border: 1px solid #3f3f4e;
+            padding: 5px 10px; border-radius: 8px; font-size: 12px; font-weight: 600; outline: none;
+        }
+        .stats-row {
+            display: flex; justify-content: space-between; align-items: center;
+            background: #202028; padding: 8px 12px; border-radius: 10px; font-size: 13px;
+        }
+        .coins-badge { color: #E5B869; font-weight: 700; display: flex; align-items: center; gap: 5px; }
+        /* Main View Container */
+        .content-area { flex: 1; overflow-y: auto; padding: 16px; position: relative; }
+        /* Bottom Navigation Bar */
+        .nav-bar {
+            background: #18181e; border-top: 1px solid #27272e; display: flex;
+            justify-content: space-around; padding: 10px 0 14px;
+        }
+        .nav-item {
+            display: flex; flex-direction: column; align-items: center; gap: 4px;
+            color: #71717a; text-decoration: none; font-size: 11px; font-weight: 600;
+            cursor: pointer; transition: color 0.15s ease;
+        }
+        .nav-item.active { color: #E5B869; }
+        .nav-icon { font-size: 20px; }
+        /* Components */
+        .card {
+            background: #1e1e26; border: 1px solid #2c2c38; border-radius: 16px;
+            padding: 14px; margin-bottom: 14px;
+        }
+        .card img {
+            width: 100%; height: 160px; object-fit: cover; border-radius: 12px; margin-bottom: 10px;
+        }
+        .card-title { font-size: 15px; font-weight: 700; margin-bottom: 6px; color: #fafafa; }
+        .card-desc { font-size: 13px; color: #a1a1aa; line-height: 1.4; margin-bottom: 10px; }
+        .tag-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+        .tag { background: #2a2a38; color: #e4e4e7; font-size: 11px; padding: 3px 8px; border-radius: 6px; }
+        .val-badge { color: #F0C987; font-weight: 700; font-size: 13px; }
+        .btn {
+            background: #E5B869; color: #121214; border: none; padding: 8px 14px;
+            border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer;
+            transition: opacity 0.15s ease; text-align: center; width: 100%; display: block;
+        }
+        .btn:hover { opacity: 0.9; }
+        .btn-secondary {
+            background: #2a2a36; color: #f4f4f5; border: 1px solid #3f3f50;
+        }
+        /* Chat view */
+        .chat-container { display: flex; flex-direction: column; height: 100%; }
+        .msg-stream { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-bottom: 10px; }
+        .msg-bubble {
+            max-width: 80%; padding: 10px 14px; border-radius: 16px; font-size: 13px; line-height: 1.4;
+        }
+        .msg-sent {
+            align-self: flex-end; background: #E5B869; color: #121214; font-weight: 500;
+            border-bottom-right-radius: 4px;
+        }
+        .msg-received {
+            align-self: flex-start; background: #272733; color: #f4f4f5;
+            border-bottom-left-radius: 4px; border: 1px solid #363646;
+        }
+        .msg-sender { font-size: 10px; opacity: 0.7; margin-bottom: 3px; font-weight: 700; }
+        .chat-input-row {
+            display: flex; gap: 8px; padding-top: 10px; border-top: 1px solid #27272e;
+        }
+        .chat-input {
+            flex: 1; background: #202028; border: 1px solid #363644; border-radius: 12px;
+            padding: 10px 14px; color: #fff; font-size: 13px; outline: none;
+        }
+        .status-badge {
+            display: inline-block; padding: 4px 10px; border-radius: 999px;
+            font-size: 11px; font-weight: 700; text-transform: uppercase;
+        }
+        .status-PENDIENTE { background: #3b2d18; color: #facc15; border: 1px solid #ca8a04; }
+        .status-ACEPTADO { background: #143224; color: #4ade80; border: 1px solid #16a34a; }
+    </style>
+</head>
+<body>
+    <div class="phone-frame">
+        <!-- Top App Bar -->
+        <div class="top-bar">
+            <div class="brand-row">
+                <div class="logo">🔄 Truequapp Beta</div>
+                <select id="userSelector" class="user-switch" onchange="onUserChanged()">
+                    <option value="chocolattcorreo@gmail.com">👤 Chocolatt</option>
+                    <option value="Vergaracorreo@gmail.com">👤 Vergara</option>
+                    <option value="usuario@truequapp.com">👤 Demo Coatzacoalcos</option>
+                </select>
+            </div>
+            <div class="stats-row">
+                <span id="userCity">📍 Coatzacoalcos, Ver.</span>
+                <span class="coins-badge">🪙 <span id="userCoins">10,000</span> TC</span>
+            </div>
+        </div>
+
+        <!-- Content Area -->
+        <div id="contentArea" class="content-area">
+            <!-- Renderizado dinámicamente según la pestaña -->
+        </div>
+
+        <!-- Bottom Navigation Bar -->
+        <div class="nav-bar">
+            <div class="nav-item active" onclick="switchTab('catalogo')">
+                <span class="nav-icon">🛍️</span>
+                <span>Catálogo</span>
+            </div>
+            <div class="nav-item" onclick="switchTab('trueques')">
+                <span class="nav-icon">🤝</span>
+                <span>Trueques</span>
+            </div>
+            <div class="nav-item" onclick="switchTab('chat')">
+                <span class="nav-icon">💬</span>
+                <span>Chat</span>
+            </div>
+            <div class="nav-item" onclick="switchTab('perfil')">
+                <span class="nav-icon">👤</span>
+                <span>Perfil</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = {
+            email: "chocolattcorreo@gmail.com",
+            name: "chocolatt",
+            coins: 10000.0
+        };
+        let currentTab = "catalogo";
+        let activeRoomId = "prop_localhost_01";
+        let chatInterval = null;
+
+        async function init() {
+            await loadUserData();
+            switchTab('catalogo');
+        }
+
+        async function loadUserData() {
+            const email = document.getElementById("userSelector").value;
+            try {
+                const res = await fetch(`/api/usuarios/${encodeURIComponent(email)}`);
+                if (res.ok) {
+                    const u = await res.json();
+                    currentUser = {
+                        email: u.email || email,
+                        name: u.name || email.split('@')[0],
+                        coins: u.truequeCoins || 10000.0,
+                        city: u.city || "Coatzacoalcos",
+                        rating: u.bayesianRating || 5.0
+                    };
+                    document.getElementById("userCoins").innerText = Number(currentUser.coins).toLocaleString();
+                    document.getElementById("userCity").innerText = `📍 ${currentUser.city}`;
+                }
+            } catch (e) {
+                console.error("Error loading user", e);
+            }
+        }
+
+        async function onUserChanged() {
+            await loadUserData();
+            if (currentTab === "chat") {
+                renderChat();
+            } else if (currentTab === "perfil") {
+                renderPerfil();
+            } else if (currentTab === "catalogo") {
+                renderCatalogo();
+            } else if (currentTab === "trueques") {
+                renderTrueques();
+            }
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            if (chatInterval) { clearInterval(chatInterval); chatInterval = null; }
+
+            const navs = document.querySelectorAll(".nav-item");
+            const tabs = ["catalogo", "trueques", "chat", "perfil"];
+            navs.forEach((n, idx) => {
+                if (tabs[idx] === tab) n.classList.add("active");
+                else n.classList.remove("active");
+            });
+
+            if (tab === "catalogo") renderCatalogo();
+            if (tab === "trueques") renderTrueques();
+            if (tab === "chat") renderChat();
+            if (tab === "perfil") renderPerfil();
+        }
+
+        async function renderCatalogo() {
+            const area = document.getElementById("contentArea");
+            area.innerHTML = '<div style="text-align:center; padding:30px; color:#a1a1aa;">Cargando catálogo...</div>';
+            try {
+                const res = await fetch("/api/catalogo");
+                const items = await res.json();
+                let html = '<h3 style="margin-bottom:12px; color:#E5B869; font-size:16px;">Catálogo Comunitario CETIS 79</h3>';
+                items.forEach(it => {
+                    const isMine = (it.ownerEmail || it.ownerId || '').toLowerCase() === currentUser.email.toLowerCase();
+                    html += `
+                        <div class="card">
+                            <img src="${(it.imagesWebP && it.imagesWebP[0]) || 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62'}" alt="Foto"/>
+                            <div class="card-title">${it.title}</div>
+                            <div class="card-desc">${it.description || ''}</div>
+                            <div class="tag-row">
+                                <span class="tag">Condición: ${it.condition || 'BUENO'}</span>
+                                <span class="tag">Dueño: ${it.ownerName || it.ownerId || ''}</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                                <span class="val-badge">💰 $${it.estimatedValueMin} - $${it.estimatedValueMax}</span>
+                                <span style="font-size:11px; color:#71717a;">📍 ${it.city || 'Coatzacoalcos'}</span>
+                            </div>
+                            ${isMine ? 
+                                '<div style="text-align:center; font-size:12px; color:#E5B869; padding:8px; border:1px dashed #E5B869; border-radius:10px;">Tu propia publicación (RN-02)</div>' : 
+                                `<button class="btn" onclick="proponerTrueque('${it.id}', '${it.ownerEmail || it.ownerId}')">🤝 Proponer Trueque</button>`
+                            }
+                        </div>
+                    `;
+                });
+                area.innerHTML = html;
+            } catch (e) {
+                area.innerHTML = `<div style="color:#ef4444;">Error al cargar catálogo: ${e.message}</div>`;
+            }
+        }
+
+        async function renderTrueques() {
+            const area = document.getElementById("contentArea");
+            area.innerHTML = '<div style="text-align:center; padding:30px; color:#a1a1aa;">Cargando trueques...</div>';
+            try {
+                const res = await fetch(`/api/trueques?user=${encodeURIComponent(currentUser.email)}`);
+                const props = await res.json();
+                let html = '<h3 style="margin-bottom:12px; color:#E5B869; font-size:16px;">Tus Negociaciones Activas</h3>';
+                if (!props || props.length === 0) {
+                    html += '<div style="text-align:center; padding:40px; color:#71717a;">No tienes propuestas activas por ahora.</div>';
+                } else {
+                    props.forEach(p => {
+                        html += `
+                            <div class="card">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                                    <span style="font-size:13px; font-weight:700; color:#E5B869;">Trueque ${p.id}</span>
+                                    <span class="status-badge status-${p.status}">${p.status}</span>
+                                </div>
+                                <div style="font-size:13px; margin-bottom:6px;"><strong>Iniciador:</strong> ${p.initiatorEmail || p.initiatorUserId}</div>
+                                <div style="font-size:13px; margin-bottom:6px;"><strong>Receptor:</strong> ${p.receiverEmail || p.receiverUserId}</div>
+                                <div style="font-size:13px; margin-bottom:12px; color:#F0C987;">🪙 Compensación: ${p.monetaryCompensationCoins || 0} TC</div>
+                                <button class="btn" onclick="abrirChatDePropuesta('${p.id}')">💬 Abrir Chat de Negociación</button>
+                            </div>
+                        `;
+                    });
+                }
+                area.innerHTML = html;
+            } catch (e) {
+                area.innerHTML = `<div style="color:#ef4444;">Error al cargar trueques: ${e.message}</div>`;
+            }
+        }
+
+        async function proponerTrueque(targetItemId, ownerEmail) {
+            const promptCoins = prompt("Ingresa las TruequeCoins de compensación que deseas ofrecer (opcional, ej: 0 o 50):", "0");
+            if (promptCoins === null) return;
+            const coins = parseFloat(promptCoins) || 0.0;
+            const body = {
+                id: `prop_local_${Date.now()}`,
+                initiatorUserId: currentUser.name,
+                initiatorEmail: currentUser.email,
+                receiverUserId: ownerEmail.split('@')[0],
+                receiverEmail: ownerEmail,
+                targetItemId: targetItemId,
+                offeredItemIds: ["item_oferta_simulada"],
+                monetaryCompensationCoins: coins,
+                status: "PENDIENTE",
+                esta_activa: true,
+                createdAtEpochMs: Date.now()
+            };
+            try {
+                const res = await fetch("/api/trueques", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(body)
+                });
+                if (res.ok) {
+                    alert("¡Propuesta enviada con éxito! Abriendo chat de negociación.");
+                    activeRoomId = body.id;
+                    switchTab('chat');
+                } else {
+                    const err = await res.json();
+                    alert("Error: " + (err.error || "No se pudo crear"));
+                }
+            } catch (e) {
+                alert("Error de red: " + e.message);
+            }
+        }
+
+        function abrirChatDePropuesta(propId) {
+            activeRoomId = propId;
+            switchTab('chat');
+        }
+
+        async function renderChat() {
+            const area = document.getElementById("contentArea");
+            area.innerHTML = `
+                <div class="chat-container">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <span style="font-size:14px; font-weight:700; color:#E5B869;">💬 Sala: ${activeRoomId}</span>
+                        <span style="font-size:11px; color:#4ade80;">● En Vivo</span>
+                    </div>
+                    <div id="msgStream" class="msg-stream">
+                        <div style="text-align:center; padding:20px; color:#71717a;">Conectando a la sala...</div>
+                    </div>
+                    <div class="chat-input-row">
+                        <input id="chatInput" class="chat-input" type="text" placeholder="Escribe un mensaje..." onkeydown="if(event.key==='Enter') sendChatMessage()"/>
+                        <button class="btn" style="width:auto; padding:10px 16px;" onclick="sendChatMessage()">Enviar</button>
+                    </div>
+                </div>
+            `;
+            await fetchMessages();
+            chatInterval = setInterval(fetchMessages, 2000);
+        }
+
+        async function fetchMessages() {
+            const stream = document.getElementById("msgStream");
+            if (!stream) return;
+            try {
+                const res = await fetch(`/api/trueques/${activeRoomId}/chat`);
+                if (res.ok) {
+                    const msgs = await res.json();
+                    if (!msgs || msgs.length === 0) {
+                        stream.innerHTML = '<div style="text-align:center; padding:40px; color:#71717a;">No hay mensajes aún en esta sala. ¡Comienza la conversación!</div>';
+                        return;
+                    }
+                    let html = '';
+                    msgs.forEach(m => {
+                        const emisor = m.emisorCorreo || m.senderId || '';
+                        const isMine = emisor.toLowerCase() === currentUser.email.toLowerCase();
+                        html += `
+                            <div class="msg-bubble ${isMine ? 'msg-sent' : 'msg-received'}">
+                                <div class="msg-sender">${isMine ? 'Tú' : (m.senderName || emisor.split('@')[0])}</div>
+                                <div>${m.contenido || m.content || ''}</div>
+                            </div>
+                        `;
+                    });
+                    const wasAtBottom = (stream.scrollHeight - stream.scrollTop) <= (stream.clientHeight + 50);
+                    stream.innerHTML = html;
+                    if (wasAtBottom) {
+                        stream.scrollTop = stream.scrollHeight;
+                    }
+                }
+            } catch (e) {
+                console.error("Error fetching messages", e);
+            }
+        }
+
+        async function sendChatMessage() {
+            const input = document.getElementById("chatInput");
+            if (!input) return;
+            const txt = input.value.trim();
+            if (!txt) return;
+
+            input.value = "";
+            const body = {
+                id: `msg_web_${Date.now()}`,
+                proposalId: activeRoomId,
+                emisorCorreo: currentUser.email,
+                senderId: currentUser.email,
+                senderName: currentUser.name,
+                contenido: txt,
+                content: txt,
+                fechaEnvioMs: Date.now(),
+                timestampEpochMs: Date.now()
+            };
+
+            try {
+                await fetch(`/api/trueques/${activeRoomId}/chat`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(body)
+                });
+                await fetchMessages();
+            } catch (e) {
+                console.error("Error sending message", e);
+            }
+        }
+
+        async function renderPerfil() {
+            const area = document.getElementById("contentArea");
+            area.innerHTML = `
+                <div style="text-align:center; padding:20px 0;">
+                    <div style="font-size:64px; margin-bottom:10px;">👤</div>
+                    <h2 style="color:#fafafa; font-size:20px; margin-bottom:4px;">${currentUser.name}</h2>
+                    <div style="color:#a1a1aa; font-size:13px; margin-bottom:16px;">${currentUser.email}</div>
+                    <div style="background:#1e1e26; border:1px solid #2c2c38; border-radius:16px; padding:16px; margin-bottom:16px; text-align:left;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                            <span style="color:#a1a1aa;">Monedero TruequeCoins:</span>
+                            <span style="color:#E5B869; font-weight:700;">${Number(currentUser.coins).toLocaleString()} TC</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                            <span style="color:#a1a1aa;">Reputación Bayesiana:</span>
+                            <span style="color:#F0C987; font-weight:700;">⭐ ${currentUser.rating} / 5.0</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between;">
+                            <span style="color:#a1a1aa;">Ubicación:</span>
+                            <span style="color:#fafafa; font-weight:600;">${currentUser.city}</span>
+                        </div>
+                    </div>
+                    <div style="font-size:12px; color:#71717a; line-height:1.4;">
+                        Estás conectado al simulador web en tiempo real sincronizado con el servidor local y la base SQLite de Room.
+                    </div>
+                </div>
+            `;
+        }
+
+        init();
+    </script>
 </body>
 </html>"""
         self._set_headers(200, "text/html")
@@ -538,9 +1099,9 @@ def run_server(port=8080):
     httpd = HTTPServer(server_address, TruequappRequestHandler)
     print("=" * 60)
     print(f"🚀 Truequapp Central Server corriendo en:")
-    print(f"   - Local:    http://localhost:{port}")
-    print(f"   - Red WiFi: http://0.0.0.0:{port} (Usa la IP de tu PC)")
-    print(f"   - Dashboard: http://localhost:{port}/dashboard")
+    print(f"   - 📱 App Web:   http://localhost:{port}/app")
+    print(f"   - 📊 Dashboard: http://localhost:{port}/dashboard")
+    print(f"   - 🌐 Red WiFi:  http://0.0.0.0:{port} (Usa la IP de tu PC)")
     print(f"📁 Almacenamiento desacoplado en:")
     print(f"   - Usuarios: {USUARIOS_DIR}")
     print(f"   - Trueques: {TRUEQUES_DIR}")

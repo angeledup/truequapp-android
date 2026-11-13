@@ -30,8 +30,9 @@ python server/server.py
 ```
 
 El servidor iniciará en el puerto `8080` mostrando:
-- **API Local:** `http://localhost:8080/api/`
+- **📱 Simulador Web Móvil en el Navegador:** `http://localhost:8080/app`
 - **Tablero de Monitoreo Visual:** `http://localhost:8080/dashboard`
+- **API Local:** `http://localhost:8080/api/`
 - **Dirección para Teléfonos en la misma Red Wi-Fi:** `http://<TU_IP_LOCAL>:8080/api/` (ejemplo: `http://192.168.1.65:8080/api/`)
 
 ---
@@ -69,4 +70,21 @@ Este servidor incluye `vercel.json` y `api/index.py` listos para funcionar sin m
 | `PUT` | `/api/trueques/<id>/status` | Cambiar estado (Aceptar, Contraofertar, Rechazar, Cancelar) |
 | `GET` | `/api/trueques/<id>/chat` | Historial de mensajes del chat |
 | `POST` | `/api/trueques/<id>/chat` | Enviar mensaje en tiempo real |
+| `GET` | `/api/room` | Estado y motor de Room SQLite en Localhost (`room_localhost.db`) |
+| `GET` | `/api/rooms` | Listado de todas las salas de chat / propuestas de trueque |
+| `GET` | `/api/rooms/<id>` | Detalle y mensajes de una sala de chat específica |
+| `POST` | `/api/rooms` | Crear una nueva sala de trueque con mensaje inicial opcional |
+
+---
+
+## 🗄️ 4. Base de Datos Room SQLite Local (`room_localhost.db`)
+
+Para pruebas 100% locales sin conexión a internet ni a Turso en la nube, el servidor genera automáticamente `server/data/room_localhost.db` con el esquema idéntico de **Android Room**:
+- `usuarios`: Cuentas, credenciales, saldo TC y reputación.
+- `articulos_trueque`: Catálogo con imágenes y categorías.
+- `propuestas_trueque`: Propuestas con artículos y compensación.
+- `chat_mensajes`: Historial de mensajes auditados por trueque (RN-03).
+- `safe_zones`: Puntos seguros de Coatzacoalcos (CETIS 79, Malecón, etc.).
+
+Cada cambio en la API o archivos JSON se sincroniza de forma automática e inmediata con `room_localhost.db`.
 

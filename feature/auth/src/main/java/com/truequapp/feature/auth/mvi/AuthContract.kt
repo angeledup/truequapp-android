@@ -30,7 +30,7 @@ data class AuthUiState(
     val userCity: String = "Coatzacoalcos",
     val currentUserProfile: UserProfile? = null,
     val kycLevel: KycLevel = KycLevel.BASICO_NIVEL_0,
-    val truequeCoins: Double = 100.0, // Única variable para la moneda virtual
+    val truequeCoins: Double = 100.0, // Moneda virtual canónica (10,000 TC para administradores beta)
     val bayesianRating: Double = 4.8,
     val attendanceRate: Double = 1.0,
     val obfuscatedNeighborhood: String = "Centro, Coatzacoalcos",
@@ -74,6 +74,9 @@ sealed interface AuthUiEvent : UiEvent {
         val photoUrl: String?
     ) : AuthUiEvent
     data class SignInWithGoogleFailure(val errorMessage: String) : AuthUiEvent
+
+    // Acceso Rápido Administradores Beta
+    data class QuickLoginAdmin(val email: String, val password: String) : AuthUiEvent
 
     // Edición de Perfil y persistencia directa en Base de Datos Room
     data object OpenEditProfileDialog : AuthUiEvent

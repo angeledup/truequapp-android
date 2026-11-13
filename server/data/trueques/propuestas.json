@@ -1,1 +1,19 @@
-[]
+[
+  {
+    "id": "prop_localhost_01",
+    "initiatorUserId": "usr_chocolatt",
+    "initiatorEmail": "chocolattcorreo@gmail.com",
+    "initiatorName": "chocolatt",
+    "receiverUserId": "usr_vergara",
+    "receiverEmail": "Vergaracorreo@gmail.com",
+    "receiverName": "Vergara",
+    "targetItemId": "item_vergara_01",
+    "offeredItemIds": [
+      "item_chocolatt_01"
+    ],
+    "monetaryCompensationCoins": 0.0,
+    "status": "PENDIENTE",
+    "esta_activa": true,
+    "createdAtEpochMs": 1731369600000
+  }
+]

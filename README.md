@@ -41,6 +41,8 @@ Cada fase está diseñada como un **módulo de trabajo independiente**, con su p
 ```
 truequapp-android/
 ├── README.md                                          <-- Este documento maestro
+├── AUDITORIA_TRUEQUEAPP_2026-11-10.md                 <-- Informe de auditoría de seguridad y código (10-nov-2026)
+├── VERIFICACION_FUNCIONAL_DESPLIEGUE.md               <-- Protocolo de verificación y QA pre-despliegue
 └── fases/
     ├── FASE_0_MODELADO_Y_POLITICAS.md                 <-- Usuario / Agente 1: Reglas de Negocio y Google Play Policies
     ├── FASE_1_ARQUITECTURA_Y_DESIGN_SYSTEM.md         <-- Usuario / Agente 2: Setup Base, MVI, Material 3 y Red
