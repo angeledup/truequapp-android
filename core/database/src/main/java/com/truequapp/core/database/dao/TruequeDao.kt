@@ -70,11 +70,18 @@ interface TruequeDao {
     fun getOfertasRecibidas(correo: String): Flow<List<TruequeConOfertas>>
 
     /**
-     * Ofertas enviadas por el usuario A que continúan activas.
+     * Ofertas enviadas por el usuario A (activas o en cola de validación).
      */
     @Transaction
-    @Query("SELECT * FROM trueques WHERE usuario_a_correo = :correo AND esta_activa = 1 ORDER BY fecha_actualizacion DESC")
+    @Query("SELECT * FROM trueques WHERE usuario_a_correo = :correo AND (esta_activa = 1 OR estado = 'ENVIANDO') ORDER BY fecha_actualizacion DESC")
     fun getOfertasEnviadas(correo: String): Flow<List<TruequeConOfertas>>
+
+    /**
+     * Consulta propuestas que están en espera de validación con el servidor (db-Online).
+     */
+    @Transaction
+    @Query("SELECT * FROM trueques WHERE estado = 'ENVIANDO' ORDER BY fecha_actualizacion ASC")
+    suspend fun getTruequesEnviando(): List<TruequeConOfertas>
 
     @Query("DELETE FROM trueques WHERE id = :truequeId")
     suspend fun deleteTruequeById(truequeId: String)

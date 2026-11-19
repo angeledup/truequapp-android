@@ -7,6 +7,8 @@ import com.truequapp.core.common.mvi.BaseViewModel
 import com.truequapp.core.common.mvi.UiEffect
 import com.truequapp.core.common.mvi.UiEvent
 import com.truequapp.core.common.mvi.UiState
+import com.truequapp.core.datastore.DatabaseValidationModeManager
+import com.truequapp.core.datastore.model.DatabaseValidationMode
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
@@ -21,7 +23,10 @@ data class SettingsUiState(
     val password: String = "",
     val isPasswordVisible: Boolean = false,
     val errorMessage: String? = null,
-    val successMessage: String? = null
+    val successMessage: String? = null,
+    val validationMode: DatabaseValidationMode = DatabaseValidationMode.DB_ONLINE,
+    val showModeDialog: Boolean = false,
+    val dialogModeSelected: DatabaseValidationMode? = null
 ) : UiState
 
 sealed interface SettingsUiEvent : UiEvent {
@@ -32,6 +37,8 @@ sealed interface SettingsUiEvent : UiEvent {
     data object TogglePasswordVisibility : SettingsUiEvent
     data object SaveSettings : SettingsUiEvent
     data object ClearMessages : SettingsUiEvent
+    data class SelectValidationMode(val mode: DatabaseValidationMode) : SettingsUiEvent
+    data object DismissModeDialog : SettingsUiEvent
 }
 
 sealed interface SettingsUiEffect : UiEffect {
@@ -41,11 +48,23 @@ sealed interface SettingsUiEffect : UiEffect {
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val validationModeManager: DatabaseValidationModeManager? = null
 ) : BaseViewModel<SettingsUiState, SettingsUiEvent, SettingsUiEffect>(SettingsUiState()) {
 
     init {
         loadCurrentSettings()
+        observeValidationMode()
+    }
+
+    private fun observeValidationMode() {
+        if (validationModeManager != null) {
+            viewModelScope.launch {
+                validationModeManager.validationMode.collect { mode ->
+                    setState { copy(validationMode = mode) }
+                }
+            }
+        }
     }
 
     override fun onEvent(event: SettingsUiEvent) {
@@ -66,6 +85,28 @@ class SettingsViewModel @Inject constructor(
             is SettingsUiEvent.SaveSettings -> saveSettings()
             is SettingsUiEvent.ClearMessages -> {
                 setState { copy(errorMessage = null, successMessage = null) }
+            }
+            is SettingsUiEvent.SelectValidationMode -> {
+                val currentMode = uiState.value.validationMode
+                if (event.mode != currentMode) {
+                    viewModelScope.launch {
+                        if (event.mode == DatabaseValidationMode.DB_ONLINE) {
+                            validationModeManager?.enableDbOnlineValidation()
+                        } else {
+                            validationModeManager?.enableDbLocalValidation()
+                        }
+                        setState {
+                            copy(
+                                validationMode = event.mode,
+                                showModeDialog = true,
+                                dialogModeSelected = event.mode
+                            )
+                        }
+                    }
+                }
+            }
+            is SettingsUiEvent.DismissModeDialog -> {
+                setState { copy(showModeDialog = false, dialogModeSelected = null) }
             }
         }
     }

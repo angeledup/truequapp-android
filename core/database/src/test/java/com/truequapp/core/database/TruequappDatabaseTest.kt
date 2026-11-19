@@ -73,6 +73,15 @@ class InMemoryTestUserDao : UserDao {
         emit()
     }
 
+    override suspend fun updateUserCredentials(oldEmail: String, newEmail: String, newUsername: String, newPassword: String): Int {
+        val user = usersMap.values.find { it.email.equals(oldEmail, ignoreCase = true) } ?: return 0
+        usersMap.remove(user.id)
+        val updated = user.copy(correo = newEmail, usuario = newUsername, contrasena = newPassword)
+        usersMap[updated.id] = updated
+        emit()
+        return 1
+    }
+
     override suspend fun updateTruequeCoins(userId: String, availableCoins: Double, escrowCoins: Double) {
         val user = usersMap.values.find { it.id.equals(userId, ignoreCase = true) || it.usuario.equals(userId, ignoreCase = true) || it.correo.equals(userId, ignoreCase = true) } ?: return
         usersMap[user.id] = user.copy(truequeCoins = availableCoins, escrowCoins = escrowCoins)

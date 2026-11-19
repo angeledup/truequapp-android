@@ -5,6 +5,8 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStoreFile
+import com.truequapp.core.datastore.DatabaseValidationModeManager
+import com.truequapp.core.datastore.DatabaseValidationModeManagerImpl
 import com.truequapp.core.datastore.UserSessionDataStore
 import com.truequapp.core.datastore.UserSessionDataStoreImpl
 import dagger.Binds
@@ -24,6 +26,12 @@ abstract class DataStoreBindingModule {
     abstract fun bindUserSessionDataStore(
         impl: UserSessionDataStoreImpl
     ): UserSessionDataStore
+
+    @Binds
+    @Singleton
+    abstract fun bindDatabaseValidationModeManager(
+        impl: DatabaseValidationModeManagerImpl
+    ): DatabaseValidationModeManager
 }
 
 @Module

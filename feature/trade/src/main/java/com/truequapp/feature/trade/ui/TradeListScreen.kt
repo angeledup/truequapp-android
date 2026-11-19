@@ -430,6 +430,7 @@ private fun ProposalCard(
         else -> "Propuesta enviada"
     }
     val (statusText, statusColor) = when (proposal.status) {
+        TradeStatus.ENVIANDO -> "Enviando (En espera...)" to Color(0xFFF57C00)
         TradeStatus.PENDIENTE -> "Pendiente" to Color(0xFFE65100)
         TradeStatus.CONTRAOFERTADA -> "Contraofertada" to Color(0xFF1565C0)
         TradeStatus.RESERVADO -> "Reservado (RN-01)" to Color(0xFF2E7D32)
@@ -439,6 +440,7 @@ private fun ProposalCard(
         TradeStatus.RECHAZADO -> "Rechazado" to Color(0xFFC62828)
         TradeStatus.EXPIRADO -> "Expirado" to Color(0xFF616161)
         TradeStatus.EN_DISPUTA -> "En Disputa" to Color(0xFFD84315)
+        TradeStatus.CONFLICTO_NO_DISPONIBLE -> "Conflicto (No disponible)" to Color(0xFFC62828)
     }
 
     Card(

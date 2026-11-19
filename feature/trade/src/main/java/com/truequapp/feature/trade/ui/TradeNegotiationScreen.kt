@@ -364,6 +364,7 @@ fun TradeNegotiationScreen(
 @Composable
 private fun StatusTimelineBanner(status: TradeStatus) {
     val (label, color, icon) = when (status) {
+        TradeStatus.ENVIANDO -> Triple("ENVIANDO (EN COLA DE VALIDACIÓN)", Color(0xFFF57C00), Icons.Default.Schedule)
         TradeStatus.PENDIENTE -> Triple("PENDIENTE DE RESPUESTA", Color(0xFFE65100), Icons.Default.Schedule)
         TradeStatus.CONTRAOFERTADA -> Triple("CONTRAOFERTADA", Color(0xFF1565C0), Icons.Default.CompareArrows)
         TradeStatus.RESERVADO -> Triple("RESERVADO (ACID LOCK RN-01)", Color(0xFF2E7D32), Icons.Default.Lock)
@@ -373,6 +374,7 @@ private fun StatusTimelineBanner(status: TradeStatus) {
         TradeStatus.RECHAZADO -> Triple("RECHAZADO", Color(0xFFC62828), Icons.Default.Cancel)
         TradeStatus.EXPIRADO -> Triple("EXPIRADO (TTL 72H)", Color(0xFF616161), Icons.Default.Schedule)
         TradeStatus.EN_DISPUTA -> Triple("EN DISPUTA", Color(0xFFD84315), Icons.Default.Warning)
+        TradeStatus.CONFLICTO_NO_DISPONIBLE -> Triple("CONFLICTO (NO DISPONIBLE)", Color(0xFFC62828), Icons.Default.Cancel)
     }
 
     Card(

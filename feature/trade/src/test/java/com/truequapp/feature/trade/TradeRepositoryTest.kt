@@ -95,11 +95,17 @@ class FakeTruequeDao : TruequeDao {
 
     override fun getOfertasEnviadas(correo: String): Flow<List<TruequeConOfertas>> {
         val list = truequesMap.values.filter {
-            it.usuarioACorreo == correo && it.estaActiva
+            it.usuarioACorreo == correo && (it.estaActiva || it.estado == "ENVIANDO")
         }.map { t ->
             TruequeConOfertas(t, t.ofertaAId?.let { ofertasMap[it] }, t.ofertaBId?.let { ofertasMap[it] })
         }
         return flowOf(list)
+    }
+
+    override suspend fun getTruequesEnviando(): List<TruequeConOfertas> {
+        return truequesMap.values.filter { it.estado == "ENVIANDO" }.map { t ->
+            TruequeConOfertas(t, t.ofertaAId?.let { ofertasMap[it] }, t.ofertaBId?.let { ofertasMap[it] })
+        }
     }
 
     override suspend fun deleteTruequeById(truequeId: String) {

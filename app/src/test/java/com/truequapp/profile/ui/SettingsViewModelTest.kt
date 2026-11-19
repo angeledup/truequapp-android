@@ -3,12 +3,15 @@ package com.truequapp.profile.ui
 import com.truequapp.auth.data.AuthRepository
 import com.truequapp.core.database.dao.UserDao
 import com.truequapp.core.database.entity.UserEntity
+import com.truequapp.core.datastore.DatabaseValidationModeManager
 import com.truequapp.core.datastore.UserSessionDataStore
+import com.truequapp.core.datastore.model.DatabaseValidationMode
 import com.truequapp.core.datastore.model.UserSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -20,6 +23,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
@@ -32,6 +36,7 @@ class SettingsViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var fakeDao: FakeSettingsUserDao
     private lateinit var fakeSession: FakeSettingsSessionDataStore
+    private lateinit var fakeModeManager: FakeValidationModeManager
     private lateinit var authRepository: AuthRepository
     private lateinit var viewModel: SettingsViewModel
 
@@ -50,14 +55,15 @@ class SettingsViewModelTest {
         Dispatchers.setMain(testDispatcher)
         fakeDao = FakeSettingsUserDao()
         fakeSession = FakeSettingsSessionDataStore()
-        authRepository = AuthRepository(fakeDao, fakeSession).apply {
+        fakeModeManager = FakeValidationModeManager()
+        authRepository = AuthRepository(fakeDao, fakeSession, fakeModeManager).apply {
             cloudBaseUrl = "" // Desactivar llamadas de red en tests unitarios
         }
 
         fakeDao.insertUserSync(initialUser)
         fakeSession.saveUserSync(initialUser.usuario, initialUser.correo, false)
 
-        viewModel = SettingsViewModel(authRepository)
+        viewModel = SettingsViewModel(authRepository, fakeModeManager)
     }
 
     @AfterEach
@@ -172,11 +178,66 @@ class SettingsViewModelTest {
         viewModel.onEvent(SettingsUiEvent.TogglePasswordVisibility)
         assertFalse(viewModel.uiState.value.isPasswordVisible)
     }
+
+    @Test
+    @DisplayName("Cambio de modo a db-Local activa el estado y muestra el pop-up informativo")
+    fun selectValidationMode_toLocal_updatesModeAndShowsDialog() = runTest {
+        viewModel.onEvent(SettingsUiEvent.SelectValidationMode(DatabaseValidationMode.DB_LOCAL))
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(DatabaseValidationMode.DB_LOCAL, state.validationMode)
+        assertTrue(state.showModeDialog)
+        assertEquals(DatabaseValidationMode.DB_LOCAL, state.dialogModeSelected)
+
+        viewModel.onEvent(SettingsUiEvent.DismissModeDialog)
+        assertFalse(viewModel.uiState.value.showModeDialog)
+        assertNull(viewModel.uiState.value.dialogModeSelected)
+    }
+
+    @Test
+    @DisplayName("Cambio de modo a db-Online activa el estado y muestra el pop-up informativo")
+    fun selectValidationMode_toOnline_updatesModeAndShowsDialog() = runTest {
+        // Primero cambiamos a LOCAL
+        viewModel.onEvent(SettingsUiEvent.SelectValidationMode(DatabaseValidationMode.DB_LOCAL))
+        advanceUntilIdle()
+        viewModel.onEvent(SettingsUiEvent.DismissModeDialog)
+
+        // Luego volvemos a ONLINE
+        viewModel.onEvent(SettingsUiEvent.SelectValidationMode(DatabaseValidationMode.DB_ONLINE))
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(DatabaseValidationMode.DB_ONLINE, state.validationMode)
+        assertTrue(state.showModeDialog)
+        assertEquals(DatabaseValidationMode.DB_ONLINE, state.dialogModeSelected)
+    }
 }
 
 // -----------------------------------------------------------------------------
 // FAKES PARA TEST DE AJUSTES
 // -----------------------------------------------------------------------------
+
+private class FakeValidationModeManager(
+    initialMode: DatabaseValidationMode = DatabaseValidationMode.DB_ONLINE
+) : DatabaseValidationModeManager {
+    private val _mode = MutableStateFlow(initialMode)
+    override val validationMode: StateFlow<DatabaseValidationMode> = _mode
+
+    override fun getValidationMode(): DatabaseValidationMode = _mode.value
+
+    override suspend fun enableDbOnlineValidation() {
+        _mode.value = DatabaseValidationMode.DB_ONLINE
+    }
+
+    override suspend fun enableDbLocalValidation() {
+        _mode.value = DatabaseValidationMode.DB_LOCAL
+    }
+
+    override suspend fun setValidationMode(mode: DatabaseValidationMode) {
+        _mode.value = mode
+    }
+}
 
 private class FakeSettingsUserDao : UserDao {
     private val users = mutableMapOf<String, UserEntity>()
