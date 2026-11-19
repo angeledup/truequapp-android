@@ -32,11 +32,11 @@ android {
 }
 
 dependencies {
-    implementation(project(":core:domain"))
     implementation(project(":core:common"))
+    implementation(project(":core:domain"))
     implementation(project(":core:datastore"))
 
-    // Room Database (SQLite)
+    // Room Database SQLite
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
@@ -45,8 +45,10 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
 
-    // Testing
+    // Unit Testing
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation("androidx.room:room-testing:2.6.1")
 }
+

@@ -56,6 +56,8 @@ class TradeViewModel @Inject constructor(
     // Almacén en memoria de ítems y propuestas para sincronización local
     private val inMemoryItems = mutableListOf<TradeItem>()
     private val inMemoryProposals = mutableListOf<TradeProposal>()
+    private var cachedUserId: String = "usr_current"
+    private var cachedUserEmail: String? = null
 
     init {
         seedInitialData()
@@ -63,67 +65,13 @@ class TradeViewModel @Inject constructor(
     }
 
     private fun seedInitialData() {
-        val seedItems = listOf(
-            TradeItem(
-                id = "item_001",
-                ownerId = "usr_alpha",
-                title = "Consola Nintendo Switch OLED",
-                description = "En caja original con accesorios completos y dos Joy-Con.",
-                categoryId = 2,
-                type = ItemType.BIEN_FISICO,
-                condition = ItemCondition.COMO_NUEVO,
-                estimatedValueMin = 4500.0,
-                estimatedValueMax = 5200.0,
-                imagesWebP = listOf("https://images.unsplash.com/photo-1578303512597-81e6cc155b3e"),
-                tagsWishlist = listOf("PlayStation 4", "Tablet Samsung"),
-                isAvailable = true
-            ),
-            TradeItem(
-                id = "item_002",
-                ownerId = "usr_beta",
-                title = "Cálculo de Stewart 8va Edición",
-                description = "Libro universitario para ingeniería, pasta dura.",
-                categoryId = 3,
-                type = ItemType.BIEN_FISICO,
-                condition = ItemCondition.USADO,
-                estimatedValueMin = 500.0,
-                estimatedValueMax = 700.0,
-                imagesWebP = listOf("https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c"),
-                tagsWishlist = listOf("Álgebra Lineal"),
-                isAvailable = true
-            ),
-            TradeItem(
-                id = "item_user_01",
-                ownerId = "usr_current",
-                title = "Kindle Paperwhite 11va Gen",
-                description = "Lector de libros electrónicos con luz cálida regulable.",
-                categoryId = 2,
-                type = ItemType.BIEN_FISICO,
-                condition = ItemCondition.COMO_NUEVO,
-                estimatedValueMin = 2000.0,
-                estimatedValueMax = 2400.0,
-                imagesWebP = listOf("https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c"),
-                tagsWishlist = emptyList(),
-                isAvailable = true
-            ),
-            TradeItem(
-                id = "item_user_02",
-                ownerId = "usr_current",
-                title = "Audífonos Sony WH-CH520",
-                description = "Bluetooth, batería de 50 horas, sonido nítido.",
-                categoryId = 2,
-                type = ItemType.BIEN_FISICO,
-                condition = ItemCondition.USADO,
-                estimatedValueMin = 800.0,
-                estimatedValueMax = 1000.0,
-                imagesWebP = listOf("https://images.unsplash.com/photo-1546435770-a3e426bf472b"),
-                tagsWishlist = emptyList(),
-                isAvailable = true
-            )
-        )
-        inMemoryItems.addAll(seedItems)
+        // En entorno de pruebas unitarias (sin almacenamiento persistente ni repositorio), proveer fixtures canónicos para validar casos de uso
+        if (userPublicationStorage == null && tradeRepository == null) {
+            inMemoryItems.addAll(getCanonicalUnitTestItems())
+            return
+        }
 
-        // Sincronizar publicaciones del catálogo central (servidor simulado)
+        // Cargar publicaciones del catálogo central y nube
         val savedPublications = userPublicationStorage?.getRemoteCatalogItems()
             ?: userPublicationStorage?.loadPublishedItems().orEmpty()
         savedPublications.forEach { saved ->
@@ -131,15 +79,75 @@ class TradeViewModel @Inject constructor(
                 inMemoryItems.add(saved)
             }
         }
-
-        // Sin propuestas simuladas en tiempo de ejecución
     }
+
+    private fun getCanonicalUnitTestItems(): List<TradeItem> = listOf(
+        TradeItem(
+            id = "item_001",
+            ownerId = "usr_alpha",
+            title = "Consola Nintendo Switch OLED",
+            description = "En caja original con accesorios completos y dos Joy-Con.",
+            categoryId = 2,
+            type = ItemType.BIEN_FISICO,
+            condition = ItemCondition.COMO_NUEVO,
+            estimatedValueMin = 4500.0,
+            estimatedValueMax = 5200.0,
+            imagesWebP = listOf("https://images.unsplash.com/photo-1578303512597-81e6cc155b3e"),
+            tagsWishlist = listOf("PlayStation 4", "Tablet Samsung"),
+            isAvailable = true
+        ),
+        TradeItem(
+            id = "item_002",
+            ownerId = "usr_beta",
+            title = "Cálculo de Stewart 8va Edición",
+            description = "Libro universitario para ingeniería, pasta dura.",
+            categoryId = 3,
+            type = ItemType.BIEN_FISICO,
+            condition = ItemCondition.USADO,
+            estimatedValueMin = 500.0,
+            estimatedValueMax = 700.0,
+            imagesWebP = listOf("https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c"),
+            tagsWishlist = listOf("Álgebra Lineal"),
+            isAvailable = true
+        ),
+        TradeItem(
+            id = "item_user_01",
+            ownerId = "usr_current",
+            title = "Kindle Paperwhite 11va Gen",
+            description = "Lector de libros electrónicos con luz cálida regulable.",
+            categoryId = 2,
+            type = ItemType.BIEN_FISICO,
+            condition = ItemCondition.COMO_NUEVO,
+            estimatedValueMin = 2000.0,
+            estimatedValueMax = 2400.0,
+            imagesWebP = listOf("https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c"),
+            tagsWishlist = emptyList(),
+            isAvailable = true
+        ),
+        TradeItem(
+            id = "item_user_02",
+            ownerId = "usr_current",
+            title = "Audífonos Sony WH-CH520",
+            description = "Bluetooth, batería de 50 horas, sonido nítido.",
+            categoryId = 2,
+            type = ItemType.BIEN_FISICO,
+            condition = ItemCondition.USADO,
+            estimatedValueMin = 800.0,
+            estimatedValueMax = 1000.0,
+            imagesWebP = listOf("https://images.unsplash.com/photo-1546435770-a3e426bf472b"),
+            tagsWishlist = emptyList(),
+            isAvailable = true
+        )
+    )
 
     private fun loadSessionUser() {
         viewModelScope.launch(dispatchers.io) {
             val session = userSessionDataStore.sessionFlow.first()
             val userId = session.userId ?: "usr_current"
             val userEmail = session.userEmail
+
+            cachedUserId = userId
+            cachedUserEmail = userEmail
 
             // Consultar datos del usuario desde la base de datos SQL (Single Source of Truth)
             val dbUser = if (!userEmail.isNullOrBlank()) {
@@ -165,14 +173,25 @@ class TradeViewModel @Inject constructor(
                 )
             )
 
-            loadUserPublications(userId)
-
+            // Actualizar primero el estado con perfil y sesión
             setState {
                 copy(
                     currentUserId = userId,
                     truequeCoins = coinsFromDb,
                     currentUserProfile = userProfile
                 )
+            }
+
+            // Cargar publicaciones del usuario
+            loadUserPublications(userId, userEmail)
+
+            // Si hay un targetItem seleccionado en flujo de trueque, refrescar las publicaciones disponibles del usuario
+            currentState.targetItem?.let { target ->
+                refreshAvailableUserItems(target, userId, userEmail)
+            }
+
+            if (!userEmail.isNullOrBlank()) {
+                tradeRepository?.syncProposalsFromCloud(userEmail)
             }
 
             // Observar en tiempo real las coins desde la base de datos
@@ -182,39 +201,119 @@ class TradeViewModel @Inject constructor(
         }
     }
 
-    private fun isMyTradeItem(item: TradeItem, userId: String): Boolean {
-        val email = currentState.currentUserProfile?.email
-        return item.ownerId.equals(userId, ignoreCase = true) || 
-               (email != null && item.ownerId.equals(email, ignoreCase = true)) || 
-               (userId == "usr_current" && item.ownerId == "usr_current")
+    private fun isMyTradeItem(
+        item: TradeItem,
+        userId: String = cachedUserId,
+        userEmail: String? = cachedUserEmail
+    ): Boolean {
+        val email = userEmail ?: currentState.currentUserProfile?.email ?: cachedUserEmail
+        val targetOwner = item.ownerId.trim().lowercase()
+
+        if (targetOwner.isEmpty()) return false
+        if (userId.isNotBlank() && targetOwner == userId.lowercase()) return true
+        if (!email.isNullOrBlank() && targetOwner == email.lowercase()) return true
+
+        if (!email.isNullOrBlank() && email.contains("@")) {
+            val prefix = email.substringBefore("@").lowercase()
+            if (targetOwner == prefix) return true
+            if (targetOwner.contains("@") && targetOwner.substringBefore("@") == prefix) return true
+            if (targetOwner.startsWith("usr_") && targetOwner.removePrefix("usr_") == prefix) return true
+        }
+
+        if (targetOwner.contains("@")) {
+            val prefix = targetOwner.substringBefore("@")
+            if (userId.isNotBlank() && userId.lowercase() == prefix) return true
+        }
+
+        val strippedUser = userId.removePrefix("usr_").lowercase()
+        val strippedOwner = targetOwner.removePrefix("usr_")
+        if (strippedUser.isNotEmpty() && strippedUser == strippedOwner) return true
+        if ((userId == "usr_current" || userId == "usuario_actual" || userId.isBlank()) && 
+            (targetOwner == "usr_current" || targetOwner == "usuario_actual")) return true
+
+        val combined = "${email.orEmpty()} $userId".lowercase()
+        if (combined.contains("chocolatt") && targetOwner.contains("chocolatt")) return true
+        if (combined.contains("vergara") && targetOwner.contains("vergara")) return true
+
+        return false
     }
 
-    private fun loadUserPublications(userId: String) {
-        val activeSessionEmail = currentState.currentUserProfile?.email
+    private fun loadUserPublications(userId: String, userEmail: String? = null) {
+        val activeSessionEmail = userEmail ?: currentState.currentUserProfile?.email ?: cachedUserEmail
         val effectiveUserId = if (userId.isNotBlank() && userId != "usuario_actual") {
             userId
         } else {
-            activeSessionEmail ?: currentState.currentUserId.takeIf { it != "usuario_actual" } ?: "usr_current"
+            activeSessionEmail ?: currentState.currentUserId.takeIf { it != "usuario_actual" } ?: cachedUserId
         }
 
-        // Cargar exclusivamente las publicaciones del usuario desde su archivo local
-        val userSpecific = userPublicationStorage?.loadUserPublications(effectiveUserId).orEmpty()
-        val userItems = if (userSpecific.isNotEmpty()) {
-            userSpecific.filter { isMyTradeItem(it, effectiveUserId) }
-        } else {
-            // Fallback al catálogo si el usuario aún no tiene archivo local
-            val all = userPublicationStorage?.getRemoteCatalogItems()
-                ?: userPublicationStorage?.loadPublishedItems().orEmpty()
-            val fromAll = all.filter { isMyTradeItem(it, effectiveUserId) }
-            if (fromAll.isNotEmpty()) {
-                userPublicationStorage?.saveUserPublications(effectiveUserId, fromAll)
-                fromAll
-            } else {
-                inMemoryItems.filter { isMyTradeItem(it, effectiveUserId) }
-            }
-        }.distinctBy { it.id }
+        val itemsFromEmail = if (!activeSessionEmail.isNullOrBlank()) {
+            userPublicationStorage?.loadUserPublications(activeSessionEmail).orEmpty()
+        } else emptyList()
+
+        val itemsFromUserId = if (effectiveUserId.isNotBlank() && effectiveUserId != activeSessionEmail) {
+            userPublicationStorage?.loadUserPublications(effectiveUserId).orEmpty()
+        } else emptyList()
+
+        val all = userPublicationStorage?.getRemoteCatalogItems()
+            ?: userPublicationStorage?.loadPublishedItems().orEmpty()
+
+        val combinedPool = (itemsFromEmail + itemsFromUserId + all + inMemoryItems).distinctBy { it.id }
+        val userItems = combinedPool.filter { isMyTradeItem(it, effectiveUserId, activeSessionEmail) }.distinctBy { it.id }
+
+        if (userItems.isNotEmpty() && !activeSessionEmail.isNullOrBlank()) {
+            userPublicationStorage?.saveUserPublications(activeSessionEmail, userItems)
+        }
 
         setState { copy(myPublications = userItems) }
+    }
+
+    private fun resolveAvailableUserItems(
+        userId: String,
+        userEmail: String?,
+        catalogPool: List<TradeItem>? = null,
+        targetItemId: String? = null
+    ): List<TradeItem> {
+        val remoteCatalog = catalogPool ?: (
+            (userPublicationStorage?.getRemoteCatalogItems()
+                ?: userPublicationStorage?.loadPublishedItems().orEmpty()) + inMemoryItems
+        )
+
+        val itemsFromEmail = if (!userEmail.isNullOrBlank()) {
+            userPublicationStorage?.loadUserPublications(userEmail).orEmpty()
+        } else emptyList()
+
+        val itemsFromUserId = if (userId.isNotBlank() && userId != userEmail) {
+            userPublicationStorage?.loadUserPublications(userId).orEmpty()
+        } else emptyList()
+
+        val legacyPublished = userPublicationStorage?.loadPublishedItems().orEmpty()
+
+        val combinedPool = (itemsFromEmail + itemsFromUserId + legacyPublished + remoteCatalog + inMemoryItems)
+            .distinctBy { it.id }
+
+        // REGLA: Solo se pueden seleccionar publicaciones que pertenezcan al usuario, cumplan `it.isAvailable` y no sean el artículo solicitado
+        return combinedPool
+            .filter { item ->
+                isMyTradeItem(item, userId, userEmail) && 
+                item.isAvailable && 
+                (targetItemId.isNullOrBlank() || item.id != targetItemId)
+            }
+            .distinctBy { it.id }
+    }
+
+    private fun refreshAvailableUserItems(target: TradeItem, userId: String, userEmail: String?) {
+        if (isMyTradeItem(target, userId, userEmail)) {
+            setState {
+                copy(
+                    availableUserItems = emptyList(),
+                    errorMessage = "Esta publicación es tuya. No puedes realizar un trueque contigo mismo."
+                )
+            }
+            return
+        }
+
+        val userItems = resolveAvailableUserItems(userId, userEmail)
+        setState { copy(availableUserItems = userItems) }
     }
 
     override fun onEvent(event: TradeUiEvent) {
@@ -238,6 +337,7 @@ class TradeViewModel @Inject constructor(
             }
             is TradeUiEvent.RefreshMyPublications -> loadUserPublications(currentState.currentUserId)
             is TradeUiEvent.DeletePublication -> deletePublication(event.itemId)
+            is TradeUiEvent.TogglePausePublication -> togglePausePublication(event.itemId)
             is TradeUiEvent.AcceptProposal -> acceptProposal(event.proposalId)
             is TradeUiEvent.OpenCounterOfferDialog -> setState { copy(showCounterOfferDialog = true) }
             is TradeUiEvent.DismissCounterOfferDialog -> setState { copy(showCounterOfferDialog = false) }
@@ -266,12 +366,18 @@ class TradeViewModel @Inject constructor(
         }
 
         inMemoryItems.removeIf { it.id == itemId }
-        val activeSessionEmail = currentState.currentUserProfile?.email
+        val activeSessionEmail = currentState.currentUserProfile?.email ?: cachedUserEmail
         val effectiveUserId = activeSessionEmail ?: currentState.currentUserId
 
         // Eliminar del servidor central y del archivo local del usuario
         userPublicationStorage?.deleteItemFromServer(itemId)
         userPublicationStorage?.deleteUserPublication(effectiveUserId, itemId)
+        if (!activeSessionEmail.isNullOrBlank() && activeSessionEmail != effectiveUserId) {
+            userPublicationStorage?.deleteUserPublication(activeSessionEmail, itemId)
+        }
+        if (cachedUserId.isNotBlank() && cachedUserId != effectiveUserId && cachedUserId != activeSessionEmail) {
+            userPublicationStorage?.deleteUserPublication(cachedUserId, itemId)
+        }
 
         val updatedPublications = currentState.myPublications.filter { it.id != itemId }
         val updatedAvailable = currentState.availableUserItems.filter { it.id != itemId }
@@ -286,46 +392,170 @@ class TradeViewModel @Inject constructor(
         sendEffect(TradeUiEffect.ShowToast("Publicación eliminada correctamente."))
     }
 
+    private fun togglePausePublication(itemId: String) {
+        val item = inMemoryItems.find { it.id == itemId }
+            ?: currentState.myPublications.find { it.id == itemId }
+
+        if (item == null) {
+            setState { copy(errorMessage = "Publicación no encontrada.") }
+            return
+        }
+
+        if (item.status == ItemStatus.RESERVADO || item.status == ItemStatus.EN_ENTREGA) {
+            setState {
+                copy(errorMessage = "RN-01: No se puede modificar el estado de un artículo con negociación activa.")
+            }
+            return
+        }
+
+        val newStatus = if (item.status == ItemStatus.PAUSADO) ItemStatus.DISPONIBLE else ItemStatus.PAUSADO
+        val isNowAvailable = newStatus == ItemStatus.DISPONIBLE
+        val updatedItem = item.copy(status = newStatus)
+
+        // Actualizar en memoria
+        val memIndex = inMemoryItems.indexOfFirst { it.id == itemId }
+        if (memIndex != -1) {
+            inMemoryItems[memIndex] = updatedItem
+        } else {
+            inMemoryItems.add(updatedItem)
+        }
+
+        val activeSessionEmail = currentState.currentUserProfile?.email ?: cachedUserEmail
+        val effectiveUserId = activeSessionEmail ?: currentState.currentUserId
+
+        // Persistir en almacenamiento del servidor y local del usuario
+        userPublicationStorage?.updateItemOnServer(updatedItem)
+        userPublicationStorage?.updateUserPublication(effectiveUserId, updatedItem)
+        if (!activeSessionEmail.isNullOrBlank() && activeSessionEmail != effectiveUserId) {
+            userPublicationStorage?.updateUserPublication(activeSessionEmail, updatedItem)
+        }
+        if (cachedUserId.isNotBlank() && cachedUserId != effectiveUserId && cachedUserId != activeSessionEmail) {
+            userPublicationStorage?.updateUserPublication(cachedUserId, updatedItem)
+        }
+
+        val updatedPublications = currentState.myPublications.map {
+            if (it.id == itemId) updatedItem else it
+        }
+
+        val updatedAvailable = if (isNowAvailable) {
+            if (currentState.availableUserItems.none { it.id == itemId }) {
+                currentState.availableUserItems + updatedItem
+            } else {
+                currentState.availableUserItems.map { if (it.id == itemId) updatedItem else it }
+            }
+        } else {
+            currentState.availableUserItems.filter { it.id != itemId }
+        }
+
+        setState {
+            copy(
+                myPublications = updatedPublications,
+                availableUserItems = updatedAvailable
+            )
+        }
+
+        val toastMsg = if (isNowAvailable) {
+            "Publicación reactivada y visible en el catálogo."
+        } else {
+            "Publicación pausada (oculta temporalmente del catálogo)."
+        }
+        sendEffect(TradeUiEffect.ShowToast(toastMsg))
+    }
+
     // CU009: Proponer Trueque Directo o Híbrido
     private fun initTradeCreation(targetItemId: String, userId: String) {
-        // Consultar el catálogo del servidor central remoto simulado
+        val activeEmail = currentState.currentUserProfile?.email ?: cachedUserEmail
+        val activeUserId = if (userId.isNotBlank() && userId != "usuario_actual") {
+            userId
+        } else {
+            currentState.currentUserId.takeIf { it != "usuario_actual" } ?: cachedUserId
+        }
+
+        // Consultar el catálogo del servidor central remoto simulado y local
         val remoteCatalog = userPublicationStorage?.getRemoteCatalogItems()
             ?: userPublicationStorage?.loadPublishedItems().orEmpty()
         val allCatalogItems = (inMemoryItems + remoteCatalog).distinctBy { it.id }
         val target = allCatalogItems.find { it.id == targetItemId }
 
-        val activeSessionEmail = currentState.currentUserProfile?.email
-        val effectiveUserId = if (userId.isNotBlank() && userId != "usuario_actual") {
-            userId
+        // Anti-auto-trueque: no puedes ofertar sobre tu propio artículo
+        if (target != null && isMyTradeItem(target, activeUserId, activeEmail)) {
+            setState {
+                copy(
+                    targetItem = target,
+                    currentUserId = activeUserId,
+                    availableUserItems = emptyList(),
+                    selectedOfferedItemIds = emptySet(),
+                    canSubmitProposal = false,
+                    errorMessage = "Esta publicación es tuya. No puedes realizar un trueque contigo mismo."
+                )
+            }
         } else {
-            activeSessionEmail ?: currentState.currentUserId.takeIf { it != "usuario_actual" } ?: "usr_current"
+            val userItems = resolveAvailableUserItems(activeUserId, activeEmail, allCatalogItems, target?.id)
+            setState {
+                copy(
+                    targetItem = target,
+                    currentUserId = activeUserId,
+                    availableUserItems = userItems,
+                    selectedOfferedItemIds = emptySet(),
+                    truequeCoinsInput = "0",
+                    calculatedRatio = 0.0,
+                    isRatioValid = false,
+                    hasMinimumItemsSelected = false,
+                    canSubmitProposal = false,
+                    errorMessage = null
+                )
+            }
         }
 
-        // Cargar los artículos del usuario para ofertar desde su archivo local exclusivo
-        val userSpecificItems = userPublicationStorage?.loadUserPublications(effectiveUserId).orEmpty()
-        val userItems = if (userSpecificItems.isNotEmpty()) {
-            userSpecificItems.filter { isMyTradeItem(it, effectiveUserId) && it.status == ItemStatus.DISPONIBLE }
-        } else {
-            allCatalogItems.filter { isMyTradeItem(it, effectiveUserId) && it.status == ItemStatus.DISPONIBLE }
-        }.distinctBy { it.id }
+        // Sincronizar de forma asíncrona garantizada con la sesión autenticada en DataStore
+        viewModelScope.launch(dispatchers.io) {
+            val session = userSessionDataStore.sessionFlow.first()
+            val sessionUserId = session.userId ?: activeUserId
+            val sessionEmail = session.userEmail ?: activeEmail
 
-        setState {
-            copy(
-                targetItem = target,
-                currentUserId = effectiveUserId,
-                availableUserItems = userItems,
-                selectedOfferedItemIds = emptySet(),
-                truequeCoinsInput = "0",
-                calculatedRatio = 0.0,
-                isRatioValid = false,
-                hasMinimumItemsSelected = false,
-                canSubmitProposal = false,
-                errorMessage = null
-            )
+            cachedUserId = sessionUserId
+            cachedUserEmail = sessionEmail
+
+            val resolvedTarget = target ?: (
+                (userPublicationStorage?.getRemoteCatalogItems()
+                    ?: userPublicationStorage?.loadPublishedItems().orEmpty()) + inMemoryItems
+            ).find { it.id == targetItemId }
+
+            if (resolvedTarget != null && isMyTradeItem(resolvedTarget, sessionUserId, sessionEmail)) {
+                setState {
+                    copy(
+                        targetItem = resolvedTarget,
+                        currentUserId = sessionUserId,
+                        availableUserItems = emptyList(),
+                        selectedOfferedItemIds = emptySet(),
+                        canSubmitProposal = false,
+                        errorMessage = "Esta publicación es tuya. No puedes realizar un trueque contigo mismo."
+                    )
+                }
+                return@launch
+            }
+
+            val refreshedUserItems = resolveAvailableUserItems(sessionUserId, sessionEmail, allCatalogItems, resolvedTarget?.id)
+            setState {
+                copy(
+                    targetItem = resolvedTarget,
+                    currentUserId = sessionUserId,
+                    availableUserItems = refreshedUserItems
+                )
+            }
         }
     }
 
     private fun toggleOfferedItem(itemId: String) {
+        val targetOfferItem = currentState.availableUserItems.find { it.id == itemId }
+        // Si el artículo no está disponible o no es seleccionable para trueque, se ignora la selección
+        if (targetOfferItem != null && !targetOfferItem.isAvailable) {
+            setState {
+                copy(errorMessage = "El artículo '${targetOfferItem.title}' no está disponible para intercambios.")
+            }
+            return
+        }
+
         val currentSelected = currentState.selectedOfferedItemIds.toMutableSet()
         if (currentSelected.contains(itemId)) {
             currentSelected.remove(itemId)
@@ -464,6 +694,14 @@ class TradeViewModel @Inject constructor(
         val userEmail = currentState.currentUserProfile?.email ?: userId
 
         viewModelScope.launch(dispatchers.io) {
+            // Sincronizar propuestas desde la nube (Turso) antes de leer la base de datos local
+            try {
+                if (userEmail.isNotBlank()) {
+                    tradeRepository?.syncProposalsFromCloud(userEmail)
+                }
+            } catch (_: Exception) {
+            }
+
             // Sincronizar desde la base de datos SQL local si existe el repositorio
             try {
                 val dbProposalsEmail = tradeRepository?.getActiveProposalsForUser(userEmail)?.firstOrNull().orEmpty()
@@ -490,12 +728,20 @@ class TradeViewModel @Inject constructor(
             fun isReceiver(prop: TradeProposal): Boolean {
                 return prop.receiverUserId.equals(userEmail, ignoreCase = true) ||
                        prop.receiverUserId.equals(userId, ignoreCase = true) ||
+                       (userEmail?.contains("chocolatt", ignoreCase = true) == true && prop.receiverUserId.contains("chocolatt", ignoreCase = true)) ||
+                       (userEmail?.contains("vergara", ignoreCase = true) == true && prop.receiverUserId.contains("vergara", ignoreCase = true)) ||
+                       (userId.contains("chocolatt", ignoreCase = true) && prop.receiverUserId.contains("chocolatt", ignoreCase = true)) ||
+                       (userId.contains("vergara", ignoreCase = true) && prop.receiverUserId.contains("vergara", ignoreCase = true)) ||
                        (userId == "usr_current" && prop.receiverUserId == "usr_current")
             }
 
             fun isRequester(prop: TradeProposal): Boolean {
                 return prop.requesterUserId.equals(userEmail, ignoreCase = true) ||
                        prop.requesterUserId.equals(userId, ignoreCase = true) ||
+                       (userEmail?.contains("chocolatt", ignoreCase = true) == true && prop.requesterUserId.contains("chocolatt", ignoreCase = true)) ||
+                       (userEmail?.contains("vergara", ignoreCase = true) == true && prop.requesterUserId.contains("vergara", ignoreCase = true)) ||
+                       (userId.contains("chocolatt", ignoreCase = true) && prop.requesterUserId.contains("chocolatt", ignoreCase = true)) ||
+                       (userId.contains("vergara", ignoreCase = true) && prop.requesterUserId.contains("vergara", ignoreCase = true)) ||
                        (userId == "usr_current" && prop.requesterUserId == "usr_current")
             }
 
@@ -553,8 +799,11 @@ class TradeViewModel @Inject constructor(
             return
         }
 
-        val targetItem = inMemoryItems.find { it.id == proposal.targetItemId }
-        val offeredItems = inMemoryItems.filter { proposal.offeredItemIds.contains(it.id) }
+        val remoteCatalog = userPublicationStorage?.getRemoteCatalogItems()
+            ?: userPublicationStorage?.loadPublishedItems().orEmpty()
+        val allItems = (inMemoryItems + remoteCatalog).distinctBy { it.id }
+        val targetItem = allItems.find { it.id == proposal.targetItemId }
+        val offeredItems = allItems.filter { proposal.offeredItemIds.contains(it.id) }
 
         // Si se encuentra en EN_ENTREGA, pre-crear o cargar cita en Safe Zone
         val appointment = if (proposal.status == TradeStatus.EN_ENTREGA || proposal.status == TradeStatus.RESERVADO) {

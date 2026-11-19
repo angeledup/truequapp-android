@@ -4,84 +4,92 @@ import androidx.compose.ui.graphics.Color
 
 /**
  * =========================================================================================
- * 🎨 CONFIGURACIÓN CENTRAL DE LA PALETA DE COLORES - TRUEQUAPP
+ * 🎨 CONFIGURACIÓN CENTRAL DE LA PALETA DE COLORES - TRUEQUAPP (Warm Commerce Studio)
  * =========================================================================================
- * Este archivo es la FUENTE ÚNICA DE VERDAD para todos los colores de la aplicación.
- * Para cambiar la paleta o ajustar tonalidades, simplemente edita los valores hexadecimales
- * aquí. Todos los componentes, temas (claro/oscuro) y extensiones semánticas se actualizarán
- * automáticamente en toda la app.
+ * Basado en la especificación visual 'Warm Commerce Studio' y el tema táctil obsidian/gold:
+ * - Tonos miel, ocre y ámbar para acentos de intercambio y balances de TruequeCoins.
+ * - Terracota canela y chocolate tostado para jerarquías y contrastes de alta visibilidad.
+ * - Superficies obsidian refinadas (#121214, #1A1A1E) para el modo oscuro y marfil suave (#F9F9F9, #FFFFFF)
+ *   para el modo claro.
  * =========================================================================================
  */
 object PaletteConfig {
 
     // -------------------------------------------------------------------------------------
-    // 1. COLORES PRIMARIOS DE MARCA (Identidad: Sostenibilidad, Trueque Ecológico, Confianza)
+    // 1. COLORES PRIMARIOS DE MARCA (Honey Ochre / Gold Champagne)
     // -------------------------------------------------------------------------------------
-    val PrimaryDefault       = Color(0xFF059669) // Emerald 600 - Color insignia de Truequapp
-    val PrimaryDark          = Color(0xFF047857) // Emerald 700 - Presionado / Sombras
-    val PrimaryLight         = Color(0xFF10B981) // Emerald 500 - Acentos y contrastes
-    val PrimaryContainerLight= Color(0xFFD1FAE5) // Emerald 100 - Contenedores claros
-    val PrimaryContainerDark = Color(0xFF064E3B) // Emerald 900 - Contenedores oscuros
+    val PrimaryDefault        = Color(0xFFD99F59) // Honey Ochre / Gold Champagne insignia
+    val PrimaryDark           = Color(0xFF835414) // Deep Amber Ochre - Presionado / Sombras
+    val PrimaryLight          = Color(0xFFF0C987) // Gold Light - Acentos brillantes y bordes
+    val PrimaryContainerLight = Color(0xFFFFDDB9) // Ochre 100 - Contenedores claros
+    val PrimaryContainerDark  = Color(0xFF5B3700) // Dark Ochre - Contenedores oscuros
 
     // -------------------------------------------------------------------------------------
-    // 2. COLORES SECUNDARIOS (TruequeCoins, Escrow / Garantía, Transacciones Monetarias)
+    // 2. COLORES SECUNDARIOS (Cinnamon Terracotta / TruequeCoins & Balances)
     // -------------------------------------------------------------------------------------
-    val SecondaryDefault     = Color(0xFFD97706) // Amber 600 - Monedero y balances
-    val SecondaryLight       = Color(0xFFF59E0B) // Amber 500 - Destacados dorados
-    val SecondaryDark        = Color(0xFFB45309) // Amber 700
-    val SecondaryContainerLight = Color(0xFFFEF3C7) // Amber 100
-    val SecondaryContainerDark  = Color(0xFF78350F) // Amber 900
+    val SecondaryDefault      = Color(0xFFA67153) // Cinnamon Terracotta
+    val SecondaryLight        = Color(0xFFFEBE9B) // Terracotta Light
+    val SecondaryDark         = Color(0xFF835337) // Deep Terracotta
+    val SecondaryContainerLight = Color(0xFFFFDBC9) // Soft Terracotta
+    val SecondaryContainerDark  = Color(0xFF794B30) // Dark Terracotta Container
 
     // -------------------------------------------------------------------------------------
-    // 3. COLORES TERCIARIOS (Trueque Triangular, Algoritmos de Grafos y Coincidencias)
+    // 3. COLORES TERCIARIOS (Roasted Chocolate / Tipografía y Límites Críticos)
     // -------------------------------------------------------------------------------------
-    val TertiaryDefault      = Color(0xFF6366F1) // Indigo 500 - Algoritmos de matching
-    val TertiaryLight        = Color(0xFF818CF8) // Indigo 400
-    val TertiaryDark         = Color(0xFF4338CA) // Indigo 700
-    val TertiaryContainerLight = Color(0xFFE0E7FF) // Indigo 100
-    val TertiaryContainerDark  = Color(0xFF312E81) // Indigo 900
+    val TertiaryDefault       = Color(0xFF733F2D) // Roasted Chocolate
+    val TertiaryLight         = Color(0xFFFEB59D)
+    val TertiaryDark          = Color(0xFF360F03)
+    val TertiaryContainerLight = Color(0xFFFFDBD0)
+    val TertiaryContainerDark  = Color(0xFF623220)
 
     // -------------------------------------------------------------------------------------
-    // 4. SUPERFICIES Y FONDOS - MODO OSCURO (Slate Moderno de Alto Contraste)
+    // 4. SUPERFICIES Y FONDOS - MODO OSCURO (Obsidian Luxury & Ambient Gold)
     // -------------------------------------------------------------------------------------
-    val DarkBackground       = Color(0xFF0F172A) // Slate 900 - Fondo principal
-    val DarkSurface          = Color(0xFF1E293B) // Slate 800 - Tarjetas y componentes elevados
-    val DarkSurfaceVariant   = Color(0xFF334155) // Slate 700 - Bordes y divisiones sutiles
-    val DarkOnBackground     = Color(0xFFF8FAFC) // Slate 50 - Texto sobre fondo
-    val DarkOnSurface        = Color(0xFFF1F5F9) // Slate 100 - Texto sobre tarjetas
-    val DarkOnSurfaceVariant = Color(0xFF94A3B8) // Slate 400 - Texto secundario
+    val DarkBackground        = Color(0xFF121214) // Obsidian Canvas principal
+    val DarkSurface           = Color(0xFF1A1A1E) // Obsidian Card - Tarjetas y componentes
+    val DarkSurfaceVariant    = Color(0xFF212126) // Obsidian Elevated / Bordes (#2A2A30)
+    val DarkOnBackground      = Color(0xFFF6F6F8) // Warm White - Texto sobre fondo
+    val DarkOnSurface         = Color(0xFFF6F6F8) // Warm White - Texto sobre tarjetas
+    val DarkOnSurfaceVariant  = Color(0xFF9E9AA2) // Smoky Bronze / Muted Warm - Texto secundario
 
     // -------------------------------------------------------------------------------------
-    // 5. SUPERFICIES Y FONDOS - MODO CLARO (Blanco Puro y Slate Suave)
+    // 5. SUPERFICIES Y FONDOS - MODO CLARO (Warm Minimal / Ivory & White)
     // -------------------------------------------------------------------------------------
-    val LightBackground      = Color(0xFFF8FAFC) // Slate 50 - Fondo general
-    val LightSurface         = Color(0xFFFFFFFF) // Blanco puro - Tarjetas
-    val LightSurfaceVariant  = Color(0xFFF1F5F9) // Slate 100 - Superficies alternas
-    val LightOnBackground    = Color(0xFF0F172A) // Slate 900 - Texto principal
-    val LightOnSurface       = Color(0xFF1E293B) // Slate 800 - Texto tarjetas
-    val LightOnSurfaceVariant= Color(0xFF64748B) // Slate 500 - Texto atenuado
+    val LightBackground       = Color(0xFFF9F9F9) // Soft Ivory / Bone White
+    val LightSurface          = Color(0xFFFFFFFF) // Pure White para tarjetas elevadas
+    val LightSurfaceVariant   = Color(0xFFEEEEEE) // Surface Container alterno
+    val LightOnBackground     = Color(0xFF1A1C1C) // Deep Graphite
+    val LightOnSurface        = Color(0xFF733F2D) // Roasted Chocolate - Lectura cálida
+    val LightOnSurfaceVariant = Color(0xFF837567) // Smoky Bronze atenuado
 
     // -------------------------------------------------------------------------------------
     // 6. ESTADOS Y DISTINTIVOS SEMÁNTICOS ESPECÍFICOS DE TRUEQUAPP
     // -------------------------------------------------------------------------------------
     // Safe Zones (Puntos Seguros de Intercambio)
-    val SafeZoneVerified     = Color(0xFF059669) // Verde Esmeralda: Zona vigilada y validada
-    val SafeZoneUnverified   = Color(0xFFDC2626) // Rojo: Punto sin validación oficial
-    val SafeZonePending      = Color(0xFFEAB308) // Amarillo: Punto en revisión
+    val SafeZoneVerified      = Color(0xFF059669) // Verde Esmeralda: Vigilancia y Punto Oficial
+    val SafeZoneUnverified    = Color(0xFFDC2626) // Rojo: Sin validación
+    val SafeZonePending       = Color(0xFFEAB308) // Ámbar: En revisión
 
     // Niveles de Validación KYC
-    val KycLevel1Phone       = Color(0xFF0284C7) // Azul Sky: Teléfono y SMS verificado
-    val KycLevel2OfficialId  = Color(0xFF7C3AED) // Púrpura Royal: Identificación Oficial (INE/Pasaporte)
+    val KycLevel1Phone        = Color(0xFFD99F59) // Gold Ochre: Teléfono verificado
+    val KycLevel2OfficialId   = Color(0xFFA67153) // Terracotta: INE / Biométrico
 
-    // Estado Físico del Artículo
-    val ConditionNew         = Color(0xFF10B981) // Nuevo con empaque
-    val ConditionLikeNew     = Color(0xFF3B82F6) // Como nuevo / Excelente
-    val ConditionUsedGood    = Color(0xFFF59E0B) // Usado en buen estado
-    val ConditionFair        = Color(0xFF64748B) // Aceptable / Regular
+    // Estado Físico del Artículo (Badges)
+    val ConditionNew          = Color(0xFFD99F59) // Nuevo con empaque / Dorado
+    val ConditionLikeNew      = Color(0xFFE5B869) // Como nuevo
+    val ConditionUsedGood     = Color(0xFF8C7A6B) // Usado en buen estado / Smoky Bronze
+    val ConditionFair         = Color(0xFF9E9AA2) // Aceptable / Regular
 
     // Alertas y Errores
-    val ErrorDefault         = Color(0xFFEF4444) // Red 500
-    val ErrorContainerLight  = Color(0xFFFEE2E2)
-    val ErrorContainerDark   = Color(0xFF7F1D1D)
-    val SuccessDefault       = Color(0xFF10B981) // Green 500
+    val ErrorDefault          = Color(0xFFBA1A1A) // Warm Red
+    val ErrorContainerLight   = Color(0xFFFFDAD6)
+    val ErrorContainerDark    = Color(0xFF93000A)
+    val SuccessDefault        = Color(0xFF059669) // Green 600
+
+    // Acentos de lujo dorado
+    val GoldChampagne         = Color(0xFFE5B869)
+    val GoldLight             = Color(0xFFF0C987)
+    val GoldDim               = Color(0xFF9E7E45)
+    val SmokyBronze           = Color(0xFF8C7A6B)
+    val ObsidianBorder        = Color(0xFF2A2A30)
 }

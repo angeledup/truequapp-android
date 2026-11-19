@@ -89,6 +89,10 @@ fun CreateTradeProposalScreen(
         }
     }
 
+    val isSelfTrade = state.targetItem != null &&
+        state.currentUserId.isNotBlank() &&
+        state.targetItem.ownerId == state.currentUserId
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -145,6 +149,47 @@ fun CreateTradeProposalScreen(
                 }
             }
 
+            if (isSelfTrade) {
+                // Validación Anti-Auto-Trueque: 2 partes obligatorias
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "Publicación Propia (Intercambio Inválido)",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Esta publicación te pertenece. En un trueque debe haber 2 partes distintas: una tú, y la otra un usuario interesado diferente. No puedes ser ambas partes a la vez ni intercambiar contigo mismo.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            TruequappPrimaryButton(
+                                text = "Regresar al Catálogo",
+                                onClick = onNavigateBack
+                            )
+                        }
+                    }
+                }
+            } else {
             // Sección 2: Selección de tus artículos (Opción A: Al menos 1)
             item {
                 Row(
@@ -181,7 +226,13 @@ fun CreateTradeProposalScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            text = "No tienes artículos disponibles en tu catálogo para ofrecer. Publica un artículo primero.",
+                            text = if (state.errorMessage?.contains("propia", ignoreCase = true) == true || 
+                                       state.errorMessage?.contains("contigo mismo", ignoreCase = true) == true ||
+                                       state.errorMessage?.contains("tuya", ignoreCase = true) == true) {
+                                "Esta publicación es tuya. En Truequapp no puedes hacer trueques contigo mismo. Ve al Catálogo y selecciona un artículo publicado por otro usuario para ofrecer tus publicaciones a cambio."
+                            } else {
+                                "No tienes artículos disponibles en tu catálogo para ofrecer. Publica un artículo primero."
+                            },
                             modifier = Modifier.padding(16.dp),
                             style = MaterialTheme.typography.bodyMedium
                         )
@@ -236,6 +287,7 @@ fun CreateTradeProposalScreen(
                     enabled = state.canSubmitProposal && !state.isSubmitting
                 )
                 Spacer(modifier = Modifier.height(24.dp))
+            }
             }
         }
     }

@@ -21,6 +21,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -79,6 +81,7 @@ fun TradeListScreen(
     state: TradeUiState,
     onEvent: (TradeUiEvent) -> Unit,
     onSelectProposal: (String) -> Unit,
+    onNavigateToChat: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -202,9 +205,10 @@ fun TradeListScreen(
     }
 
     // Menú modal desplegable al hacer clic en una publicación propia:
-    // Opciones ÚNICAS solicitadas por el usuario: Eliminar la publicación o Cancelar
+    // Opciones: Pausar/Reactivar publicación, Eliminar publicación o Cancelar
     if (selectedPublicationForAction != null) {
         val targetItem = selectedPublicationForAction!!
+        val isPaused = targetItem.status == ItemStatus.PAUSADO
         AlertDialog(
             onDismissRequest = { selectedPublicationForAction = null },
             icon = {
@@ -236,34 +240,67 @@ fun TradeListScreen(
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.SemiBold
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Estado actual: ${if (isPaused) "Pausado (No visible en catálogo)" else if (targetItem.status == ItemStatus.RESERVADO) "Reservado" else "Disponible"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (isPaused) Color(0xFFE65100) else if (targetItem.status == ItemStatus.RESERVADO) Color(0xFF1565C0) else Color(0xFF2E7D32),
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Opción: Pausar / Reactivar Publicación
+                    OutlinedButton(
+                        onClick = {
+                            val idToToggle = targetItem.id
+                            onEvent(TradeUiEvent.TogglePausePublication(idToToggle))
+                            selectedPublicationForAction = null
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = if (isPaused) Color(0xFF2E7D32) else Color(0xFFE65100)
+                        )
+                    ) {
+                        Icon(
+                            imageVector = if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(if (isPaused) "Reactivar en Catálogo" else "Pausar Publicación")
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Opción: Eliminar Publicación
+                    Button(
+                        onClick = {
+                            val idToDelete = targetItem.id
+                            onEvent(TradeUiEvent.DeletePublication(idToDelete))
+                            selectedPublicationForAction = null
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Eliminar publicación")
+                    }
                 }
             },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val idToDelete = targetItem.id
-                        onEvent(TradeUiEvent.DeletePublication(idToDelete))
-                        selectedPublicationForAction = null
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError
-                    )
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Eliminar publicación")
-                }
-            },
+            confirmButton = {},
             dismissButton = {
                 OutlinedButton(
                     onClick = { selectedPublicationForAction = null }
                 ) {
-                    Text("Cancelar")
+                    Text("Cerrar")
                 }
             }
         )
@@ -339,8 +376,14 @@ private fun MyPublicationCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    val statusText = if (item.status == ItemStatus.RESERVADO) "Reservado (RN-01)" else "Disponible"
-                    val statusColor = if (item.status == ItemStatus.RESERVADO) Color(0xFFE65100) else Color(0xFF2E7D32)
+                    val (statusText, statusColor) = when (item.status) {
+                        ItemStatus.RESERVADO -> "Reservado (RN-01)" to Color(0xFF1565C0)
+                        ItemStatus.PAUSADO -> "Pausado" to Color(0xFFE65100)
+                        ItemStatus.DISPONIBLE -> "Disponible" to Color(0xFF2E7D32)
+                        ItemStatus.EN_ENTREGA -> "En Entrega" to Color(0xFF00695C)
+                        ItemStatus.INTERCAMBIADO -> "Intercambiado" to Color(0xFF616161)
+                        ItemStatus.ELIMINADO -> "Eliminado" to Color(0xFFC62828)
+                    }
                     Text(
                         text = "• $statusText",
                         style = MaterialTheme.typography.bodySmall,

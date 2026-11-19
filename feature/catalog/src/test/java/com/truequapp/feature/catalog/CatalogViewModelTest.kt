@@ -41,7 +41,10 @@ class FakeCatalogDataStore : UserSessionDataStore {
     override suspend fun saveUser(
         userId: String,
         email: String,
-        isKycVerified: Boolean
+        isKycVerified: Boolean,
+        name: String,
+        photoUrl: String?,
+        authProvider: String
     ) {}
     override suspend fun getAccessToken(): String? = null
     override suspend fun getRefreshToken(): String? = null

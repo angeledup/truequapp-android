@@ -123,11 +123,16 @@ class WebPImageCompressor @Inject constructor() {
         var currentQuality = INITIAL_QUALITY
         val stream = ByteArrayOutputStream()
         var compressedBytes: ByteArray
+        val compressFormat = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            Bitmap.CompressFormat.WEBP_LOSSY
+        } else {
+            @Suppress("DEPRECATION")
+            Bitmap.CompressFormat.WEBP
+        }
 
         do {
             stream.reset()
-            @Suppress("DEPRECATION")
-            scaledBitmap.compress(Bitmap.CompressFormat.WEBP_LOSSY, currentQuality, stream)
+            scaledBitmap.compress(compressFormat, currentQuality, stream)
             compressedBytes = stream.toByteArray()
             currentQuality -= QUALITY_STEP
         } while (compressedBytes.size > MAX_IMAGE_SIZE_BYTES && currentQuality >= MIN_QUALITY)
@@ -141,8 +146,7 @@ class WebPImageCompressor @Inject constructor() {
                 if (newW > 120 && newH > 120) {
                     val furtherScaled = Bitmap.createScaledBitmap(scaledBitmap, newW, newH, true)
                     stream.reset()
-                    @Suppress("DEPRECATION")
-                    furtherScaled.compress(Bitmap.CompressFormat.WEBP_LOSSY, MIN_QUALITY, stream)
+                    furtherScaled.compress(compressFormat, MIN_QUALITY, stream)
                     compressedBytes = stream.toByteArray()
                 }
                 factor -= 0.15

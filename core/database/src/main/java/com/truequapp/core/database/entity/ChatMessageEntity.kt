@@ -2,7 +2,6 @@ package com.truequapp.core.database.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
-import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
@@ -13,14 +12,6 @@ import androidx.room.PrimaryKey
  */
 @Entity(
     tableName = "chat_mensajes",
-    foreignKeys = [
-        ForeignKey(
-            entity = TruequeEntity::class,
-            parentColumns = ["id"],
-            childColumns = ["trueque_id"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ],
     indices = [
         Index("trueque_id"),
         Index("emisor_correo"),
@@ -40,7 +31,7 @@ data class ChatMessageEntity(
     val emisorCorreo: String,
 
     @ColumnInfo(name = "receptor_correo")
-    val receptorCorreo: String,
+    val receptorCorreo: String = "",
 
     @ColumnInfo(name = "contenido")
     val contenido: String,
@@ -53,5 +44,13 @@ data class ChatMessageEntity(
 
     @ColumnInfo(name = "esta_leido")
     val estaLeido: Boolean = false
-)
-
+) {
+    // Propiedades de compatibilidad con código existente
+    val proposalId: String get() = truequeId
+    val senderId: String get() = emisorCorreo
+    val senderName: String get() = emisorCorreo.substringBefore("@")
+    val content: String get() = contenido
+    val timestampEpochMs: Long get() = fechaEnvioMs
+    val isAuditLog: Boolean get() = false
+    val isRead: Boolean get() = estaLeido
+}

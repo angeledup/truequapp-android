@@ -19,7 +19,7 @@ data class TradeUiState(
     val availableUserItems: List<TradeItem> = emptyList(),
     val selectedOfferedItemIds: Set<String> = emptySet(),
     val truequeCoinsInput: String = "0",
-    val truequeCoins: Double = 100.0,
+    val truequeCoins: Double = 10000.0,
     val calculatedRatio: Double = 0.0,
     val isRatioValid: Boolean = false, // RN-02: ratio >= 0.40
     val hasMinimumItemsSelected: Boolean = false, // Opción A: mínimo 1 artículo
@@ -85,6 +85,7 @@ sealed interface TradeUiEvent : UiEvent {
     data object CloseOfferDetail : TradeUiEvent
     data object RefreshMyPublications : TradeUiEvent
     data class DeletePublication(val itemId: String) : TradeUiEvent
+    data class TogglePausePublication(val itemId: String) : TradeUiEvent
 
     // Negociación: Aceptación con bloqueo ACID (CU010 / RN-01)
     data class AcceptProposal(val proposalId: String) : TradeUiEvent

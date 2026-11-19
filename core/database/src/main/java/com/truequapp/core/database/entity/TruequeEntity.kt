@@ -16,30 +16,6 @@ import androidx.room.PrimaryKey
  */
 @Entity(
     tableName = "trueques",
-    foreignKeys = [
-        ForeignKey(
-            entity = UserEntity::class,
-            parentColumns = ["correo"],
-            childColumns = ["usuario_a_correo"]
-        ),
-        ForeignKey(
-            entity = UserEntity::class,
-            parentColumns = ["correo"],
-            childColumns = ["usuario_b_correo"]
-        ),
-        ForeignKey(
-            entity = OfertaItemEntity::class,
-            parentColumns = ["id"],
-            childColumns = ["oferta_a_id"],
-            onDelete = ForeignKey.CASCADE
-        ),
-        ForeignKey(
-            entity = OfertaItemEntity::class,
-            parentColumns = ["id"],
-            childColumns = ["oferta_b_id"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ],
     indices = [
         Index("usuario_a_correo"),
         Index("usuario_b_correo"),

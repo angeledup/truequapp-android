@@ -27,7 +27,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.NearMe
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -49,6 +51,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,14 +60,18 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.truequapp.core.designsystem.component.TruequappTopAppBar
+import com.truequapp.core.designsystem.theme.PaletteConfig
 import com.truequapp.core.designsystem.theme.TruequappTheme
 import com.truequapp.core.domain.model.CategoryTaxonomy
 import com.truequapp.core.domain.model.ItemCondition
 import com.truequapp.feature.catalog.mvi.CatalogUiEffect
 import com.truequapp.feature.catalog.mvi.CatalogUiEvent
 import com.truequapp.feature.catalog.mvi.CatalogUiState
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 /**
  * Pantalla de Exploración del Marketplace con Feed en cuadrícula (LazyVerticalGrid), paginación incremental,
@@ -82,8 +89,17 @@ fun CatalogFeedScreen(
     modifier: Modifier = Modifier
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
     var showAdvancedFilters by remember { mutableStateOf(false) }
     val gridState = rememberLazyGridState()
+
+    // Sondeo periódico en tiempo real cada 6 segundos para mantener el catálogo actualizado mientras se está en la pantalla
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            delay(6000)
+            onEvent(CatalogUiEvent.RefreshCatalog)
+        }
+    }
 
     // Detección de fin de lista para paginación incremental (Paging)
     val shouldLoadMore by remember {
@@ -105,7 +121,9 @@ fun CatalogFeedScreen(
             when (effect) {
                 is CatalogUiEffect.ShowSnackbar -> snackbarHostState.showSnackbar(effect.message)
                 is CatalogUiEffect.NavigateToItemDetail -> onNavigateToItemDetail(effect.itemId)
-                is CatalogUiEffect.ItemPublishedSuccess -> {}
+                is CatalogUiEffect.ItemPublishedSuccess -> {
+                    snackbarHostState.showSnackbar("🎉 ¡Publicación agregada al catálogo con éxito!")
+                }
             }
         }
     }
@@ -113,19 +131,26 @@ fun CatalogFeedScreen(
     Scaffold(
         topBar = {
             TruequappTopAppBar(
-                title = "Explorar Trueques",
+                eyebrow = "Comunidad CETIS 79",
+                title = "Catálogo Escolar",
                 coinsBalance = state.truequeCoins.toInt(),
-                unreadNotifications = 0,
+                unreadNotifications = 1,
                 onCoinsClick = onCoinsClick
             )
         },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onNavigateToPublish,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
+                containerColor = PaletteConfig.GoldChampagne,
+                contentColor = PaletteConfig.DarkBackground,
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.size(56.dp)
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Publicar artículo")
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Publicar artículo",
+                    modifier = Modifier.size(28.dp)
+                )
             }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -140,7 +165,7 @@ fun CatalogFeedScreen(
             OutlinedTextField(
                 value = state.searchQuery,
                 onValueChange = { onEvent(CatalogUiEvent.SearchQueryChanged(it)) },
-                placeholder = { Text("Buscar artículos o deseos en wishlist...") },
+                placeholder = { Text("Buscar en CETIS 79 (laptops, mochilas, calculadoras...)") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 trailingIcon = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -148,6 +173,13 @@ fun CatalogFeedScreen(
                             IconButton(onClick = { onEvent(CatalogUiEvent.SearchQueryChanged("")) }) {
                                 Icon(Icons.Default.Clear, contentDescription = "Limpiar")
                             }
+                        }
+                        IconButton(onClick = { onEvent(CatalogUiEvent.RefreshCatalog) }) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Actualizar",
+                                tint = PaletteConfig.GoldChampagne
+                            )
                         }
                         IconButton(onClick = { showAdvancedFilters = !showAdvancedFilters }) {
                             Icon(
@@ -294,6 +326,7 @@ fun CatalogFeedScreen(
                         Icon(
                             imageVector = Icons.Default.Bookmark,
                             contentDescription = null,
+                            tint = PaletteConfig.GoldChampagne,
                             modifier = Modifier.size(16.dp)
                         )
                     },
@@ -345,11 +378,23 @@ fun CatalogFeedScreen(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(displayItems, key = { it.id }) { item ->
+                        val isMine = state.filterOnlyMyPublications || state.myInventory.any { it.id == item.id }
                         ItemCard(
                             item = item,
-                            onClick = { onNavigateToItemDetail(item.id) },
+                            onClick = {
+                                if (isMine) {
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar("Esta es tu publicación ('${item.title}'). Para ofrecerla, selecciona el artículo de otro usuario.")
+                                    }
+                                } else {
+                                    onNavigateToItemDetail(item.id)
+                                }
+                            },
                             isBookmarked = state.bookmarkedItemIds.contains(item.id),
-                            onToggleBookmark = { onEvent(CatalogUiEvent.ToggleBookmark(item.id)) }
+                            onToggleBookmark = { onEvent(CatalogUiEvent.ToggleBookmark(item.id)) },
+                            onDelete = if (isMine) {
+                                { onEvent(CatalogUiEvent.DeleteItem(item.id)) }
+                            } else null
                         )
                     }
 

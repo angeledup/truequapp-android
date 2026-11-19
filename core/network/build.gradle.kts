@@ -51,6 +51,9 @@ dependencies {
         exclude(group = "org.json", module = "json")
     }
 
+    // Google Play Integrity API (Fase 5)
+    implementation(libs.play.integrity)
+
     // Hilt DI
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)

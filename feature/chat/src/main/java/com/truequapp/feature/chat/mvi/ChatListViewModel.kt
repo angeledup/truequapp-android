@@ -44,6 +44,13 @@ class ChatListViewModel @Inject constructor(
 
             setState { copy(currentUserId = userEmail) }
 
+            // Sincronizar en segundo plano propuestas y mensajes desde la nube (Turso)
+            launch(dispatchers.io) {
+                try {
+                    chatRepository.syncConversationsFromCloud(userEmail)
+                } catch (_: Exception) {}
+            }
+
             chatRepository.getConversations(userEmail).collectLatest { dbConversations ->
                 setState {
                     copy(

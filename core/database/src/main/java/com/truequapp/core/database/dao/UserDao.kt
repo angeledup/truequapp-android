@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import com.truequapp.core.database.entity.UserEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -36,8 +37,14 @@ interface UserDao {
     /**
      * Sentencia SQL INSERT para persistir una nueva cuenta con sus 7 atributos.
      */
-    @Insert(onConflict = OnConflictStrategy.ABORT)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertUser(user: UserEntity)
+
+    /**
+     * Actualiza la entidad completa de usuario.
+     */
+    @Update
+    suspend fun updateUser(user: UserEntity)
 
     /**
      * Consulta SQL para listar la totalidad de cuentas registradas en la base de datos local.
@@ -63,8 +70,6 @@ interface UserDao {
 
     /**
      * Reduce una cantidad específica de TruequeCoins de forma atómica en la base de datos.
-     * Utiliza MAX(0.0, ...) para evitar saldos negativos.
-     * Retorna el número de filas afectadas (1 si el usuario existe).
      */
     @Query("UPDATE usuarios SET cantidad_trueque_coins = MAX(0.0, cantidad_trueque_coins - :amount) WHERE LOWER(correo) = LOWER(:correo)")
     suspend fun reduceCoins(correo: String, amount: Double): Int
@@ -114,7 +119,7 @@ interface UserDao {
     // =========================================================================
 
     /**
-     * Consulta y devuelve la calificación actual del usuario (de 1.0 a 5.0 o 10.0 estrellas).
+     * Consulta y devuelve la calificación actual del usuario.
      */
     @Query("SELECT calificacion FROM usuarios WHERE LOWER(correo) = LOWER(:correo) LIMIT 1")
     suspend fun getRatingByEmail(correo: String): Double?
@@ -130,4 +135,32 @@ interface UserDao {
      */
     @Query("UPDATE usuarios SET calificacion = :newRating WHERE LOWER(correo) = LOWER(:correo)")
     suspend fun updateRating(correo: String, newRating: Double): Int
+
+    // =========================================================================
+    // MÉTODOS DE COMPATIBILIDAD CON OTRAS CAPAS
+    // =========================================================================
+
+    @Query("SELECT * FROM usuarios WHERE LOWER(usuario) = LOWER(:id) OR LOWER(correo) = LOWER(:id) LIMIT 1")
+    fun getUserById(id: String): Flow<UserEntity?>
+
+    @Query("SELECT * FROM usuarios WHERE LOWER(usuario) = LOWER(:id) OR LOWER(correo) = LOWER(:id) LIMIT 1")
+    suspend fun getUserByIdSync(id: String): UserEntity?
+
+    @Query("SELECT * FROM usuarios WHERE LOWER(correo) = LOWER(:email) LIMIT 1")
+    suspend fun getUserByEmailSync(email: String): UserEntity? = getUserByEmail(email)
+
+    @Query("SELECT * FROM usuarios WHERE LOWER(correo) = LOWER(:identifier) OR LOWER(usuario) = LOWER(:identifier) LIMIT 1")
+    suspend fun getUserByIdentifierSync(identifier: String): UserEntity?
+
+    @Query("SELECT * FROM usuarios WHERE (LOWER(correo) = LOWER(:email) OR LOWER(usuario) = LOWER(:email)) AND contrasena = :passwordHash LIMIT 1")
+    suspend fun authenticate(email: String, passwordHash: String): UserEntity?
+
+    @Query("UPDATE usuarios SET cantidad_trueque_coins = :availableCoins WHERE (LOWER(usuario) = LOWER(:userId) OR LOWER(correo) = LOWER(:userId)) AND (:escrowCoins IS NOT NULL OR 1=1)")
+    suspend fun updateTruequeCoins(userId: String, availableCoins: Double, escrowCoins: Double)
+
+    @Query("SELECT cantidad_trueque_coins FROM usuarios WHERE LOWER(usuario) = LOWER(:userId) OR LOWER(correo) = LOWER(:userId) LIMIT 1")
+    suspend fun getTruequeCoins(userId: String): Double?
+
+    @Query("DELETE FROM usuarios WHERE LOWER(usuario) = LOWER(:userId) OR LOWER(correo) = LOWER(:userId)")
+    suspend fun deleteUser(userId: String)
 }

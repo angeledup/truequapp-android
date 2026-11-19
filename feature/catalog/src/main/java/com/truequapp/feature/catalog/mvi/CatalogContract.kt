@@ -45,7 +45,7 @@ data class CatalogUiState(
     val selectedImageUri: String? = null, // Retrocompatibilidad para foto principal
     val isPublishing: Boolean = false,
     val errorMessage: String? = null,
-    val truequeCoins: Double = 100.0 // Variable canónica unificada
+    val truequeCoins: Double = 10000.0 // Variable canónica unificada
 ) : UiState
 
 /**
@@ -61,6 +61,7 @@ sealed interface CatalogUiEvent : UiEvent {
     data object ToggleMyPublicationsFilter : CatalogUiEvent
     data class ToggleBookmark(val itemId: String) : CatalogUiEvent
     data object LoadNextPage : CatalogUiEvent
+    data object RefreshCatalog : CatalogUiEvent
 
     // Formulario de publicación (Selector nativo de hasta 6 fotos)
     data class TitleChanged(val title: String) : CatalogUiEvent

@@ -1,0 +1,4 @@
+# Truequapp Serverless API Hub
+# Diseñado con librerías nativas de Python para máxima portabilidad,
+# cero dependencias pesadas y compatibilidad total con Vercel.
+

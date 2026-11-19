@@ -1,12 +1,6 @@
 package com.truequapp.di
 
-import com.truequapp.core.domain.rules.CalculateBayesianRatingUseCase
-import com.truequapp.core.domain.rules.EvaluateCancellationWindowUseCase
-import com.truequapp.core.domain.rules.LockInventoryForTradeUseCase
-import com.truequapp.core.domain.rules.ObfuscateLocationUseCase
-import com.truequapp.core.domain.rules.ValidateDirectChatAccessUseCase
-import com.truequapp.core.domain.rules.ValidateProhibitedItemUseCase
-import com.truequapp.core.domain.rules.ValidateTradeValueUseCase
+import com.truequapp.core.domain.rules.*
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -49,5 +43,25 @@ object DomainModule {
     @Provides
     @Singleton
     fun provideValidateDirectChatAccessUseCase(): ValidateDirectChatAccessUseCase = ValidateDirectChatAccessUseCase()
-}
 
+    // Casos de Uso Fases 3, 4 y 5
+    @Provides
+    @Singleton
+    fun provideVerifySafeZonePresenceUseCase(): VerifySafeZonePresenceUseCase = VerifySafeZonePresenceUseCase()
+
+    @Provides
+    @Singleton
+    fun provideEvaluateReviewVisibilityUseCase(): EvaluateReviewVisibilityUseCase = EvaluateReviewVisibilityUseCase()
+
+    @Provides
+    @Singleton
+    fun provideEscrowHoldAndReleaseUseCase(): EscrowHoldAndReleaseUseCase = EscrowHoldAndReleaseUseCase()
+
+    @Provides
+    @Singleton
+    fun provideLedgerDoubleEntryValidatorUseCase(): LedgerDoubleEntryValidatorUseCase = LedgerDoubleEntryValidatorUseCase()
+
+    @Provides
+    @Singleton
+    fun provideTriangularCycleRulesUseCase(): TriangularCycleRulesUseCase = TriangularCycleRulesUseCase()
+}

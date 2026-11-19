@@ -45,8 +45,54 @@ class AuthRepository @Inject constructor(
             return LoginResult.ValidationError("Por favor ingresa tu contraseña")
         }
 
-        val user = userDao.getUserByEmail(trimmedEmail)
-            ?: return LoginResult.UserNotFound()
+        var user = userDao.getUserByEmail(trimmedEmail)
+
+        // Si no existe localmente, intentar consultar la base de datos en la nube (Vercel / Turso)
+        if (user == null) {
+            try {
+                val url = java.net.URL("https://truequapp-pi.vercel.app/api/usuarios/login")
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.connectTimeout = 4000
+                conn.readTimeout = 4000
+                conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conn.doOutput = true
+                val json = org.json.JSONObject().apply {
+                    put("identifier", trimmedEmail)
+                    put("password", contrasena)
+                }
+                conn.outputStream.use { os ->
+                    os.write(json.toString().toByteArray(Charsets.UTF_8))
+                }
+                if (conn.responseCode == 200) {
+                    val responseText = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                    val respObj = org.json.JSONObject(responseText)
+                    if (respObj.optBoolean("success")) {
+                        val uObj = respObj.optJSONObject("user")
+                        if (uObj != null) {
+                            val fetchedUser = UserEntity(
+                                correo = uObj.optString("email", trimmedEmail),
+                                contrasena = contrasena,
+                                usuario = uObj.optString("name", trimmedEmail.substringBefore("@")),
+                                numeroTelefonico = uObj.optString("phoneNumber", "+520000000000"),
+                                cantidadTruequeCoins = uObj.optDouble("truequeCoins", 100.0),
+                                truequesRealizados = uObj.optInt("completedTrades", 0),
+                                calificacion = uObj.optDouble("bayesianRating", 5.0)
+                            )
+                            userDao.insertUser(fetchedUser)
+                            user = fetchedUser
+                        }
+                    }
+                }
+                conn.disconnect()
+            } catch (e: Exception) {
+                // Silencioso ante falta de red
+            }
+        }
+
+        if (user == null) {
+            return LoginResult.UserNotFound()
+        }
 
         if (user.contrasena != contrasena) {
             return LoginResult.InvalidPassword()
@@ -110,6 +156,37 @@ class AuthRepository @Inject constructor(
         )
 
         userDao.insertUser(newUser)
+
+        // Sincronizar el nuevo usuario inmediatamente en la base de datos central en la nube (Vercel / Turso)
+        java.util.concurrent.Executors.newSingleThreadExecutor().execute {
+            try {
+                val url = java.net.URL("https://truequapp-pi.vercel.app/api/usuarios/sync")
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.connectTimeout = 5000
+                conn.readTimeout = 5000
+                conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conn.doOutput = true
+                val json = org.json.JSONObject().apply {
+                    put("id", "usr_${java.util.UUID.randomUUID().toString().take(8)}")
+                    put("email", trimmedEmail)
+                    put("name", trimmedUser)
+                    put("passwordHash", contrasena)
+                    put("phoneNumber", trimmedPhone)
+                    put("truequeCoins", 100.0)
+                    put("bayesianRating", 5.0)
+                    put("ratingsCount", 0)
+                    put("completedTrades", 0)
+                }
+                conn.outputStream.use { os ->
+                    os.write(json.toString().toByteArray(Charsets.UTF_8))
+                }
+                conn.responseCode
+                conn.disconnect()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
 
         return RegisterResult.Success(newUser)
     }

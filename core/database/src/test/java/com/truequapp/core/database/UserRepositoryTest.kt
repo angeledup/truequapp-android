@@ -72,6 +72,16 @@ class FakeDatabaseUserDao : UserDao {
         users[correo.lowercase()] = u.copy(calificacion = newRating)
         return 1
     }
+
+    override fun getUserById(id: String): Flow<UserEntity?> = flowOf(users[id.lowercase()])
+    override suspend fun getUserByIdSync(id: String): UserEntity? = users[id.lowercase()]
+    override suspend fun getUserByEmailSync(email: String): UserEntity? = users[email.lowercase()]
+    override suspend fun getUserByIdentifierSync(identifier: String): UserEntity? = users[identifier.lowercase()]
+    override suspend fun authenticate(email: String, passwordHash: String): UserEntity? = users[email.lowercase()]
+    override suspend fun updateUser(user: UserEntity) { users[user.correo.lowercase()] = user }
+    override suspend fun updateTruequeCoins(userId: String, availableCoins: Double, escrowCoins: Double) {}
+    override suspend fun getTruequeCoins(userId: String): Double? = users[userId.lowercase()]?.cantidadTruequeCoins
+    override suspend fun deleteUser(userId: String) { users.remove(userId.lowercase()) }
 }
 
 class FakeDatabaseSessionDataStore : UserSessionDataStore {
@@ -80,8 +90,15 @@ class FakeDatabaseSessionDataStore : UserSessionDataStore {
     )
     override val sessionFlow: Flow<UserSession> = _session
     override suspend fun saveTokens(accessToken: String, refreshToken: String) {}
-    override suspend fun saveUser(userId: String, email: String, isKycVerified: Boolean) {
-        _session.value = UserSession(userId = userId, userEmail = email, isKycVerified = isKycVerified)
+    override suspend fun saveUser(
+        userId: String,
+        email: String,
+        isKycVerified: Boolean,
+        name: String,
+        photoUrl: String?,
+        authProvider: String
+    ) {
+        _session.value = UserSession(userId = userId, userEmail = email, isKycVerified = isKycVerified, userName = name, userPhotoUrl = photoUrl, authProvider = authProvider)
     }
     override suspend fun getAccessToken(): String? = null
     override suspend fun getRefreshToken(): String? = null

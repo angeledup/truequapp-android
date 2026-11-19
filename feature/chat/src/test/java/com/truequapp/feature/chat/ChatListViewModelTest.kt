@@ -113,6 +113,15 @@ class FakeUserDaoForChatTest : UserDao {
     override suspend fun getRatingByEmail(correo: String): Double? = 5.0
     override fun observeRatingByEmail(correo: String): Flow<Double?> = flowOf(5.0)
     override suspend fun updateRating(correo: String, newRating: Double): Int = 1
+    override fun getUserById(id: String): Flow<UserEntity?> = flowOf(null)
+    override suspend fun getUserByIdSync(id: String): UserEntity? = null
+    override suspend fun getUserByEmailSync(email: String): UserEntity? = null
+    override suspend fun getUserByIdentifierSync(identifier: String): UserEntity? = null
+    override suspend fun authenticate(email: String, passwordHash: String): UserEntity? = null
+    override suspend fun updateUser(user: UserEntity) {}
+    override suspend fun updateTruequeCoins(userId: String, availableCoins: Double, escrowCoins: Double) {}
+    override suspend fun getTruequeCoins(userId: String): Double? = 100.0
+    override suspend fun deleteUser(userId: String) {}
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
