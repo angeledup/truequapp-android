@@ -1,6 +1,6 @@
 # Arquitectura y Guía de Modos de Validación de Base de Datos: `db-Local` vs `db-Online`
 
-Este documento describe la especificación técnica, el funcionamiento operativo, los casos de uso con y sin conexión a internet, las frecuencias de actualización, la subida de archivos, el ciclo de vida de propuestas de trueque con cola de validación (**"Enviando"** → **"Pendiente"**) y la serie de pasos para integrar la conmutación entre **`db-Local`** y **`db-Online`** en **Truequapp**.
+Este documento describe la especificación técnica, el funcionamiento operativo, los casos de uso con y sin conexión a internet, las frecuencias de actualización (reducidas a **cada 5 segundos**), la descarga completa al abrir la app, la mecánica y cadencia de subida de archivos (al instante vs. en cada ciclo), el ciclo de vida de propuestas de trueque con cola de validación (**"Enviando"** → **"Pendiente"**) y la serie de pasos para integrar la conmutación entre **`db-Local`** y **`db-Online`** en **Truequapp**.
 
 ---
 
@@ -79,14 +79,14 @@ flowchart LR
 
     subgraph InternetCondition["Estado de Internet"]
         FastResp --> HasInternet{"¿Hay Internet?"}
-        HasInternet -->|Con Conexión| SyncBg["Background Sync (cada 15s) actualiza catálogo sin bloquear"]
+        HasInternet -->|Con Conexión| SyncBg["Background Sync (cada 5s) actualiza catálogo sin bloquear"]
         HasInternet -->|Sin Conexión| OfflineOk["Operación exitosa en modo 100% offline"]
     end
 ```
 
 ### 3.1. ¿Cómo funciona `db-Local` CON conexión a internet?
 - **Validación instantánea:** Al iniciar sesión, registrarse o modificar datos de la cuenta, la comprobación de credenciales, balance de monedas y existencia se realiza directamente contra la base de datos interna SQLite (`db-Local`). La respuesta toma milisegundos (< 5 ms) y no sufre por lentitud o latencia de red.
-- **Sincronización en segundo plano no bloqueante:** Como hay conexión a internet, el motor de sincronización (`DatabaseSyncManager`) continúa ejecutándose en segundo plano cada 15 segundos para descargar publicaciones nuevas o cambios del catálogo general de Turso hacia la caché local, pero **ninguna validación se bloquea** esperando respuesta del servidor.
+- **Sincronización en segundo plano no bloqueante:** Como hay conexión a internet, el motor de sincronización (`DatabaseSyncManager`) continúa ejecutándose en segundo plano **cada 5 segundos** para descargar publicaciones nuevas o cambios del catálogo general de Turso hacia la caché local, pero **ninguna validación se bloquea** esperando respuesta del servidor.
 - **Ventaja clave:** Fluidez absoluta de la interfaz sin consumir datos móviles para cada validación.
 
 ### 3.2. ¿Cómo funciona `db-Local` SIN conexión a internet (Modo 100% Offline)?
@@ -114,25 +114,37 @@ Cuando el usuario activa el modo **`db-Online`**, las validaciones se dirigen a 
 
 ---
 
-## 5. Ciclo de Validaciones y Frecuencias
+## 5. Ciclo de Validaciones y Frecuencias (Reducido a cada 5 segundos)
 
-Es fundamental distinguir entre los dos tipos de ciclos que operan en la aplicación:
+Es fundamental distinguir entre los tres tipos de ciclos que operan en la aplicación:
 
 ```mermaid
-flowchart LR
+flowchart TD
+    subgraph CicloStartup["0. Descarga Completa al Abrir la App"]
+        AppStart["Apertura de la App (onCreate / Splash)"] --> FullDownload["Descarga Inmediata de todo db-Online a db-Local"]
+        FullDownload --> Ready["App lista con datos 100% frescos desde el primer segundo"]
+    end
+
     subgraph Ciclo1["1. Ciclo Transaccional (Bajo Demanda)"]
         ActionUser["Acción del Usuario (Click en botón)"] --> ValidacionInmediata["Validación Inmediata (0 segundos)"]
         ValidacionInmediata --> RespInmediata["Respuesta en Pantalla (Éxito / Error)"]
     end
 
-    subgraph Ciclo2["2. Ciclo Periódico de Reconciliación"]
-        Timer["Temporizador de Fondo (delay 15s)"] --> SyncJob["DatabaseSyncManager.syncDatabase()"]
+    subgraph Ciclo2["2. Ciclo Periódico de Reconciliación (Cada 5 segundos)"]
+        Timer["Temporizador de Fondo (delay 5s)"] --> SyncJob["DatabaseSyncManager.syncDatabase()"]
         SyncJob --> FetchNube["Descarga novedades de Turso"]
-        FetchNube --> RevalidaCola["Revalida propuestas en espera (Outbox)"]
+        FetchNube --> RevalidaCola["Revalida propuestas y sube cola de salida (Outbox)"]
     end
 ```
 
-### 5.1. Ciclo Transaccional (Bajo Demanda / En el momento de la acción)
+### 5.1. Descarga Completa al Abrir la App (Startup Full Download)
+- **Momento de ejecución:** En el primer milisegundo en que la aplicación arranca (`MainActivity.onCreate()` o inicialización de la sesión).
+- **Qué realiza:**
+  - Sin esperar a que transcurra el intervalo de 5 segundos, dispara una sincronización completa inmediata (`syncDatabase()`).
+  - Descarga todo el catálogo global de `db-Online`, todas las propuestas de trueque y los balances de usuarios actualizados directamente hacia `db-Local` (Room y almacenamiento en disco).
+  - Si el dispositivo no tiene internet al arrancar, el arranque no se bloquea: carga instantáneamente la última versión guardada en `db-Local`.
+
+### 5.2. Ciclo Transaccional (Bajo Demanda / En el momento de la acción)
 - **Frecuencia:** **Inmediata (0 segundos de espera)**.
 - **Cuándo ocurre:** Cada vez que el usuario realiza una acción interactiva:
   - Al pulsar *"Iniciar Sesión"* → Se valida correo y contraseña en ese instante.
@@ -143,55 +155,71 @@ flowchart LR
   - En `db-Local`: **1 a 5 milisegundos**.
   - En `db-Online`: **150 a 600 milisegundos** (dependiendo de la latencia de red).
 
-### 5.2. Ciclo Periódico de Reconciliación y Sincronización
-- **Frecuencia:** **Cada 15 segundos exactos** (`15_000L ms`).
-- **Dónde corre:** En una corrutina de fondo (`CoroutineScope`) gestionada por `DatabaseSyncManager`.
-- **Qué hace cada 15 segundos:**
+### 5.3. Ciclo Periódico de Reconciliación y Sincronización (Cada 5 segundos)
+- **Frecuencia:** **Cada 5 segundos exactos** (`5_000L ms`), optimizado desde los 15 segundos anteriores para brindar una sincronización casi en tiempo real.
+- **Dónde corre:** En una corrutina de fondo (`CoroutineScope`) gestionada por `DatabaseSyncManager`:
+  ```kotlin
+  while (isActive) {
+      syncDatabase()
+      delay(5_000L) // Intervalo exacto de 5 segundos
+  }
+  ```
+- **Qué hace cada 5 segundos:**
   1. Consulta a Turso (`GET /api/catalogo`) para actualizar el feed global de artículos.
   2. Consulta a Turso (`GET /api/trueques`) para actualizar las ofertas recibidas y enviadas.
   3. Consulta a Turso (`GET /api/usuarios/login` o balance) para mantener al día los TruequeCoins y calificaciones.
-  4. **Procesa la cola de trueques en espera:** Revalida cualquier propuesta que se haya creado en modo local (estado *"Enviando"*) contra el servidor central para pasarla a *"Pendiente"*.
+  4. **Procesa la cola de salida y trueques en espera:** Revalida cualquier propuesta o archivo que se haya creado en modo local (estado *"Enviando"*) contra el servidor central para pasarla a *"Pendiente"*.
 
 ---
 
-## 6. ¿Cómo se suben los archivos a `db-Online`?
+## 6. ¿Cómo y Cada Cuándo se suben los archivos a `db-Online`? (¿Al instante o en cada ciclo?)
 
-La subida de información a `db-Online` (Turso Cloud) maneja dos tipos de datos: **datos relacionales/estructurados** y **archivos multimedia (imágenes WebP)**.
+Esta es una de las distinciones más importantes de la arquitectura: la cadencia de subida depende de si la acción se origina en **`db-Online`** o en **`db-Local`**.
 
 ```mermaid
 flowchart TD
-    subgraph Client["Cliente Android (Dispositivo)"]
-        ImgRaw["Imagen de la Galería o Cámara (JPG / PNG)"] --> Compressor["WebPImageCompressor"]
-        Compressor --> WebP["Imagen WebP Optimizada (< 300 KB)"]
-        WebP --> Serializer["Serialización JSON (Base64 / URL Payload)"]
-        
-        DataFields["Campos de Texto (Título, Descripción, Precios, Categoría)"] --> Serializer
-        Serializer --> HTTPClient["HTTP POST /api/catalogo"]
+    subgraph OrigenOnline["Si el usuario está en db-Online"]
+        ActionOn["Usuario publica artículo / crea propuesta"] --> UploadDirecto["Subida AL INSTANTE (0 segundos)"]
+        UploadDirecto --> TursoDirecto[("Turso Cloud (db-Online)")]
+        TursoDirecto --> ReplicaLocal["Guarda réplica en db-Local"]
     end
 
-    subgraph Server["Backend Vercel (API Serverless)"]
-        HTTPClient --> APIEndpoint["api/catalogo (server.py / index.py)"]
-        APIEndpoint --> TursoDriver["turso_client.execute()"]
-    end
-
-    subgraph Storage["Base de Datos Turso (db-Online)"]
-        TursoDriver --> TursoTable[("Tabla 'catalogo' en Turso libSQL")]
+    subgraph OrigenLocal["Si el usuario está en db-Local (o sin conexión)"]
+        ActionLoc["Usuario publica artículo / crea propuesta"] --> SaveImmediate["Guardado en Teléfono AL INSTANTE (0 segundos)"]
+        SaveImmediate --> SQLiteOutbox[("db-Local (SQLite + Archivos)")]
+        SQLiteOutbox --> Queue["Pasa a la Cola de Salida (Outbox)"]
+        Queue --> TimerCiclo["Ciclo de Fondo (Cada 5 segundos)"]
+        TimerCiclo --> CheckConn{"¿Hay conexión a internet?"}
+        CheckConn -->|Sí| UploadBatch["Sube los archivos y registros a db-Online"]
+        CheckConn -->|No| Reintento["Espera al siguiente ciclo de 5s"]
     end
 ```
 
-### 6.1. Subida de Datos Estructurados (Textos, números, estados, fechas)
-- La aplicación construye un objeto `JSONObject` con los metadatos correspondientes (título, descripción, condición, categoría, valor estimado, etc.).
-- Se realiza una petición HTTP `POST` o `PUT` con encabezado `Content-Type: application/json; charset=utf-8` hacia los endpoints del backend en Vercel (`/api/catalogo`, `/api/usuarios`, `/api/trueques`).
-- El backend en Python / libSQL SDK ejecuta consultas SQL parametrizadas (`INSERT INTO ... VALUES (?, ?, ...)`), protegiendo la base de datos contra inyecciones SQL y garantizando transacciones atómicas.
+### 6.1. Si el usuario está en `db-Online`: Subida AL INSTANTE (0 segundos)
+- Al pulsar *"Publicar Artículo"* o guardar cambios:
+  - **Inmediatez:** La subida se realiza **al instante**.
+  - La imagen se comprime en el dispositivo a WebP (< 300 KB) y se envía inmediatamente vía HTTP `POST` a `/api/catalogo`.
+  - La API de Vercel escribe el registro en Turso en menos de medio segundo.
+  - Al recibir HTTP 200 de Turso, la app guarda una réplica idéntica en `db-Local` para lectura inmediata sin consumir red en el futuro.
 
-### 6.2. Subida de Archivos Multimedia e Imágenes
-1. **Compresión previa en el dispositivo (`WebPImageCompressor`):**
-   - Para no saturar el ancho de banda ni la base de datos, toda fotografía capturada por la cámara o seleccionada de la galería se convierte a formato **WebP**.
-   - Se reduce la resolución máxima y el peso del archivo a menos de 300 KB por imagen, manteniendo excelente fidelidad visual.
-2. **Almacenamiento y persistencia en Turso:**
-   - Las imágenes optimizadas en WebP se transmiten dentro del payload JSON en el campo `images` de la publicación.
-   - En Turso (`db-Online`), la tabla `catalogo` almacena el array de imágenes (`images TEXT`) asociado al identificador único de la publicación (`id`).
-   - El catálogo descarga estas imágenes de forma perezosa (*lazy loading*) y las guarda en la caché local del dispositivo para evitar descargas repetidas.
+### 6.2. Si el usuario está en `db-Local`: Guardado local AL INSTANTE y subida EN CADA CICLO (cada 5 segundos)
+- Cuando el usuario crea una publicación, archivo o propuesta estando en `db-Local` (o sin internet en ese instante):
+  - **1. Guardado en el dispositivo: AL INSTANTE (0 segundos):**
+    - El archivo y la entidad se escriben inmediatamente en el almacenamiento local del teléfono (`db-Local` / SQLite Room / `user_published_items.json`).
+    - El usuario recibe confirmación inmediata sin tiempos de espera.
+  - **2. Subida hacia `db-Online`: EN CADA CICLO (cada 5 segundos):**
+    - El registro se marca en la **Cola de Salida (Outbox Queue)** con estado pendiente de subida.
+    - El ciclo periódico de sincronización, que corre **cada 5 segundos**, verifica si hay conexión a internet.
+    - En cuanto hay internet disponible, el ciclo toma los archivos y registros de la cola y los sube a `db-Online` en segundo plano.
+    - Si al momento de crear el elemento en `db-Local` ya existía conexión a internet, se dispara un intento de subida en background de inmediato y el ciclo de 5 segundos actúa como garantía de reintento si la red fluctuó.
+
+### 6.3. Formato y Compresión de los Archivos Multimedia (Imágenes WebP)
+1. **Compresión previa (`WebPImageCompressor`):**
+   - Toda foto tomada con la cámara o seleccionada de la galería se convierte a formato **WebP**.
+   - Se optimiza para que pese **menos de 300 KB** manteniendo alta nitidez visual.
+2. **Persistencia en Turso:**
+   - La imagen optimizada se transmite en el payload JSON (`images`) y se almacena en la columna `images TEXT` de la tabla `catalogo` en Turso.
+   - El cliente descarga las imágenes con política de caché local para no volver a descargarlas si no han cambiado.
 
 ---
 
@@ -205,30 +233,29 @@ stateDiagram-v2
     
     state ENVIANDO {
         [*] --> GuardadoLocal: Se guarda en SQLite (esta_activa = 0)
-        GuardadoLocal --> BloqueoItems: Bloquea ítems propios localmente (RN-01)
+        GuardadoLocal --> BloqueoItems: Bloquea inventario localmente (RN-01)
         BloqueoItems --> BadgeUI: Muestra etiqueta 'Enviando... (En espera de validación)'
-        BadgeUI --> EsperaSync: Espera validación con db-Online
     }
 
-    ENVIANDO --> ValidandoConOnline: Ciclo de Sincronización (cada 15s o conexión activa)
+    ENVIANDO --> ValidandoConOnline: Ciclo cada 5s o conexión activa
     
     state ValidandoConOnline {
-        [*] --> CheckDisponibilidad: GET /api/catalogo (¿targetItem activo?)
+        [*] --> CheckDisponibilidad: GET /api/catalogo (¿targetItem disponible?)
         CheckDisponibilidad --> CheckReceptor: GET /api/usuarios (¿Receptor activo?)
     }
 
-    ValidandoConOnline --> PENDIENTE: Validación con db-Online EXITOSA
-    ValidandoConOnline --> RECHAZADA_POR_CONFLICTO: Publicación objetivo ya inactiva o borrada
+    ValidandoConOnline --> PENDIENTE: Validación EXITOSA
+    ValidandoConOnline --> RECHAZADA_POR_CONFLICTO: Publicación objetivo ya inactiva
 
     state PENDIENTE {
         [*] --> RegistradaTurso: Insertada formalmente en Turso (esta_activa = 1)
-        RegistradaTurso --> VisibleReceptor: Visible para el Usuario Receptor
+        RegistradaTurso --> VisibleReceptor: Visible para el Receptor
         VisibleReceptor --> BadgePendiente: Muestra etiqueta 'Pendiente' en UI
     }
 
     state RECHAZADA_POR_CONFLICTO {
-        [*] --> DesbloqueoItems: Libera inventario propio local
-        DesbloqueoItems --> NotificarUsuario: Muestra alerta 'Publicación ya no disponible en el servidor'
+        [*] --> DesbloqueoItems: Libera inventario local
+        DesbloqueoItems --> NotificarUsuario: Notifica 'Publicación ya no disponible en el servidor'
     }
 ```
 
@@ -244,7 +271,7 @@ stateDiagram-v2
     - **No se envía todavía al usuario receptor:** La propuesta aún no es visible para el otro usuario, evitando notificarlo sobre ofertas no confirmadas.
 
 #### 2. Proceso de Validación con `db-Online`
-- En el siguiente ciclo de sincronización (cada 15 segundos o cuando se detecte conexión activa a internet):
+- En el siguiente ciclo de sincronización (cada **5 segundos** o en cuanto haya conexión):
   - El despachador consulta a `db-Online` mediante la API de Vercel:
     1. **¿El artículo objetivo (`targetItemId`) sigue teniendo `isAvailable = 1` y no ha sido eliminado en Turso?**
     2. **¿El usuario receptor sigue existiendo y activo?**
@@ -281,7 +308,7 @@ flowchart TD
     P4 --> P5["Paso 5: Diseñar el Pop-up Informativo (AlertDialog) con diferencias"]
     P5 --> P6["Paso 6: Enrutar validaciones en AuthRepository"]
     P6 --> P7["Paso 7: Implementar Cola Outbox en TradeViewModel (Enviando -> Pendiente)"]
-    P7 --> P8["Paso 8: Ajustar DatabaseSyncManager (cada 15s con revalidación de cola)"]
+    P7 --> P8["Paso 8: Configurar DatabaseSyncManager (Startup Full Download + ciclo de 5s)"]
     P8 --> P9["Paso 9: Pruebas Unitarias al 100% y Commit en Git"]
 ```
 
@@ -348,8 +375,9 @@ Al presionar o cambiar a cualquiera de las dos opciones, desplegar un cuadro de 
   - Desplegar en la UI el estado *"Enviando... (En espera de validación)"*.
   - En el ciclo de reconciliación, comprobar la disponibilidad del artículo en Turso antes de cambiar a *"Pendiente"* o alertar de conflicto si ya no está disponible.
 
-### Paso 8: Ajustar `DatabaseSyncManager`
-- Mantener la ejecución periódica cada 15 segundos (`delay(15_000L)`).
+### Paso 8: Ajustar `DatabaseSyncManager` (Descarga Inicial + Ciclo de 5 segundos)
+- **Descarga Inicial al Abrir la App:** En `MainActivity` / `DatabaseSyncManager.init`, ejecutar inmediatamente `syncDatabase()` para descargar todo lo que esté en `db-Online` hacia `db-Local`.
+- **Intervalo de 5 segundos:** Configurar el ciclo de repetición con `delay(5_000L)` para procesar la cola Outbox y refrescar datos cada 5 segundos.
 - Añadir la rutina `reconcilePendingTradeProposals()` para validar propuestas en estado *"ENVIANDO"* con Turso y efectuar la transición a *"PENDIENTE"*.
 
 ### Paso 9: Pruebas Unitarias y Verificación
@@ -357,7 +385,8 @@ Al presionar o cambiar a cualquiera de las dos opciones, desplegar un cuadro de 
   - Prueba de activación de `enableDbOnlineValidation()` y persistencia en DataStore.
   - Prueba de activación de `enableDbLocalValidation()`.
   - Prueba del pop-up informativo.
-  - Prueba de transición de propuesta de trueque: `"ENVIANDO"` → `"PENDIENTE"` al validar exitosamente con la nube.
+  - Prueba de descarga al abrir la app.
+  - Prueba de transición de propuesta de trueque: `"ENVIANDO"` → `"PENDIENTE"` al validar exitosamente con la nube en el ciclo de 5 segundos.
   - Prueba de rechazo y liberación de ítems si el artículo en Turso ya no está activo.
 - Ejecutar `./gradlew :app:testDebugUnitTest` verificando 100% de éxito.
 
@@ -373,7 +402,8 @@ Al presionar o cambiar a cualquiera de las dos opciones, desplegar un cuadro de 
 | **Velocidad de Respuesta** | Ultrarrápida (< 5 ms) | Sujeta a latencia de red (150 - 600 ms) |
 | **Consumo de Datos Móviles** | Cero consumo para validaciones | Consume datos en cada validación |
 | **Alcance de los Datos** | Confinado a la memoria del dispositivo actual | Global, accesible y visible por todos los usuarios |
-| **Ciclo de Validación Transaccional** | Instantáneo (0s) en SQLite Room | Instantáneo (0s) en Turso + réplica local |
-| **Ciclo de Reconciliación Periódica** | Cada 15 segundos (secundario si hay red) | Cada 15 segundos (primario con la nube) |
+| **Descarga al abrir la app** | Se descarga todo lo que esté en `db-Online` al abrir la app | Se descarga todo lo que esté en `db-Online` al abrir la app |
+| **Ciclo de Reconciliación Periódica** | **Cada 5 segundos** (secundario si hay red) | **Cada 5 segundos** (primario con la nube) |
+| **Subida de Archivos y Publicaciones** | Guardado local **al instante**; subida a Turso **en cada ciclo (cada 5s)** al detectar internet | Subida a Turso **al instante** (0s) por HTTP y réplica local |
 | **Manejo de Trueques Creados** | Estado inicial **"Enviando"** (en cola) hasta verificar en Turso que la publicación sigue activa → cambia a **"Pendiente"** | Pasa directo a **"Pendiente"** en tiempo real tras validar en Turso |
-| **Subida de Imágenes** | Guarda WebP en almacenamiento local | Comprime a WebP (< 300 KB) y envía por API a Turso |
+| **Subida de Imágenes** | Guarda WebP local al instante | Comprime a WebP (< 300 KB) y envía por API a Turso al instante |
