@@ -61,7 +61,7 @@ sealed interface CatalogUiEvent : UiEvent {
     data object ToggleMyPublicationsFilter : CatalogUiEvent
     data class ToggleBookmark(val itemId: String) : CatalogUiEvent
     data object LoadNextPage : CatalogUiEvent
-    data object RefreshCatalog : CatalogUiEvent
+    data class RefreshCatalog(val isManual: Boolean = true) : CatalogUiEvent
 
     // Formulario de publicación (Selector nativo de hasta 6 fotos)
     data class TitleChanged(val title: String) : CatalogUiEvent

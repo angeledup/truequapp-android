@@ -169,6 +169,9 @@ flowchart TD
   2. Consulta a Turso (`GET /api/trueques`) para actualizar las ofertas recibidas y enviadas.
   3. Consulta a Turso (`GET /api/usuarios/login` o balance) para mantener al día los TruequeCoins y calificaciones.
   4. **Procesa la cola de salida y trueques en espera:** Revalida cualquier propuesta o archivo que se haya creado en modo local (estado *"Enviando"*) contra el servidor central para pasarla a *"Pendiente"*.
+- **Comportamiento Silencioso vs. Aviso Manual:**
+  - **Actualización automática periódica:** Es **100% silenciosa**. No muestra avisos, toasts ni snackbars en la interfaz para no interrumpir al usuario cada 5 segundos mientras navega o chatea.
+  - **Actualización manual por botón:** El aviso (*"Catálogo actualizado desde la nube."*) **únicamente se muestra cuando el usuario presiona el botón de actualizar** ubicado en la barra de búsqueda de la pantalla de Catálogo (`IconButton` de refresco).
 
 ---
 

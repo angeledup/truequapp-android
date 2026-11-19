@@ -200,6 +200,9 @@ fun TruequappNavHost(
                     },
                     onCoinsClick = {
                         navController.navigate(Screen.Trades.route)
+                    },
+                    onManualSync = {
+                        syncViewModel.retrySync()
                     }
                 )
             }
