@@ -82,8 +82,8 @@ abstract class TruequappDatabase : RoomDatabase() {
         override fun onOpen(db: SupportSQLiteDatabase) {
             super.onOpen(db)
             try {
-                seedAdminAccounts(db)
-                // Limpiar propuestas y chats de demostración
+                // Limpiar artículos, propuestas y chats de prueba/semilla
+                db.execSQL("DELETE FROM items WHERE id LIKE 'item_chocolatt_%' OR id LIKE 'item_vergara_%' OR id LIKE 'item_00%' OR id LIKE 'item_user_%';")
                 db.execSQL("DELETE FROM ofertas_items WHERE id LIKE 'of_v2c_%' OR id LIKE 'of_c2v_%';")
                 db.execSQL("DELETE FROM trueques WHERE id LIKE 'prop_seed_%';")
                 db.execSQL("DELETE FROM trade_proposals WHERE id LIKE 'prop_seed_%';")
@@ -114,7 +114,6 @@ abstract class TruequappDatabase : RoomDatabase() {
             }
 
             seedAdminAccounts(db)
-            seedItemsAndProposals(db)
         }
 
         private fun seedAdminAccounts(db: SupportSQLiteDatabase) {
@@ -134,26 +133,6 @@ abstract class TruequappDatabase : RoomDatabase() {
                 db.execSQL("UPDATE usuarios SET cantidad_trueque_coins = 10000.0 WHERE correo IN ('chocolattcorreo@gmail.com', 'Vergaracorreo@gmail.com', 'usuario@truequapp.com');")
             } catch (e: Throwable) {
                 android.util.Log.e("TruequappDatabase", "Error al sembrar administradores", e)
-            }
-        }
-
-        private fun seedItemsAndProposals(db: SupportSQLiteDatabase) {
-            try {
-                val now = System.currentTimeMillis()
-                // 1. Inserción de Artículos Escolares CETIS 79 vinculados a chocolatt y Vergara:
-                // chocolatt: Laptop Dell, Bolígrafo con diseño
-                // Vergara: Mochila escolar, Calculadora científica Casio
-                val insertItemsSql = """
-                    INSERT OR REPLACE INTO items (id, ownerId, ownerName, title, description, categoryId, condition, type, estimatedValueMin, estimatedValueMax, imagesWebPJson, tagsWishlistJson, status, isBookmarked, locationNeighborhood, city, createdAtEpochMs)
-                    VALUES 
-                    ('item_chocolatt_01', 'usr_chocolatt', 'chocolatt', 'Laptop Dell Inspiron Core i5 para Programación (CETIS 79)', 'Laptop Dell con Intel Core i5, 16GB RAM y SSD 512GB. Ideal para talleres de programación y ofimática en CETIS 79.', 2, 'COMO_NUEVO', 'BIEN_FISICO', 5500.0, 6500.0, '["https://images.unsplash.com/photo-1496181133206-80ce9b88a853"]', '["Calculadora Científica", "Mochila Escolar", "Kit Electrónica"]', 'DISPONIBLE', 0, 'Centro, Coatzacoalcos', 'Coatzacoalcos', $now),
-                    ('item_chocolatt_02', 'usr_chocolatt', 'chocolatt', 'Bolígrafo con Diseño Especial Escolar', 'Bolígrafo metálico recargable con diseño ergonómico de alta precisión para apuntes técnicos y exámenes.', 3, 'NUEVO', 'BIEN_FISICO', 150.0, 250.0, '["https://images.unsplash.com/photo-1583485088034-697b5bc54ccd"]', '["Calculadora", "Mochila", "Cuadernos"]', 'DISPONIBLE', 0, 'Centro, Coatzacoalcos', 'Coatzacoalcos', $now),
-                    ('item_vergara_01', 'usr_vergara', 'Vergara', 'Mochila Escolar Reforzada CETIS 79', 'Mochila ergonómica de alta resistencia con compartimento acolchado para laptop de 15.6 pulgadas y puerto USB.', 4, 'COMO_NUEVO', 'BIEN_FISICO', 650.0, 850.0, '["https://images.unsplash.com/photo-1553062407-98eeb64c6a62"]', '["Laptop Dell", "Bolígrafo con diseño", "Calculadora"]', 'DISPONIBLE', 0, 'Col. Petrolera, Coatzacoalcos', 'Coatzacoalcos', $now),
-                    ('item_vergara_02', 'usr_vergara', 'Vergara', 'Calculadora Científica Casio fx-991LA Plus', 'Calculadora científica oficial requerida para cálculo diferencial, integral y especialidades técnicas CETIS 79.', 3, 'COMO_NUEVO', 'BIEN_FISICO', 650.0, 850.0, '["https://images.unsplash.com/photo-1578303512597-81e6cc155b3e"]', '["Laptop Dell", "Bolígrafo con diseño", "Mochila"]', 'DISPONIBLE', 0, 'Col. Petrolera, Coatzacoalcos', 'Coatzacoalcos', $now);
-                """.trimIndent()
-                db.execSQL(insertItemsSql)
-            } catch (e: Throwable) {
-                android.util.Log.e("TruequappDatabase", "Error al sembrar items", e)
             }
         }
     }

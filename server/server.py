@@ -60,32 +60,12 @@ def init_storage():
     except Exception:
         pass
 
-    # Si Turso está configurado vía variables de entorno, inicializar y sembrar
+    # Si Turso está configurado vía variables de entorno, inicializar tablas (sin sembrar datos artificiales)
     if turso_client and turso_client.is_turso_configured():
         try:
             turso_client.init_turso_tables()
-            u_data = []
-            if os.path.exists(USUARIOS_FILE):
-                with open(USUARIOS_FILE, "r", encoding="utf-8") as f:
-                    u_data = json.load(f)
-            c_data = []
-            if os.path.exists(CATALOGO_FILE):
-                with open(CATALOGO_FILE, "r", encoding="utf-8") as f:
-                    c_data = json.load(f)
-            p_data = []
-            if os.path.exists(PROPUESTAS_FILE):
-                with open(PROPUESTAS_FILE, "r", encoding="utf-8") as f:
-                    p_data = json.load(f)
-            chats_dict = {}
-            if os.path.exists(CHATS_DIR):
-                for fname in os.listdir(CHATS_DIR):
-                    if fname.endswith(".json"):
-                        pid = fname[:-5]
-                        with open(os.path.join(CHATS_DIR, fname), "r", encoding="utf-8") as f:
-                            chats_dict[pid] = json.load(f)
-            turso_client.sync_local_data_to_turso(u_data, c_data, p_data, chats_dict)
         except Exception as e:
-            print(f"[Turso Warning] Error al inicializar/sincronizar Turso: {e}")
+            print(f"[Turso Warning] Error al inicializar Turso: {e}")
 
 def read_json_file(file_path):
     if turso_client and turso_client.is_turso_configured():
@@ -501,7 +481,7 @@ class TruequappRequestHandler(BaseHTTPRequestHandler):
         if path.startswith("/api/catalogo/"):
             item_id = path[len("/api/catalogo/"):].strip()
         elif path == "/api/catalogo" or path == "/api/catalogo/":
-            item_id = query.get("id", [None])[0]
+            item_id = query.get("id", [None])[0] or "all"
 
         if item_id:
             items = read_json_file(CATALOGO_FILE)
@@ -527,7 +507,7 @@ class TruequappRequestHandler(BaseHTTPRequestHandler):
         if path.startswith("/api/trueques/"):
             prop_id = path[len("/api/trueques/"):].strip()
         elif path == "/api/trueques" or path == "/api/trueques/":
-            prop_id = query.get("id", [None])[0]
+            prop_id = query.get("id", [None])[0] or "all"
 
         if prop_id:
             proposals = read_json_file(PROPUESTAS_FILE)
@@ -551,6 +531,34 @@ class TruequappRequestHandler(BaseHTTPRequestHandler):
                         print(f"[Turso Warning] Error al eliminar de Turso: {e}")
             write_json_file(PROPUESTAS_FILE, proposals)
             self._send_json({"success": True, "deletedProposalId": prop_id})
+            return
+
+        user_id = None
+        if path.startswith("/api/usuarios/"):
+            user_id = path[len("/api/usuarios/"):].strip()
+        elif path == "/api/usuarios" or path == "/api/usuarios/":
+            user_id = query.get("id", [None])[0]
+
+        if user_id:
+            users = read_json_file(USUARIOS_FILE)
+            if user_id in ["all", "*"]:
+                users = []
+                if turso_client and turso_client.is_turso_configured():
+                    try:
+                        turso_client.execute_pipeline([{"sql": "DELETE FROM usuarios;"}])
+                    except Exception as e:
+                        print(f"[Turso Warning] Error al eliminar usuarios de Turso: {e}")
+            else:
+                users = [u for u in users if u.get("id") != user_id and u.get("email") != user_id]
+                if turso_client and turso_client.is_turso_configured():
+                    try:
+                        turso_client.execute_pipeline([
+                            {"sql": "DELETE FROM usuarios WHERE correo = ? OR usuario = ?;", "args": [user_id, user_id]}
+                        ])
+                    except Exception as e:
+                        print(f"[Turso Warning] Error al eliminar usuario de Turso: {e}")
+            write_json_file(USUARIOS_FILE, users)
+            self._send_json({"success": True, "deletedUserId": user_id})
             return
 
         self._send_json({"error": f"Ruta DELETE {path} no encontrada"}, 404)

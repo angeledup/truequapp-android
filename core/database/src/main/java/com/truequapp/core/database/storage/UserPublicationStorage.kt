@@ -186,7 +186,8 @@ class UserPublicationStorage @Inject constructor(
 
         if (!isMain) {
             val cloudItems = fetchFromCloud()
-            if (!cloudItems.isNullOrEmpty()) {
+            if (cloudItems != null) {
+                // Sincronizar fielmente con la nube: si la nube está vacía (0 items), guardar vacío
                 writeItemsToFile(serverCatalogFile, cloudItems)
                 writeItemsToFile(publicationsFile, cloudItems)
                 return cloudItems
@@ -194,7 +195,7 @@ class UserPublicationStorage @Inject constructor(
         } else {
             networkExecutor.execute {
                 val cloudItems = fetchFromCloud()
-                if (!cloudItems.isNullOrEmpty()) {
+                if (cloudItems != null) {
                     synchronized(this) {
                         writeItemsToFile(serverCatalogFile, cloudItems)
                         writeItemsToFile(publicationsFile, cloudItems)

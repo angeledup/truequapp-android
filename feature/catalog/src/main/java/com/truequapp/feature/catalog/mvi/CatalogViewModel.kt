@@ -17,8 +17,10 @@ import com.truequapp.feature.catalog.compressor.WebPImageCompressor
 import com.truequapp.feature.catalog.storage.CatalogLocalStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -101,6 +103,14 @@ class CatalogViewModel @Inject constructor(
 
             syncCatalog()
 
+            // Lanzar sondeo periódico cada 8 segundos para mantener el catálogo actualizado constantemente con la nube
+            launch(dispatchers.io) {
+                while (isActive) {
+                    delay(8000)
+                    syncCatalog()
+                }
+            }
+
             // Observar en tiempo real las TruequeCoins desde la base de datos
             userRepository?.observeCoins(userEmail)?.collectLatest { realTimeCoins ->
                 setState { copy(truequeCoins = realTimeCoins) }
@@ -143,6 +153,12 @@ class CatalogViewModel @Inject constructor(
             inMemoryItems.filter { isMyItem(it) }
         }
 
+        // Si los items no han cambiado, evitar reiniciar la paginación para no alterar el scroll del usuario
+        val hasChanges = currentState.items != inMemoryItems || currentState.myInventory != myItems
+        if (!hasChanges && currentState.items.isNotEmpty()) {
+            return
+        }
+
         setState {
             copy(
                 items = inMemoryItems.toList(),
@@ -150,7 +166,7 @@ class CatalogViewModel @Inject constructor(
                 bookmarkedItemIds = bookmarkedIds
             )
         }
-        applyFilters(resetPagination = true)
+        applyFilters(resetPagination = false)
     }
 
     override fun onEvent(event: CatalogUiEvent) {
