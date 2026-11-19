@@ -190,31 +190,14 @@ class AuthRepository @Inject constructor(
             return RegisterResult.ValidationError("La contraseña debe tener al menos 4 caracteres")
         }
 
-        val alreadyExists = userDao.countByEmail(trimmedEmail) > 0
-        if (alreadyExists) {
-            return RegisterResult.EmailAlreadyExists()
-        }
-
-        val newUser = UserEntity(
-            correo = trimmedEmail,
-            contrasena = contrasena,
-            usuario = trimmedUser,
-            numeroTelefonico = trimmedPhone,
-            cantidadTruequeCoins = 100.0,
-            truequesRealizados = 0,
-            calificacion = 5.0
-        )
-
-        userDao.insertUser(newUser)
-
-        // Sincronizar el nuevo usuario inmediatamente en la base de datos central en la nube (Vercel / Turso)
-        java.util.concurrent.Executors.newSingleThreadExecutor().execute {
+        // 1. Validar existencia previa directamente con la base de datos central en la nube (Turso)
+        if (cloudBaseUrl.isNotBlank()) {
             try {
-                val url = java.net.URL("https://truequapp-pi.vercel.app/api/usuarios/sync")
+                val url = java.net.URL("${cloudBaseUrl.trimEnd('/')}/api/usuarios/register")
                 val conn = url.openConnection() as java.net.HttpURLConnection
                 conn.requestMethod = "POST"
-                conn.connectTimeout = 5000
-                conn.readTimeout = 5000
+                conn.connectTimeout = 4000
+                conn.readTimeout = 4000
                 conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 conn.doOutput = true
                 val json = org.json.JSONObject().apply {
@@ -231,12 +214,32 @@ class AuthRepository @Inject constructor(
                 conn.outputStream.use { os ->
                     os.write(json.toString().toByteArray(Charsets.UTF_8))
                 }
-                conn.responseCode
+                val code = conn.responseCode
                 conn.disconnect()
-            } catch (e: Exception) {
-                e.printStackTrace()
+                if (code == 409) {
+                    return RegisterResult.EmailAlreadyExists("Ya existe una cuenta registrada con este correo en la base de datos")
+                }
+            } catch (_: Exception) {
+                // Silencioso ante falta de red para permitir modo offline
             }
         }
+
+        val alreadyExists = userDao.countByEmail(trimmedEmail) > 0
+        if (alreadyExists) {
+            return RegisterResult.EmailAlreadyExists()
+        }
+
+        val newUser = UserEntity(
+            correo = trimmedEmail,
+            contrasena = contrasena,
+            usuario = trimmedUser,
+            numeroTelefonico = trimmedPhone,
+            cantidadTruequeCoins = 100.0,
+            truequesRealizados = 0,
+            calificacion = 5.0
+        )
+
+        userDao.insertUser(newUser)
 
         return RegisterResult.Success(newUser)
     }

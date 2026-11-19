@@ -1,5 +1,6 @@
 package com.truequapp.navigation
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
@@ -53,6 +54,8 @@ import com.truequapp.feature.trade.ui.TradeListScreen
 import com.truequapp.feature.trade.ui.TradeNegotiationScreen
 import com.truequapp.profile.ui.ProfileRoute
 import com.truequapp.profile.ui.ProfileViewModel
+import com.truequapp.sync.SyncViewModel
+import com.truequapp.sync.ui.SyncStatusBanner
 
 @Composable
 fun TruequappNavHost(
@@ -60,6 +63,13 @@ fun TruequappNavHost(
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: Screen.Login.route
+
+    val syncViewModel: SyncViewModel = hiltViewModel()
+    val syncState by syncViewModel.syncState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(Unit) {
+        syncViewModel.startPeriodicSync()
+    }
 
     val topLevelRoutes = listOf(
         Screen.Catalog.route,
@@ -72,11 +82,16 @@ fun TruequappNavHost(
 
     Scaffold(
         bottomBar = {
-            if (shouldShowBottomBar) {
-                NavigationBar(
-                    containerColor = TruequappTheme.colorScheme.surface,
-                    contentColor = TruequappTheme.colorScheme.onSurface
-                ) {
+            Column {
+                SyncStatusBanner(
+                    syncState = syncState,
+                    onRetry = { syncViewModel.retrySync() }
+                )
+                if (shouldShowBottomBar) {
+                    NavigationBar(
+                        containerColor = TruequappTheme.colorScheme.surface,
+                        contentColor = TruequappTheme.colorScheme.onSurface
+                    ) {
                     val items = listOf(
                         Triple(Screen.Catalog, Icons.Default.Home, "Catálogo"),
                         Triple(Screen.Trades, Icons.Default.SwapHoriz, "Trueques"),
@@ -112,6 +127,7 @@ fun TruequappNavHost(
                 }
             }
         }
+    }
     ) { innerPadding ->
         NavHost(
             navController = navController,

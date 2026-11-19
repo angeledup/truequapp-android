@@ -308,6 +308,31 @@ class TruequappRequestHandler(BaseHTTPRequestHandler):
             self._send_json({"success": True, "user": safe_user})
             return
 
+        # 1.5 Registro exclusivo de nuevo usuario con validación en base de datos
+        if path == "/api/usuarios/register":
+            users = read_json_file(USUARIOS_FILE)
+            email = body.get("email", "").strip().lower()
+            name = body.get("name", "").strip().lower()
+
+            existing_user = next((u for u in users if u.get("email", "").lower() == email or u.get("name", "").lower() == name), None)
+            if existing_user:
+                self._send_json({
+                    "success": False,
+                    "error": "EMAIL_ALREADY_EXISTS",
+                    "message": "Ya existe una cuenta registrada con este correo o usuario en la base de datos"
+                }, 409)
+                return
+
+            body.setdefault("id", f"usr_{int(time.time()*1000) % 1000000}")
+            body.setdefault("truequeCoins", 100.0)
+            body.setdefault("bayesianRating", 5.0)
+            body.setdefault("completedTrades", 0)
+            users.append(body)
+            write_json_file(USUARIOS_FILE, users)
+            safe_u = {k: v for k, v in body.items() if k != "passwordHash"}
+            self._send_json({"success": True, "message": "Usuario registrado exitosamente en la base de datos", "user": safe_u}, 201)
+            return
+
         # 2. Registrar o Sincronizar Usuario
         if path == "/api/usuarios/sync" or path == "/api/usuarios":
             users = read_json_file(USUARIOS_FILE)
@@ -374,6 +399,15 @@ class TruequappRequestHandler(BaseHTTPRequestHandler):
             if initiator == receiver and initiator != "":
                 self._send_json({"error": "Anti-auto-trueque: No puedes intercambiar contigo mismo"}, 400)
                 return
+
+            # Validar disponibilidad del artículo solicitado en la base de datos
+            target_item_id = body.get("targetItemId")
+            if target_item_id:
+                items = read_json_file(CATALOGO_FILE)
+                target_item = next((it for it in items if it.get("id") == target_item_id), None)
+                if target_item and target_item.get("status") in ["PAUSADO", "RESERVADO", "INTERCAMBIADO"]:
+                    self._send_json({"error": "El artículo solicitado ya no está disponible para trueque en la base de datos"}, 400)
+                    return
 
             proposals = read_json_file(PROPUESTAS_FILE)
             prop_id = body.get("id") or f"prop_{len(proposals)+1}"
