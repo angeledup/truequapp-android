@@ -51,6 +51,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,8 +67,11 @@ import com.truequapp.core.domain.model.ItemCondition
 import com.truequapp.feature.catalog.mvi.CatalogUiEffect
 import com.truequapp.feature.catalog.mvi.CatalogUiEvent
 import com.truequapp.feature.catalog.mvi.CatalogUiState
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 /**
  * Pantalla de Exploración del Marketplace con Feed en cuadrícula (LazyVerticalGrid), paginación incremental,
@@ -85,8 +89,17 @@ fun CatalogFeedScreen(
     modifier: Modifier = Modifier
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
     var showAdvancedFilters by remember { mutableStateOf(false) }
     val gridState = rememberLazyGridState()
+
+    // Sondeo periódico en tiempo real cada 6 segundos para mantener el catálogo actualizado mientras se está en la pantalla
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            delay(6000)
+            onEvent(CatalogUiEvent.RefreshCatalog)
+        }
+    }
 
     // Detección de fin de lista para paginación incremental (Paging)
     val shouldLoadMore by remember {
@@ -365,12 +378,21 @@ fun CatalogFeedScreen(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(displayItems, key = { it.id }) { item ->
+                        val isMine = state.filterOnlyMyPublications || state.myInventory.any { it.id == item.id }
                         ItemCard(
                             item = item,
-                            onClick = { onNavigateToItemDetail(item.id) },
+                            onClick = {
+                                if (isMine) {
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar("Esta es tu publicación ('${item.title}'). Para ofrecerla, selecciona el artículo de otro usuario.")
+                                    }
+                                } else {
+                                    onNavigateToItemDetail(item.id)
+                                }
+                            },
                             isBookmarked = state.bookmarkedItemIds.contains(item.id),
                             onToggleBookmark = { onEvent(CatalogUiEvent.ToggleBookmark(item.id)) },
-                            onDelete = if (state.filterOnlyMyPublications || state.myInventory.any { it.id == item.id }) {
+                            onDelete = if (isMine) {
                                 { onEvent(CatalogUiEvent.DeleteItem(item.id)) }
                             } else null
                         )

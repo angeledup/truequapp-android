@@ -103,14 +103,6 @@ class CatalogViewModel @Inject constructor(
 
             syncCatalog()
 
-            // Lanzar sondeo periódico cada 8 segundos para mantener el catálogo actualizado constantemente con la nube
-            launch(dispatchers.io) {
-                while (isActive) {
-                    delay(8000)
-                    syncCatalog()
-                }
-            }
-
             // Observar en tiempo real las TruequeCoins desde la base de datos
             userRepository?.observeCoins(userEmail)?.collectLatest { realTimeCoins ->
                 setState { copy(truequeCoins = realTimeCoins) }

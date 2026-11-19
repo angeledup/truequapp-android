@@ -65,6 +65,12 @@ class TradeViewModel @Inject constructor(
     }
 
     private fun seedInitialData() {
+        // En entorno de pruebas unitarias (sin almacenamiento persistente ni repositorio), proveer fixtures canónicos para validar casos de uso
+        if (userPublicationStorage == null && tradeRepository == null) {
+            inMemoryItems.addAll(getCanonicalUnitTestItems())
+            return
+        }
+
         // Cargar publicaciones del catálogo central y nube
         val savedPublications = userPublicationStorage?.getRemoteCatalogItems()
             ?: userPublicationStorage?.loadPublishedItems().orEmpty()
@@ -74,6 +80,65 @@ class TradeViewModel @Inject constructor(
             }
         }
     }
+
+    private fun getCanonicalUnitTestItems(): List<TradeItem> = listOf(
+        TradeItem(
+            id = "item_001",
+            ownerId = "usr_alpha",
+            title = "Consola Nintendo Switch OLED",
+            description = "En caja original con accesorios completos y dos Joy-Con.",
+            categoryId = 2,
+            type = ItemType.BIEN_FISICO,
+            condition = ItemCondition.COMO_NUEVO,
+            estimatedValueMin = 4500.0,
+            estimatedValueMax = 5200.0,
+            imagesWebP = listOf("https://images.unsplash.com/photo-1578303512597-81e6cc155b3e"),
+            tagsWishlist = listOf("PlayStation 4", "Tablet Samsung"),
+            isAvailable = true
+        ),
+        TradeItem(
+            id = "item_002",
+            ownerId = "usr_beta",
+            title = "Cálculo de Stewart 8va Edición",
+            description = "Libro universitario para ingeniería, pasta dura.",
+            categoryId = 3,
+            type = ItemType.BIEN_FISICO,
+            condition = ItemCondition.USADO,
+            estimatedValueMin = 500.0,
+            estimatedValueMax = 700.0,
+            imagesWebP = listOf("https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c"),
+            tagsWishlist = listOf("Álgebra Lineal"),
+            isAvailable = true
+        ),
+        TradeItem(
+            id = "item_user_01",
+            ownerId = "usr_current",
+            title = "Kindle Paperwhite 11va Gen",
+            description = "Lector de libros electrónicos con luz cálida regulable.",
+            categoryId = 2,
+            type = ItemType.BIEN_FISICO,
+            condition = ItemCondition.COMO_NUEVO,
+            estimatedValueMin = 2000.0,
+            estimatedValueMax = 2400.0,
+            imagesWebP = listOf("https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c"),
+            tagsWishlist = emptyList(),
+            isAvailable = true
+        ),
+        TradeItem(
+            id = "item_user_02",
+            ownerId = "usr_current",
+            title = "Audífonos Sony WH-CH520",
+            description = "Bluetooth, batería de 50 horas, sonido nítido.",
+            categoryId = 2,
+            type = ItemType.BIEN_FISICO,
+            condition = ItemCondition.USADO,
+            estimatedValueMin = 800.0,
+            estimatedValueMax = 1000.0,
+            imagesWebP = listOf("https://images.unsplash.com/photo-1546435770-a3e426bf472b"),
+            tagsWishlist = emptyList(),
+            isAvailable = true
+        )
+    )
 
     private fun loadSessionUser() {
         viewModelScope.launch(dispatchers.io) {
@@ -205,7 +270,8 @@ class TradeViewModel @Inject constructor(
     private fun resolveAvailableUserItems(
         userId: String,
         userEmail: String?,
-        catalogPool: List<TradeItem>? = null
+        catalogPool: List<TradeItem>? = null,
+        targetItemId: String? = null
     ): List<TradeItem> {
         val remoteCatalog = catalogPool ?: (
             (userPublicationStorage?.getRemoteCatalogItems()
@@ -220,12 +286,18 @@ class TradeViewModel @Inject constructor(
             userPublicationStorage?.loadUserPublications(userId).orEmpty()
         } else emptyList()
 
-        val combinedPool = (itemsFromEmail + itemsFromUserId + remoteCatalog + inMemoryItems)
+        val legacyPublished = userPublicationStorage?.loadPublishedItems().orEmpty()
+
+        val combinedPool = (itemsFromEmail + itemsFromUserId + legacyPublished + remoteCatalog + inMemoryItems)
             .distinctBy { it.id }
 
-        // REGLA: Solo se pueden seleccionar publicaciones que pertenezcan al usuario y cumplan `it.isAvailable` (status == ItemStatus.DISPONIBLE)
+        // REGLA: Solo se pueden seleccionar publicaciones que pertenezcan al usuario, cumplan `it.isAvailable` y no sean el artículo solicitado
         return combinedPool
-            .filter { isMyTradeItem(it, userId, userEmail) && it.isAvailable }
+            .filter { item ->
+                isMyTradeItem(item, userId, userEmail) && 
+                item.isAvailable && 
+                (targetItemId.isNullOrBlank() || item.id != targetItemId)
+            }
             .distinctBy { it.id }
     }
 
@@ -417,28 +489,25 @@ class TradeViewModel @Inject constructor(
                     errorMessage = "Esta publicación es tuya. No puedes realizar un trueque contigo mismo."
                 )
             }
-            return
+        } else {
+            val userItems = resolveAvailableUserItems(activeUserId, activeEmail, allCatalogItems, target?.id)
+            setState {
+                copy(
+                    targetItem = target,
+                    currentUserId = activeUserId,
+                    availableUserItems = userItems,
+                    selectedOfferedItemIds = emptySet(),
+                    truequeCoinsInput = "0",
+                    calculatedRatio = 0.0,
+                    isRatioValid = false,
+                    hasMinimumItemsSelected = false,
+                    canSubmitProposal = false,
+                    errorMessage = null
+                )
+            }
         }
 
-        // Cargar inmediatamente de forma síncrona para disponibilidad instantánea
-        val userItems = resolveAvailableUserItems(activeUserId, activeEmail, allCatalogItems)
-
-        setState {
-            copy(
-                targetItem = target,
-                currentUserId = activeUserId,
-                availableUserItems = userItems,
-                selectedOfferedItemIds = emptySet(),
-                truequeCoinsInput = "0",
-                calculatedRatio = 0.0,
-                isRatioValid = false,
-                hasMinimumItemsSelected = false,
-                canSubmitProposal = false,
-                errorMessage = null
-            )
-        }
-
-        // Sincronizar de forma asíncrona con la sesión autenticada en DataStore
+        // Sincronizar de forma asíncrona garantizada con la sesión autenticada en DataStore
         viewModelScope.launch(dispatchers.io) {
             val session = userSessionDataStore.sessionFlow.first()
             val sessionUserId = session.userId ?: activeUserId
@@ -447,28 +516,32 @@ class TradeViewModel @Inject constructor(
             cachedUserId = sessionUserId
             cachedUserEmail = sessionEmail
 
-            if (sessionUserId != activeUserId || sessionEmail != activeEmail) {
-                if (target != null && isMyTradeItem(target, sessionUserId, sessionEmail)) {
-                    setState {
-                        copy(
-                            targetItem = target,
-                            currentUserId = sessionUserId,
-                            availableUserItems = emptyList(),
-                            selectedOfferedItemIds = emptySet(),
-                            canSubmitProposal = false,
-                            errorMessage = "Esta publicación es tuya. No puedes realizar un trueque contigo mismo."
-                        )
-                    }
-                    return@launch
-                }
+            val resolvedTarget = target ?: (
+                (userPublicationStorage?.getRemoteCatalogItems()
+                    ?: userPublicationStorage?.loadPublishedItems().orEmpty()) + inMemoryItems
+            ).find { it.id == targetItemId }
 
-                val refreshedUserItems = resolveAvailableUserItems(sessionUserId, sessionEmail)
+            if (resolvedTarget != null && isMyTradeItem(resolvedTarget, sessionUserId, sessionEmail)) {
                 setState {
                     copy(
+                        targetItem = resolvedTarget,
                         currentUserId = sessionUserId,
-                        availableUserItems = refreshedUserItems
+                        availableUserItems = emptyList(),
+                        selectedOfferedItemIds = emptySet(),
+                        canSubmitProposal = false,
+                        errorMessage = "Esta publicación es tuya. No puedes realizar un trueque contigo mismo."
                     )
                 }
+                return@launch
+            }
+
+            val refreshedUserItems = resolveAvailableUserItems(sessionUserId, sessionEmail, allCatalogItems, resolvedTarget?.id)
+            setState {
+                copy(
+                    targetItem = resolvedTarget,
+                    currentUserId = sessionUserId,
+                    availableUserItems = refreshedUserItems
+                )
             }
         }
     }

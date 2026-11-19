@@ -211,7 +211,25 @@ def turso_read_table(table_name: str, prop_id: str = None) -> list:
 
 def turso_save_table(table_name: str, items: list, prop_id: str = None):
     """Guarda o actualiza registros en Turso con soporte para inserciones/actualizaciones."""
-    if not is_turso_configured() or not items:
+    if not is_turso_configured():
+        return
+
+    if not items:
+        # Si la lista está vacía, purgar la tabla correspondiente en Turso para mantener paridad
+        try:
+            if table_name == "catalogo":
+                execute_pipeline([{"sql": "DELETE FROM catalogo;"}])
+            elif table_name == "propuestas":
+                execute_pipeline([
+                    {"sql": "DELETE FROM propuestas;"},
+                    {"sql": "DELETE FROM chats;"}
+                ])
+            elif table_name == "usuarios":
+                execute_pipeline([{"sql": "DELETE FROM usuarios;"}])
+            elif table_name == "chats" and prop_id:
+                execute_pipeline([{"sql": "DELETE FROM chats WHERE propuesta_id = ?;", "args": [prop_id]}])
+        except Exception as e:
+            logger.warning(f"Error al limpiar tabla {table_name} vacía en Turso: {e}")
         return
 
     stmts = []

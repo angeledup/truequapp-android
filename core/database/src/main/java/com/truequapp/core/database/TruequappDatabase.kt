@@ -82,12 +82,13 @@ abstract class TruequappDatabase : RoomDatabase() {
         override fun onOpen(db: SupportSQLiteDatabase) {
             super.onOpen(db)
             try {
-                // Limpiar artículos, propuestas y chats de prueba/semilla
+                // Limpiar artículos, propuestas, chats y usuarios de prueba/semilla
                 db.execSQL("DELETE FROM items WHERE id LIKE 'item_chocolatt_%' OR id LIKE 'item_vergara_%' OR id LIKE 'item_00%' OR id LIKE 'item_user_%';")
                 db.execSQL("DELETE FROM ofertas_items WHERE id LIKE 'of_v2c_%' OR id LIKE 'of_c2v_%';")
                 db.execSQL("DELETE FROM trueques WHERE id LIKE 'prop_seed_%';")
                 db.execSQL("DELETE FROM trade_proposals WHERE id LIKE 'prop_seed_%';")
                 db.execSQL("DELETE FROM chat_mensajes WHERE id LIKE 'msg_v2c_%' OR id LIKE 'msg_c2v_%' OR trueque_id LIKE 'prop_seed_%';")
+                db.execSQL("DELETE FROM usuarios WHERE correo IN ('chocolattcorreo@gmail.com', 'Vergaracorreo@gmail.com', 'usuario@truequapp.com') OR usuario IN ('chocolatt', 'Vergara', 'usuario_demo');")
             } catch (e: Throwable) {
                 android.util.Log.e("TruequappDatabase", "Error en onOpen al actualizar datos", e)
             }
@@ -111,28 +112,6 @@ abstract class TruequappDatabase : RoomDatabase() {
                 db.execSQL(insertSafeZoneSql)
             } catch (e: Throwable) {
                 android.util.Log.e("TruequappDatabase", "Error al sembrar safe zones", e)
-            }
-
-            seedAdminAccounts(db)
-        }
-
-        private fun seedAdminAccounts(db: SupportSQLiteDatabase) {
-            try {
-                val now = System.currentTimeMillis()
-                // Inserción de Cuentas Administradores: chocolatt, Vergara con 10,000 TruequeCoins, demo y angeleduvr
-                val insertAdminsSql = """
-                    INSERT OR REPLACE INTO usuarios (correo, contrasena, usuario, numero_telefonico, cantidad_trueque_coins, trueques_realizados, calificacion)
-                    VALUES 
-                    ('chocolattcorreo@gmail.com', 'chocolatte', 'chocolatt', '+529211000001', 10000.0, 10, 5.0),
-                    ('Vergaracorreo@gmail.com', 'AngEduVr', 'Vergara', '+529211000002', 10000.0, 10, 5.0),
-                    ('usuario@truequapp.com', 'password123', 'usuario_demo', '+529210000000', 10000.0, 5, 4.8),
-                    ('angeleduvr@gmail.com', '123456', 'Admin_AEVR', '+529212404565', 100000000.0, 10, 10.0);
-                """.trimIndent()
-                db.execSQL(insertAdminsSql)
-                // Asegurar saldo de 10,000 TC
-                db.execSQL("UPDATE usuarios SET cantidad_trueque_coins = 10000.0 WHERE correo IN ('chocolattcorreo@gmail.com', 'Vergaracorreo@gmail.com', 'usuario@truequapp.com');")
-            } catch (e: Throwable) {
-                android.util.Log.e("TruequappDatabase", "Error al sembrar administradores", e)
             }
         }
     }

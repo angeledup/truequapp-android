@@ -226,7 +226,13 @@ fun CreateTradeProposalScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            text = "No tienes artículos disponibles en tu catálogo para ofrecer. Publica un artículo primero.",
+                            text = if (state.errorMessage?.contains("propia", ignoreCase = true) == true || 
+                                       state.errorMessage?.contains("contigo mismo", ignoreCase = true) == true ||
+                                       state.errorMessage?.contains("tuya", ignoreCase = true) == true) {
+                                "Esta publicación es tuya. En Truequapp no puedes hacer trueques contigo mismo. Ve al Catálogo y selecciona un artículo publicado por otro usuario para ofrecer tus publicaciones a cambio."
+                            } else {
+                                "No tienes artículos disponibles en tu catálogo para ofrecer. Publica un artículo primero."
+                            },
                             modifier = Modifier.padding(16.dp),
                             style = MaterialTheme.typography.bodyMedium
                         )

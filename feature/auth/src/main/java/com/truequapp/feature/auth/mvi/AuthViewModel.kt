@@ -36,79 +36,7 @@ class AuthViewModel @Inject constructor(
     private var countdownJob: Job? = null
 
     init {
-        ensureAdminAccountsSeeded()
         checkCurrentSession()
-    }
-
-    private fun ensureAdminAccountsSeeded() {
-        viewModelScope.launch(dispatchers.io) {
-            try {
-                val now = System.currentTimeMillis()
-                // Cuenta 1: chocolatt / chocolattcorreo@gmail.com / chocolatte
-                val existingChocolatt = userDao?.getUserByIdSync("usr_chocolatt")
-                    ?: userDao?.getUserByEmailSync("chocolattcorreo@gmail.com")
-                    ?: userDao?.getUserByIdentifierSync("chocolatt")
-                if (existingChocolatt == null) {
-                    userDao?.insertUser(
-                        UserEntity(
-                            id = "usr_chocolatt",
-                            email = "chocolattcorreo@gmail.com",
-                            name = "chocolatt",
-                            passwordHash = "chocolatte",
-                            phoneNumber = "+529211000001",
-                            authProvider = "EMAIL",
-                            isKycVerified = true,
-                            kycLevel = "TELEFONO_SMS_NIVEL_1",
-                            truequeCoins = 10000.0,
-                            escrowCoins = 0.0,
-                            bayesianRating = 4.9,
-                            ratingsCount = 15,
-                            attendanceRate = 1.0,
-                            obfuscatedNeighborhood = "Centro, Coatzacoalcos",
-                            city = "Coatzacoalcos",
-                            completedTrades = 0,
-                            createdAtEpochMs = now,
-                            lastLoginEpochMs = now
-                        )
-                    )
-                } else if (existingChocolatt.truequeCoins < 10000.0 || existingChocolatt.passwordHash != "chocolatte") {
-                    userDao?.updateUser(existingChocolatt.copy(truequeCoins = 10000.0, passwordHash = "chocolatte"))
-                }
-
-                // Cuenta 2: Vergara / Vergaracorreo@gmail.com / AngEduVr
-                val existingVergara = userDao?.getUserByIdSync("usr_vergara")
-                    ?: userDao?.getUserByEmailSync("Vergaracorreo@gmail.com")
-                    ?: userDao?.getUserByIdentifierSync("Vergara")
-                if (existingVergara == null) {
-                    userDao?.insertUser(
-                        UserEntity(
-                            id = "usr_vergara",
-                            email = "Vergaracorreo@gmail.com",
-                            name = "Vergara",
-                            passwordHash = "AngEduVr",
-                            phoneNumber = "+529211000002",
-                            authProvider = "EMAIL",
-                            isKycVerified = true,
-                            kycLevel = "TELEFONO_SMS_NIVEL_1",
-                            truequeCoins = 10000.0,
-                            escrowCoins = 0.0,
-                            bayesianRating = 4.9,
-                            ratingsCount = 14,
-                            attendanceRate = 1.0,
-                            obfuscatedNeighborhood = "Col. Petrolera, Coatzacoalcos",
-                            city = "Coatzacoalcos",
-                            completedTrades = 0,
-                            createdAtEpochMs = now,
-                            lastLoginEpochMs = now
-                        )
-                    )
-                } else if (existingVergara.truequeCoins < 10000.0 || existingVergara.passwordHash != "AngEduVr") {
-                    userDao?.updateUser(existingVergara.copy(truequeCoins = 10000.0, passwordHash = "AngEduVr"))
-                }
-            } catch (e: Throwable) {
-                android.util.Log.e("AuthViewModel", "Error al asegurar cuentas de administrador", e)
-            }
-        }
     }
 
     private fun checkCurrentSession() {
