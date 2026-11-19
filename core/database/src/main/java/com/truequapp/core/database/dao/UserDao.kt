@@ -47,6 +47,12 @@ interface UserDao {
     suspend fun updateUser(user: UserEntity)
 
     /**
+     * Actualiza las credenciales y datos principales (correo, usuario y contraseña) en la base de datos.
+     */
+    @Query("UPDATE usuarios SET correo = :newEmail, usuario = :newUsername, contrasena = :newPassword WHERE LOWER(correo) = LOWER(:oldEmail)")
+    suspend fun updateUserCredentials(oldEmail: String, newEmail: String, newUsername: String, newPassword: String): Int
+
+    /**
      * Consulta SQL para listar la totalidad de cuentas registradas en la base de datos local.
      */
     @Query("SELECT * FROM usuarios")

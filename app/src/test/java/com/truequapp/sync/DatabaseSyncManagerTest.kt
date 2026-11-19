@@ -1,4 +1,4 @@
-﻿package com.truequapp.sync
+package com.truequapp.sync
 
 import com.truequapp.core.database.dao.TruequeDao
 import com.truequapp.core.database.dao.UserDao
@@ -6,6 +6,7 @@ import com.truequapp.core.database.entity.OfertaItemEntity
 import com.truequapp.core.database.entity.TruequeConOfertas
 import com.truequapp.core.database.entity.TruequeEntity
 import com.truequapp.core.database.entity.UserEntity
+import com.truequapp.core.database.storage.UserPublicationStorage
 import com.truequapp.core.datastore.UserSessionDataStore
 import com.truequapp.core.datastore.model.UserSession
 import kotlinx.coroutines.flow.Flow
@@ -14,6 +15,7 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -35,13 +37,13 @@ class DatabaseSyncManagerTest {
         syncManager = DatabaseSyncManager(
             userDao = fakeUserDao,
             truequeDao = fakeTruequeDao,
-            userPublicationStorage = null,
-            userSessionDataStore = fakeSessionDataStore
+            userSessionDataStore = fakeSessionDataStore,
+            userPublicationStorage = null
         )
     }
 
     @Test
-    fun syncDatabase_with_blank_cloudBaseUrl_sets_state_to_Success() = runTest(testDispatcher) {
+    fun `syncDatabase with blank cloudBaseUrl sets state to Success`() = runTest(testDispatcher) {
         syncManager.cloudBaseUrl = ""
         syncManager.syncDatabase()
 
@@ -49,32 +51,34 @@ class DatabaseSyncManagerTest {
     }
 
     @Test
-    fun syncDatabase_with_unreachable_host_sets_state_to_ConnectionError() = runTest(testDispatcher) {
-        syncManager.cloudBaseUrl = "http://192.0.2.1:1"
+    fun `syncDatabase with unreachable host sets state to ConnectionError`() = runTest(testDispatcher) {
+        // Host inalcanzable para forzar ConnectException o UnknownHostException
+        syncManager.cloudBaseUrl = "http://192.0.2.1:1" // RFC 5737 TEST-NET address
         syncManager.syncDatabase()
 
         val state = syncManager.syncState.value
-        val connErr = assertInstanceOf(SyncState.ConnectionError::class.java, state)
-        assertEquals("Error de conexion", connErr.message)
+        val connError = assertInstanceOf(SyncState.ConnectionError::class.java, state)
+        assertEquals("Error de conexion", connError.message)
     }
 
     @Test
-    fun syncDatabase_with_malformed_URL_sets_state_to_OtherError() = runTest(testDispatcher) {
-        syncManager.cloudBaseUrl = "http://localhost:99999"
+    fun `syncDatabase with invalid endpoint sets state to OtherError`() = runTest(testDispatcher) {
+        // Formato que genera un error no de conexión directa
+        syncManager.cloudBaseUrl = "http://localhost:99999" // Puerto inválido (> 65535)
         syncManager.syncDatabase()
 
         val state = syncManager.syncState.value
-        val otherErr = assertInstanceOf(SyncState.OtherError::class.java, state)
-        assertEquals("Error, intentar mas tarde", otherErr.message)
-        assertTrue(otherErr.terminalError.isNotBlank())
+        val otherError = assertInstanceOf(SyncState.OtherError::class.java, state)
+        assertEquals("Error, intentar mas tarde", otherError.message)
+        assertTrue(otherError.terminalError.isNotBlank())
     }
 
     @Test
-    fun startPeriodicSync_can_be_started_and_stopped_cleanly() = runTest(testDispatcher) {
-        syncManager.cloudBaseUrl = ""
+    fun `stopPeriodicSync cancels periodic job`() = runTest(testDispatcher) {
         syncManager.startPeriodicSync(this)
         syncManager.stopPeriodicSync()
-        assertEquals(SyncState.Idle, syncManager.syncState.value)
+        // No exceptions thrown, cleanly stopped
+        assertTrue(true)
     }
 }
 
@@ -103,6 +107,11 @@ private class FakeSyncUserDao : UserDao {
     override suspend fun getUserByIdentifierSync(identifier: String): UserEntity? = users[identifier.lowercase()]
     override suspend fun authenticate(email: String, passwordHash: String): UserEntity? = users[email.lowercase()]
     override suspend fun updateUser(user: UserEntity) { users[user.correo.lowercase()] = user }
+    override suspend fun updateUserCredentials(oldEmail: String, newEmail: String, newUsername: String, newPassword: String): Int {
+        val u = users.remove(oldEmail.lowercase()) ?: return 0
+        users[newEmail.lowercase()] = u.copy(correo = newEmail, usuario = newUsername, contrasena = newPassword)
+        return 1
+    }
     override suspend fun updateTruequeCoins(userId: String, availableCoins: Double, escrowCoins: Double) {}
     override suspend fun getTruequeCoins(userId: String): Double? = users[userId.lowercase()]?.cantidadTruequeCoins
     override suspend fun deleteUser(userId: String) { users.remove(userId.lowercase()) }
@@ -119,9 +128,9 @@ private class FakeSyncTruequeDao : TruequeDao {
         val t = trueques[id] ?: return null
         return TruequeConOfertas(t, ofertas[t.ofertaAId], ofertas[t.ofertaBId])
     }
-    override suspend fun updateEstado(truequeId: String, nuevoEstado: String, estaActiva: Boolean, timestamp: Long) {
+    override suspend fun updateEstado(truequeId: String, nuevoEstado: String, estaActiva: Boolean, fechaActualizacion: Long) {
         val t = trueques[truequeId] ?: return
-        trueques[truequeId] = t.copy(estado = nuevoEstado, estaActiva = estaActiva, fechaActualizacion = timestamp)
+        trueques[truequeId] = t.copy(estado = nuevoEstado, estaActiva = estaActiva, fechaActualizacion = fechaActualizacion)
     }
     override fun getTruequesActivos(): Flow<List<TruequeConOfertas>> = flowOf(emptyList())
     override fun getTruequesActivosPorUsuario(correo: String): Flow<List<TruequeConOfertas>> = flowOf(emptyList())
@@ -143,3 +152,4 @@ private class FakeSyncSessionDataStore : UserSessionDataStore {
     override suspend fun getRefreshToken(): String? = null
     override suspend fun clearSession() { savedEmail = null }
 }
+

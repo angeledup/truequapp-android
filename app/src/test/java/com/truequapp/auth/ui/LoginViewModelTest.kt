@@ -198,6 +198,11 @@ private class FakeLoginUserDao : UserDao {
     override suspend fun getUserByIdentifierSync(identifier: String): UserEntity? = users[identifier.lowercase()]
     override suspend fun authenticate(email: String, passwordHash: String): UserEntity? = users[email.lowercase()]
     override suspend fun updateUser(user: UserEntity) { users[user.correo.lowercase()] = user }
+    override suspend fun updateUserCredentials(oldEmail: String, newEmail: String, newUsername: String, newPassword: String): Int {
+        val u = users.remove(oldEmail.lowercase()) ?: return 0
+        users[newEmail.lowercase()] = u.copy(correo = newEmail, usuario = newUsername, contrasena = newPassword)
+        return 1
+    }
     override suspend fun updateTruequeCoins(userId: String, availableCoins: Double, escrowCoins: Double) {}
     override suspend fun getTruequeCoins(userId: String): Double? = users[userId.lowercase()]?.cantidadTruequeCoins
     override suspend fun deleteUser(userId: String) { users.remove(userId.lowercase()) }

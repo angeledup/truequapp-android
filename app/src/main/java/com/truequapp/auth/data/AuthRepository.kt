@@ -25,6 +25,13 @@ sealed interface RegisterResult {
     data class ValidationError(val message: String) : RegisterResult
 }
 
+sealed interface UpdateProfileResult {
+    data class Success(val updatedUser: UserEntity) : UpdateProfileResult
+    data class EmailAlreadyExists(val message: String = "El correo ya se encuentra registrado por otra cuenta") : UpdateProfileResult
+    data class ValidationError(val message: String) : UpdateProfileResult
+    data class Error(val message: String) : UpdateProfileResult
+}
+
 @Singleton
 class AuthRepository @Inject constructor(
     private val userDao: UserDao,
@@ -259,6 +266,126 @@ class AuthRepository @Inject constructor(
 
     fun observeUserByEmail(correo: String): Flow<UserEntity?> {
         return userDao.observeUserByEmail(correo)
+    }
+
+    /**
+     * Modifica el nombre de usuario, contraseña y correo registrado (Ajustes de cuenta).
+     * Valida unicidad contra la base de datos en la nube (Turso) y actualiza Room y DataStore.
+     */
+    suspend fun updateProfile(
+        currentEmail: String,
+        newUsername: String,
+        newPassword: String,
+        newEmail: String
+    ): UpdateProfileResult {
+        val trimmedCurrEmail = currentEmail.trim()
+        val trimmedUser = newUsername.trim()
+        val trimmedEmail = newEmail.trim()
+
+        if (trimmedUser.isBlank()) {
+            return UpdateProfileResult.ValidationError("Ingresa un nombre de usuario")
+        }
+        if (trimmedEmail.isBlank()) {
+            return UpdateProfileResult.ValidationError("Ingresa un correo electrónico")
+        }
+        if (!trimmedEmail.contains("@") || !trimmedEmail.contains(".")) {
+            return UpdateProfileResult.ValidationError("Ingresa un correo electrónico válido")
+        }
+        if (newPassword.isBlank()) {
+            return UpdateProfileResult.ValidationError("Ingresa una contraseña")
+        }
+        if (newPassword.length < 4) {
+            return UpdateProfileResult.ValidationError("La contraseña debe tener al menos 4 caracteres")
+        }
+
+        // 1. Validar y actualizar en la base de datos central (Turso / Cloud)
+        if (cloudBaseUrl.isNotBlank()) {
+            try {
+                val url = java.net.URL("${cloudBaseUrl.trimEnd('/')}/api/usuarios/update")
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.connectTimeout = 4500
+                conn.readTimeout = 4500
+                conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conn.doOutput = true
+
+                val json = org.json.JSONObject().apply {
+                    put("currentEmail", trimmedCurrEmail)
+                    put("newEmail", trimmedEmail)
+                    put("newUsername", trimmedUser)
+                    put("newPassword", newPassword)
+                }
+                conn.outputStream.use { os ->
+                    os.write(json.toString().toByteArray(Charsets.UTF_8))
+                }
+
+                val responseCode = conn.responseCode
+                if (responseCode == 409) {
+                    conn.disconnect()
+                    return UpdateProfileResult.EmailAlreadyExists("El correo ya se encuentra registrado por otra cuenta en la base de datos")
+                } else if (responseCode !in 200..299) {
+                    val err = conn.errorStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+                    conn.disconnect()
+                    return UpdateProfileResult.Error("Error al actualizar en la nube: $err")
+                }
+                conn.disconnect()
+            } catch (_: Throwable) {
+                // Modo offline / fallo de red
+            }
+        }
+
+        // 2. Validación local si el correo cambia
+        if (!trimmedCurrEmail.equals(trimmedEmail, ignoreCase = true)) {
+            val existsLocal = userDao.countByEmail(trimmedEmail) > 0
+            if (existsLocal) {
+                return UpdateProfileResult.EmailAlreadyExists()
+            }
+        }
+
+        // 3. Persistir en la base de datos local (Room)
+        val existingUser = userDao.getUserByEmail(trimmedCurrEmail)
+        val rowsUpdated = userDao.updateUserCredentials(
+            oldEmail = trimmedCurrEmail,
+            newEmail = trimmedEmail,
+            newUsername = trimmedUser,
+            newPassword = newPassword
+        )
+
+        val updatedUser = if (rowsUpdated > 0) {
+            userDao.getUserByEmail(trimmedEmail) ?: existingUser?.copy(
+                correo = trimmedEmail,
+                usuario = trimmedUser,
+                contrasena = newPassword
+            )
+        } else {
+            val newUser = existingUser?.copy(
+                correo = trimmedEmail,
+                usuario = trimmedUser,
+                contrasena = newPassword
+            ) ?: UserEntity(
+                correo = trimmedEmail,
+                contrasena = newPassword,
+                usuario = trimmedUser,
+                numeroTelefonico = ""
+            )
+            userDao.insertUser(newUser)
+            newUser
+        }
+
+        // 4. Actualizar la sesión activa en DataStore para mantener sincronía
+        if (updatedUser != null) {
+            userSessionDataStore.saveUser(
+                userId = updatedUser.usuario,
+                email = updatedUser.correo,
+                isKycVerified = true,
+                name = updatedUser.usuario,
+                photoUrl = null,
+                authProvider = "local"
+            )
+            return UpdateProfileResult.Success(updatedUser)
+        }
+
+        return UpdateProfileResult.Error("No se pudo actualizar el perfil en la base de datos local")
     }
 
     /**
