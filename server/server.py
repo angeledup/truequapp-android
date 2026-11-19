@@ -287,12 +287,25 @@ class TruequappRequestHandler(BaseHTTPRequestHandler):
             password = body.get("password", "")
             users = read_json_file(USUARIOS_FILE)
 
-            user = next((u for u in users if (u.get("email", "").lower() == identifier or u.get("name", "").lower() == identifier) and u.get("passwordHash") == password), None)
-            if user:
-                safe_user = {k: v for k, v in user.items() if k != "passwordHash"}
-                self._send_json({"success": True, "user": safe_user})
-            else:
-                self._send_json({"success": False, "error": "Credenciales inválidas"}, 401)
+            user = next((u for u in users if (u.get("email", "").lower() == identifier or u.get("name", "").lower() == identifier)), None)
+            if not user:
+                self._send_json({
+                    "success": False,
+                    "error": "USER_NOT_FOUND",
+                    "message": "No hay una cuenta vinculada con el correo o usuario en la base de datos"
+                }, 404)
+                return
+
+            if user.get("passwordHash") != password:
+                self._send_json({
+                    "success": False,
+                    "error": "INVALID_PASSWORD",
+                    "message": "Contraseña incorrecta"
+                }, 401)
+                return
+
+            safe_user = {k: v for k, v in user.items() if k != "passwordHash"}
+            self._send_json({"success": True, "user": safe_user})
             return
 
         # 2. Registrar o Sincronizar Usuario

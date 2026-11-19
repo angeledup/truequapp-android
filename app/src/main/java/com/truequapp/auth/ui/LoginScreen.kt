@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -37,6 +38,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -94,6 +96,58 @@ fun LoginScreen(
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() }
 ) {
     val focusManager = LocalFocusManager.current
+
+    if (state.showRegisterPromptDialog) {
+        AlertDialog(
+            onDismissRequest = { onEvent(LoginUiEvent.DismissRegisterPromptDialog) },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.ErrorOutline,
+                    contentDescription = null,
+                    tint = TruequappTheme.colorScheme.primary,
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "Cuenta no registrada",
+                    style = TruequappTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = TruequappTheme.colorScheme.onSurface
+                )
+            },
+            text = {
+                Text(
+                    text = "No se encontró ninguna cuenta vinculada a '${state.unconfirmedEmail.ifBlank { state.email }}' en la base de datos.\n\n¿Deseas continuar con el protocolo de registro de una cuenta nueva?",
+                    style = TruequappTheme.typography.bodyMedium,
+                    color = TruequappTheme.colorScheme.onSurfaceVariant
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { onEvent(LoginUiEvent.ConfirmProceedToRegister) }
+                ) {
+                    Text(
+                        text = "Continuar con Registro",
+                        color = TruequappTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { onEvent(LoginUiEvent.DismissRegisterPromptDialog) }
+                ) {
+                    Text(
+                        text = "Cancelar",
+                        color = TruequappTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            containerColor = TruequappTheme.colorScheme.surface,
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },

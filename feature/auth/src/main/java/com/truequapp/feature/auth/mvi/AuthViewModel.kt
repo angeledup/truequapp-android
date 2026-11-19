@@ -247,59 +247,8 @@ class AuthViewModel @Inject constructor(
      */
     private suspend fun validateAccountWithDatabase(identifier: String, password: String): AccountValidationResult {
         val trimmed = identifier.trim()
-        var user = userDao?.getUserByIdentifierSync(trimmed)
+        val user = userDao?.getUserByIdentifierSync(trimmed)
             ?: userDao?.getUserByEmailSync(trimmed)
-
-        // Respaldo de inicialización inmediata si se introduce chocolatt o Vergara
-        val lower = trimmed.lowercase()
-        if (user == null) {
-            val now = System.currentTimeMillis()
-            if (lower == "chocolatt" || lower == "chocolattcorreo@gmail.com") {
-                val admin = UserEntity(
-                    id = "usr_chocolatt",
-                    email = "chocolattcorreo@gmail.com",
-                    name = "chocolatt",
-                    passwordHash = "chocolatte",
-                    phoneNumber = "+529211000001",
-                    authProvider = "EMAIL",
-                    isKycVerified = true,
-                    kycLevel = "TELEFONO_SMS_NIVEL_1",
-                    truequeCoins = 10000.0,
-                    escrowCoins = 0.0,
-                    bayesianRating = 4.9,
-                    ratingsCount = 15,
-                    attendanceRate = 1.0,
-                    obfuscatedNeighborhood = "Centro, Coatzacoalcos",
-                    city = "Coatzacoalcos",
-                    createdAtEpochMs = now,
-                    lastLoginEpochMs = now
-                )
-                userDao?.insertUser(admin)
-                user = admin
-            } else if (lower == "vergara" || lower == "vergaracorreo@gmail.com") {
-                val admin = UserEntity(
-                    id = "usr_vergara",
-                    email = "Vergaracorreo@gmail.com",
-                    name = "Vergara",
-                    passwordHash = "AngEduVr",
-                    phoneNumber = "+529211000002",
-                    authProvider = "EMAIL",
-                    isKycVerified = true,
-                    kycLevel = "TELEFONO_SMS_NIVEL_1",
-                    truequeCoins = 10000.0,
-                    escrowCoins = 0.0,
-                    bayesianRating = 4.9,
-                    ratingsCount = 14,
-                    attendanceRate = 1.0,
-                    obfuscatedNeighborhood = "Col. Petrolera, Coatzacoalcos",
-                    city = "Coatzacoalcos",
-                    createdAtEpochMs = now,
-                    lastLoginEpochMs = now
-                )
-                userDao?.insertUser(admin)
-                user = admin
-            }
-        }
 
         if (user == null) {
             return AccountValidationResult.UserNotFound
