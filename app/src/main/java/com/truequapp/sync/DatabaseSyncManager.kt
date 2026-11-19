@@ -1,4 +1,4 @@
-﻿package com.truequapp.sync
+package com.truequapp.sync
 
 import android.util.Log
 import com.truequapp.core.database.dao.TruequeDao
@@ -48,8 +48,8 @@ sealed interface SyncState {
 class DatabaseSyncManager @Inject constructor(
     private val userDao: UserDao,
     private val truequeDao: TruequeDao,
-    private val userPublicationStorage: UserPublicationStorage? = null,
-    private val userSessionDataStore: UserSessionDataStore
+    private val userSessionDataStore: UserSessionDataStore,
+    private val userPublicationStorage: UserPublicationStorage? = null
 ) {
 
     var cloudBaseUrl: String = "https://truequapp-pi.vercel.app"
@@ -109,8 +109,11 @@ class DatabaseSyncManager @Inject constructor(
             _syncState.value = SyncState.Success
         } catch (t: Throwable) {
             val terminalMessage = formatTerminalError(t)
-            try { Log.e("DatabaseSync", "Fallo en sincronización periódica (15s):\n$terminalMessage", t) } catch (_: Throwable) {}
-            System.err.println("[DatabaseSync ERROR] $terminalMessage")
+            try {
+                Log.e("DatabaseSync", "Fallo en sincronización periódica (15s):\n$terminalMessage", t)
+            } catch (_: Throwable) {
+                System.err.println("[DatabaseSync ERROR] $terminalMessage")
+            }
 
             if (isConnectionException(t)) {
                 _syncState.value = SyncState.ConnectionError("Error de conexion")

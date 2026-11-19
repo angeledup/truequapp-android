@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Email
@@ -25,6 +26,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Button
@@ -56,7 +58,8 @@ import kotlinx.coroutines.flow.Flow
 @Composable
 fun ProfileRoute(
     viewModel: ProfileViewModel,
-    onLogoutSuccess: () -> Unit
+    onLogoutSuccess: () -> Unit,
+    onNavigateToSettings: () -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -74,14 +77,16 @@ fun ProfileRoute(
 
     ProfileScreen(
         state = state,
-        onLogout = { viewModel.onEvent(ProfileUiEvent.Logout) }
+        onLogout = { viewModel.onEvent(ProfileUiEvent.Logout) },
+        onNavigateToSettings = onNavigateToSettings
     )
 }
 
 @Composable
 fun ProfileScreen(
     state: ProfileUiState,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onNavigateToSettings: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
 
@@ -114,6 +119,62 @@ fun ProfileScreen(
 
                     // Información Detallada de la Cuenta (Columnas SQL)
                     AccountDetailsSection(user = state.user)
+
+                    // Apartado de Ajustes (Modificar nombre de usuario, contraseña y correo registrado)
+                    Card(
+                        onClick = onNavigateToSettings,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = TruequappTheme.colorScheme.surfaceVariant
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(CircleShape)
+                                    .background(TruequappTheme.colorScheme.primaryContainer),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Settings,
+                                    contentDescription = "Ajustes",
+                                    tint = TruequappTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(14.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Ajustes",
+                                    style = TruequappTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TruequappTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = "Modificar usuario, contraseña y correo",
+                                    style = TruequappTheme.typography.bodySmall,
+                                    color = TruequappTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                )
+                            }
+
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                                contentDescription = "Ir a Ajustes",
+                                tint = TruequappTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(8.dp))
 

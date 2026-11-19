@@ -54,6 +54,8 @@ import com.truequapp.feature.trade.ui.TradeListScreen
 import com.truequapp.feature.trade.ui.TradeNegotiationScreen
 import com.truequapp.profile.ui.ProfileRoute
 import com.truequapp.profile.ui.ProfileViewModel
+import com.truequapp.profile.ui.SettingsRoute
+import com.truequapp.profile.ui.SettingsViewModel
 import com.truequapp.sync.SyncViewModel
 import com.truequapp.sync.ui.SyncStatusBanner
 
@@ -438,7 +440,19 @@ fun TruequappNavHost(
                         navController.navigate(Screen.Login.route) {
                             popUpTo(0) { inclusive = true }
                         }
+                    },
+                    onNavigateToSettings = {
+                        navController.navigate(Screen.Settings.route)
                     }
+                )
+            }
+
+            // Apartado de Ajustes (Modificar nombre de usuario, contraseña y correo registrado)
+            composable(Screen.Settings.route) {
+                val settingsViewModel: SettingsViewModel = hiltViewModel()
+                SettingsRoute(
+                    viewModel = settingsViewModel,
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
         }

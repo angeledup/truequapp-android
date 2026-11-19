@@ -333,6 +333,11 @@ class TruequappRequestHandler(BaseHTTPRequestHandler):
             self._send_json({"success": True, "message": "Usuario registrado exitosamente en la base de datos", "user": safe_u}, 201)
             return
 
+        # 1.6 Actualizar Ajustes de Usuario (Nombre, Contraseña, Correo)
+        if path == "/api/usuarios/update" or path == "/api/usuarios/profile":
+            self._handle_user_update(body)
+            return
+
         # 2. Registrar o Sincronizar Usuario
         if path == "/api/usuarios/sync" or path == "/api/usuarios":
             users = read_json_file(USUARIOS_FILE)
@@ -473,6 +478,73 @@ class TruequappRequestHandler(BaseHTTPRequestHandler):
 
         self._send_json({"error": f"Ruta POST {path} no encontrada"}, 404)
 
+    def _handle_user_update(self, body):
+        users = read_json_file(USUARIOS_FILE)
+        curr_email = body.get("currentEmail", "").strip().lower()
+        new_email = body.get("newEmail", "").strip().lower()
+        new_username = body.get("newUsername", "").strip()
+        new_password = body.get("newPassword", "").strip()
+
+        if not curr_email:
+            self._send_json({"error": "currentEmail es requerido"}, 400)
+            return
+
+        user_idx = next((i for i, u in enumerate(users) if (u.get("email") or u.get("correo") or "").lower() == curr_email), -1)
+        if user_idx < 0:
+            self._send_json({"error": "USER_NOT_FOUND", "message": "Usuario no encontrado"}, 404)
+            return
+
+        # Si el correo cambia, validar que no esté ocupado por otra cuenta
+        if new_email and new_email != curr_email:
+            conflict = next((u for i, u in enumerate(users) if i != user_idx and (u.get("email") or u.get("correo") or "").lower() == new_email), None)
+            if conflict:
+                self._send_json({
+                    "error": "EMAIL_ALREADY_EXISTS",
+                    "message": "El correo ya se encuentra registrado por otra cuenta"
+                }, 409)
+                return
+
+        target_user = users[user_idx]
+        if new_email:
+            target_user["email"] = new_email
+            target_user["correo"] = new_email
+        if new_username:
+            target_user["name"] = new_username
+            target_user["usuario"] = new_username
+        if new_password:
+            target_user["passwordHash"] = new_password
+            target_user["contrasena"] = new_password
+
+        users[user_idx] = target_user
+        write_json_file(USUARIOS_FILE, users)
+
+        # Sincronización atómica directa en Turso si cambió el correo
+        if new_email and new_email != curr_email and turso_client.is_turso_configured():
+            try:
+                turso_client.execute_pipeline([
+                    {
+                        "sql": "UPDATE usuarios SET correo = ?, usuario = ?, contrasena = ? WHERE correo = ?;",
+                        "args": [new_email, target_user.get("usuario") or target_user.get("name"), target_user.get("contrasena") or target_user.get("passwordHash"), curr_email]
+                    },
+                    {
+                        "sql": "UPDATE catalogo SET dueno_correo = ? WHERE dueno_correo = ?;",
+                        "args": [new_email, curr_email]
+                    },
+                    {
+                        "sql": "UPDATE propuestas SET usuario_a_correo = ? WHERE usuario_a_correo = ?;",
+                        "args": [new_email, curr_email]
+                    },
+                    {
+                        "sql": "UPDATE propuestas SET usuario_b_correo = ? WHERE usuario_b_correo = ?;",
+                        "args": [new_email, curr_email]
+                    }
+                ])
+            except Exception as e:
+                print(f"[Turso Warning] Error al actualizar correo en Turso: {e}")
+
+        safe_u = {k: v for k, v in target_user.items() if k not in ("passwordHash", "contrasena")}
+        self._send_json({"success": True, "message": "Ajustes de usuario actualizados correctamente", "user": safe_u})
+
     def do_PUT(self):
         parsed = urlparse(self.path)
         query = parse_qs(parsed.query)
@@ -485,6 +557,11 @@ class TruequappRequestHandler(BaseHTTPRequestHandler):
             if path.startswith("/api/index.py"):
                 path = path[len("/api/index.py"):] or "/"
         body = self._read_body()
+
+        # Actualizar Ajustes de Usuario (Nombre, Contraseña, Correo)
+        if path == "/api/usuarios/update" or path == "/api/usuarios/profile":
+            self._handle_user_update(body)
+            return
 
         # Actualizar estado de una propuesta (Aceptar, Contraofertar, Rechazar, Cancelar)
         if path.startswith("/api/trueques/") and path.endswith("/status"):

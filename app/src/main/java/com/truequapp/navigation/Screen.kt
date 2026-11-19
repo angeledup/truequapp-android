@@ -37,4 +37,5 @@ sealed class Screen(val route: String, val title: String) {
     data object AccountDeletion : Screen("account_deletion", "Baja de Cuenta")
     data object Reports : Screen("reports", "Panel de Liquidez")
     data object Profile : Screen("profile", "Mi Perfil")
+    data object Settings : Screen("settings", "Ajustes")
 }
