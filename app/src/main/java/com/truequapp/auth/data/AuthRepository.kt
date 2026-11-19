@@ -2,7 +2,9 @@ package com.truequapp.auth.data
 
 import com.truequapp.core.database.dao.UserDao
 import com.truequapp.core.database.entity.UserEntity
+import com.truequapp.core.datastore.DatabaseValidationModeManager
 import com.truequapp.core.datastore.UserSessionDataStore
+import com.truequapp.core.datastore.model.DatabaseValidationMode
 import com.truequapp.core.datastore.model.UserSession
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -35,10 +37,14 @@ sealed interface UpdateProfileResult {
 @Singleton
 class AuthRepository @Inject constructor(
     private val userDao: UserDao,
-    private val userSessionDataStore: UserSessionDataStore
+    private val userSessionDataStore: UserSessionDataStore,
+    private val validationModeManager: DatabaseValidationModeManager? = null
 ) {
 
     var cloudBaseUrl: String = "https://truequapp-pi.vercel.app"
+
+    val isOnlineMode: Boolean
+        get() = (validationModeManager?.getValidationMode() ?: DatabaseValidationMode.DB_ONLINE) == DatabaseValidationMode.DB_ONLINE
 
     val currentSessionFlow: Flow<UserSession> get() = userSessionDataStore.sessionFlow
 
@@ -57,13 +63,13 @@ class AuthRepository @Inject constructor(
             return LoginResult.ValidationError("Por favor ingresa tu contraseña")
         }
 
-        // 1. Validar primero contra la base de datos en la nube (Turso vía Vercel)
+        // 1. Validar primero contra la base de datos en la nube (Turso vía Vercel) si estamos en modo db-Online
         var cloudAttempted = false
         var cloudUserNotFound = false
         var cloudInvalidPassword = false
         var cloudUserEntity: UserEntity? = null
 
-        if (cloudBaseUrl.isNotBlank()) {
+        if (isOnlineMode && cloudBaseUrl.isNotBlank()) {
             try {
                 val url = java.net.URL("${cloudBaseUrl.trimEnd('/')}/api/usuarios/login")
                 val conn = url.openConnection() as java.net.HttpURLConnection
@@ -197,8 +203,8 @@ class AuthRepository @Inject constructor(
             return RegisterResult.ValidationError("La contraseña debe tener al menos 4 caracteres")
         }
 
-        // 1. Validar existencia previa directamente con la base de datos central en la nube (Turso)
-        if (cloudBaseUrl.isNotBlank()) {
+        // 1. Validar existencia previa directamente con db-Online (Turso) si estamos en modo online
+        if (isOnlineMode && cloudBaseUrl.isNotBlank()) {
             try {
                 val url = java.net.URL("${cloudBaseUrl.trimEnd('/')}/api/usuarios/register")
                 val conn = url.openConnection() as java.net.HttpURLConnection
@@ -298,8 +304,8 @@ class AuthRepository @Inject constructor(
             return UpdateProfileResult.ValidationError("La contraseña debe tener al menos 4 caracteres")
         }
 
-        // 1. Validar y actualizar en la base de datos central (Turso / Cloud)
-        if (cloudBaseUrl.isNotBlank()) {
+        // 1. Validar y actualizar en db-Online (Turso) si estamos en modo online
+        if (isOnlineMode && cloudBaseUrl.isNotBlank()) {
             try {
                 val url = java.net.URL("${cloudBaseUrl.trimEnd('/')}/api/usuarios/update")
                 val conn = url.openConnection() as java.net.HttpURLConnection

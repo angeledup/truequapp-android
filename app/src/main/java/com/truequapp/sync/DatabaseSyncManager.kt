@@ -60,14 +60,15 @@ class DatabaseSyncManager @Inject constructor(
     private var syncJob: Job? = null
 
     /**
-     * Inicia el ciclo periódico de actualización de la base de datos local cada 15 segundos.
+     * Inicia el ciclo periódico de actualización de la base de datos local cada 5 segundos.
+     * En la primera iteración ejecuta inmediatamente una descarga completa de todo db-Online.
      */
     fun startPeriodicSync(scope: CoroutineScope) {
         if (syncJob?.isActive == true) return
         syncJob = scope.launch {
             while (isActive) {
                 syncDatabase()
-                delay(15_000L) // 15 segundos exactos
+                delay(5_000L) // 5 segundos exactos
             }
         }
     }
@@ -106,11 +107,14 @@ class DatabaseSyncManager @Inject constructor(
             // 3. Sincronizar Datos de Usuario y Balance de Monedas
             syncActiveUserFromCloud()
 
+            // 4. Reconciliar propuestas en espera de validación (Outbox: Enviando -> Pendiente)
+            reconcilePendingTradeProposals()
+
             _syncState.value = SyncState.Success
         } catch (t: Throwable) {
             val terminalMessage = formatTerminalError(t)
             try {
-                Log.e("DatabaseSync", "Fallo en sincronización periódica (15s):\n$terminalMessage", t)
+                Log.e("DatabaseSync", "Fallo en sincronización periódica (5s):\n$terminalMessage", t)
             } catch (_: Throwable) {
                 System.err.println("[DatabaseSync ERROR] $terminalMessage")
             }
@@ -290,6 +294,115 @@ class DatabaseSyncManager @Inject constructor(
         val lines = full.lines().filter { it.isNotBlank() }
         val topLines = lines.take(3).joinToString("\n")
         return topLines.ifBlank { "${t.javaClass.simpleName}: ${t.localizedMessage ?: "Unknown error"}" }
+    }
+
+    /**
+     * Reconcilia propuestas creadas en db-Local que están en espera ('ENVIANDO').
+     * Verifica la disponibilidad de la publicación objetivo en db-Online antes de pasarla a 'PENDIENTE'
+     * o a 'CONFLICTO_NO_DISPONIBLE'.
+     */
+    private suspend fun reconcilePendingTradeProposals() {
+        val enviandoProposals = try {
+            truequeDao.getTruequesEnviando()
+        } catch (_: Throwable) {
+            emptyList()
+        }
+
+        if (enviandoProposals.isEmpty()) return
+
+        for (item in enviandoProposals) {
+            val proposal = item.trueque
+            val targetItemId = item.ofertaB?.articulosIds.orEmpty()
+
+            val isTargetAvailable = checkTargetItemAvailability(targetItemId)
+            if (isTargetAvailable) {
+                val registeredInCloud = uploadTradeProposalToCloud(item)
+                if (registeredInCloud) {
+                    truequeDao.updateEstado(
+                        truequeId = proposal.id,
+                        nuevoEstado = "PENDIENTE",
+                        estaActiva = true
+                    )
+                }
+            } else {
+                truequeDao.updateEstado(
+                    truequeId = proposal.id,
+                    nuevoEstado = "CONFLICTO_NO_DISPONIBLE",
+                    estaActiva = false
+                )
+            }
+        }
+    }
+
+    private fun checkTargetItemAvailability(itemId: String): Boolean {
+        if (itemId.isBlank()) return true
+        val endpoint = "${cloudBaseUrl.trimEnd('/')}/api/catalogo"
+        return try {
+            val conn = URL(endpoint).openConnection() as HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.connectTimeout = 4000
+            conn.readTimeout = 4000
+            conn.setRequestProperty("Accept", "application/json")
+            if (conn.responseCode == 200) {
+                val text = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                val array = JSONArray(text)
+                var found = false
+                var isAvailable = false
+                for (i in 0 until array.length()) {
+                    val obj = array.optJSONObject(i) ?: continue
+                    if (obj.optString("id") == itemId) {
+                        found = true
+                        val status = obj.optString("status", "DISPONIBLE")
+                        isAvailable = status.equals("DISPONIBLE", ignoreCase = true)
+                        break
+                    }
+                }
+                conn.disconnect()
+                if (found) isAvailable else false
+            } else {
+                conn.disconnect()
+                true
+            }
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    private fun uploadTradeProposalToCloud(item: com.truequapp.core.database.entity.TruequeConOfertas): Boolean {
+        val endpoint = "${cloudBaseUrl.trimEnd('/')}/api/trueques"
+        return try {
+            val conn = URL(endpoint).openConnection() as HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.connectTimeout = 4000
+            conn.readTimeout = 4000
+            conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            conn.doOutput = true
+
+            val offeredIds = item.ofertaA?.articulosIds?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
+            val coins = item.ofertaA?.truequeCoins ?: 0.0
+
+            val json = JSONObject().apply {
+                put("id", item.trueque.id)
+                put("initiatorUserId", item.trueque.usuarioACorreo)
+                put("initiatorEmail", item.trueque.usuarioACorreo)
+                put("receiverUserId", item.trueque.usuarioBCorreo)
+                put("receiverEmail", item.trueque.usuarioBCorreo)
+                put("offeredItemIds", JSONArray(offeredIds))
+                put("targetItemId", item.ofertaB?.articulosIds.orEmpty())
+                put("monetaryCompensationCoins", coins)
+                put("status", "PENDIENTE")
+                put("esta_activa", true)
+            }
+
+            conn.outputStream.use { os ->
+                os.write(json.toString().toByteArray(Charsets.UTF_8))
+            }
+            val code = conn.responseCode
+            conn.disconnect()
+            code in 200..299
+        } catch (_: Throwable) {
+            false
+        }
     }
 }
 

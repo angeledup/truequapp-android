@@ -65,7 +65,9 @@ class ValidateDirectChatAccessUseCase {
             }
 
             TradeStatus.EN_DISPUTA -> ChatAccessPermission.PERMITIDO_ESCRITURA_Y_LECTURA
-            TradeStatus.EXPIRADO -> ChatAccessPermission.DENEGADO
+            TradeStatus.EXPIRADO,
+            TradeStatus.ENVIANDO,
+            TradeStatus.CONFLICTO_NO_DISPONIBLE -> ChatAccessPermission.DENEGADO
         }
     }
 }

@@ -4,6 +4,8 @@ import com.truequapp.core.database.dao.TruequeDao
 import com.truequapp.core.database.entity.OfertaItemEntity
 import com.truequapp.core.database.entity.TruequeConOfertas
 import com.truequapp.core.database.entity.TruequeEntity
+import com.truequapp.core.datastore.DatabaseValidationModeManager
+import com.truequapp.core.datastore.model.DatabaseValidationMode
 import com.truequapp.core.domain.model.TradeModality
 import com.truequapp.core.domain.model.TradeProposal
 import com.truequapp.core.domain.model.TradeStatus
@@ -21,17 +23,23 @@ import javax.inject.Singleton
  */
 @Singleton
 class TradeRepository @Inject constructor(
-    private val truequeDao: TruequeDao
+    private val truequeDao: TruequeDao,
+    private val validationModeManager: DatabaseValidationModeManager? = null
 ) {
 
     /**
      * Registra una nueva propuesta de trueque guardando Oferta A, Oferta B y el Trueque central.
+     * Si está en modo db-Local, la propuesta inicia en estado 'ENVIANDO' en espera de validación con el servidor.
      */
     suspend fun saveProposal(
         proposal: TradeProposal,
         userACorreo: String,
         userBCorreo: String
     ): TruequeConOfertas {
+        val isLocalMode = validationModeManager?.getValidationMode() == DatabaseValidationMode.DB_LOCAL
+        val initialStatus = if (isLocalMode) TradeStatus.ENVIANDO.name else proposal.status.name
+        val initialActive = if (isLocalMode) false else proposal.estaActiva
+
         val ofertaA = OfertaItemEntity(
             id = "of_a_${proposal.id}",
             usuarioCorreo = userACorreo,
@@ -52,8 +60,8 @@ class TradeRepository @Inject constructor(
             ofertaAId = ofertaA.id,
             usuarioBCorreo = userBCorreo,
             ofertaBId = ofertaB.id,
-            estado = proposal.status.name,
-            estaActiva = proposal.estaActiva,
+            estado = initialStatus,
+            estaActiva = initialActive,
             fechaCreacion = proposal.createdAtEpochMs,
             fechaActualizacion = System.currentTimeMillis()
         )
@@ -62,35 +70,37 @@ class TradeRepository @Inject constructor(
         truequeDao.insertOfertaItem(ofertaB)
         truequeDao.insertTrueque(trueque)
 
-        // Sincronizar en la nube con Vercel y Turso
-        val cloudUrl = "https://truequapp-pi.vercel.app/api/trueques"
-        java.util.concurrent.Executors.newSingleThreadExecutor().execute {
-            try {
-                val conn = java.net.URL(cloudUrl).openConnection() as java.net.HttpURLConnection
-                conn.requestMethod = "POST"
-                conn.connectTimeout = 5000
-                conn.readTimeout = 5000
-                conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                conn.doOutput = true
-                val json = org.json.JSONObject().apply {
-                    put("id", proposal.id)
-                    put("initiatorUserId", userACorreo)
-                    put("initiatorEmail", userACorreo)
-                    put("receiverUserId", userBCorreo)
-                    put("receiverEmail", userBCorreo)
-                    put("offeredItemIds", org.json.JSONArray(proposal.offeredItemIds))
-                    put("targetItemId", proposal.targetItemId)
-                    put("monetaryCompensationCoins", proposal.compensatoryTruequeCoins)
-                    put("status", proposal.status.name)
-                    put("esta_activa", proposal.estaActiva)
+        // Sincronizar en la nube con Vercel y Turso inmediatamente solo si está en modo db-Online
+        if (!isLocalMode) {
+            val cloudUrl = "https://truequapp-pi.vercel.app/api/trueques"
+            java.util.concurrent.Executors.newSingleThreadExecutor().execute {
+                try {
+                    val conn = java.net.URL(cloudUrl).openConnection() as java.net.HttpURLConnection
+                    conn.requestMethod = "POST"
+                    conn.connectTimeout = 5000
+                    conn.readTimeout = 5000
+                    conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                    conn.doOutput = true
+                    val json = org.json.JSONObject().apply {
+                        put("id", proposal.id)
+                        put("initiatorUserId", userACorreo)
+                        put("initiatorEmail", userACorreo)
+                        put("receiverUserId", userBCorreo)
+                        put("receiverEmail", userBCorreo)
+                        put("offeredItemIds", org.json.JSONArray(proposal.offeredItemIds))
+                        put("targetItemId", proposal.targetItemId)
+                        put("monetaryCompensationCoins", proposal.compensatoryTruequeCoins)
+                        put("status", proposal.status.name)
+                        put("esta_activa", proposal.estaActiva)
+                    }
+                    conn.outputStream.use { os ->
+                        os.write(json.toString().toByteArray(Charsets.UTF_8))
+                    }
+                    conn.responseCode
+                    conn.disconnect()
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
-                conn.outputStream.use { os ->
-                    os.write(json.toString().toByteArray(Charsets.UTF_8))
-                }
-                conn.responseCode
-                conn.disconnect()
-            } catch (e: Exception) {
-                e.printStackTrace()
             }
         }
 

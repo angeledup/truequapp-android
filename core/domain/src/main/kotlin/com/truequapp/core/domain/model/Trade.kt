@@ -15,6 +15,7 @@ enum class TradeModality {
  * Estados transaccionales de una propuesta de trueque (Máquina de Estados de la UV).
  */
 enum class TradeStatus {
+    ENVIANDO,          // En cola de validación con el servidor (db-Local)
     PENDIENTE,         // Oferta enviada, en espera de respuesta (vigencia TTL 72h)
     CONTRAOFERTADA,    // El receptor modificó artículos o diferencial y turnó la decisión al proponente
     RESERVADO,         // Oferta aceptada: bloqueo atómico ACID de ítems y retención de Escrow
@@ -23,7 +24,8 @@ enum class TradeStatus {
     CANCELADO,         // Cancelada por cualquiera de las partes antes de la entrega
     RECHAZADO,         // Rechazo formal por parte del receptor
     EXPIRADO,          // Vencido por TTL de 72 horas sin respuesta
-    EN_DISPUTA         // Incidencia reportada (inasistencia o producto no coincidente)
+    EN_DISPUTA,        // Incidencia reportada (inasistencia o producto no coincidente)
+    CONFLICTO_NO_DISPONIBLE // Cancelada porque la publicación ya no estaba disponible en el servidor
 }
 
 /**

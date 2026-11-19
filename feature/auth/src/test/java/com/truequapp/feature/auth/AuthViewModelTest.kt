@@ -137,6 +137,13 @@ class FakeUserDao : UserDao {
         users[user.id] = user.copy(bayesianRating = newRating)
         return 1
     }
+    override suspend fun updateUserCredentials(oldEmail: String, newEmail: String, newUsername: String, newPassword: String): Int {
+        val user = users.values.find { it.email.equals(oldEmail, ignoreCase = true) } ?: return 0
+        users.remove(user.id)
+        val updated = user.copy(correo = newEmail, usuario = newUsername, contrasena = newPassword)
+        users[updated.id] = updated
+        return 1
+    }
 }
 
 class TestDispatcherProvider(private val dispatcher: TestDispatcher) : DispatcherProvider {

@@ -90,6 +90,10 @@ class FakeTruequeDaoForChatTest : TruequeDao {
         return flowOf(trueques.filter { it.trueque.usuarioACorreo == correo && it.trueque.estaActiva })
     }
 
+    override suspend fun getTruequesEnviando(): List<TruequeConOfertas> {
+        return trueques.filter { it.trueque.estado == "ENVIANDO" }
+    }
+
     override suspend fun deleteTruequeById(truequeId: String) {
         trueques.removeAll { it.trueque.id == truequeId }
     }
@@ -119,6 +123,7 @@ class FakeUserDaoForChatTest : UserDao {
     override suspend fun getUserByIdentifierSync(identifier: String): UserEntity? = null
     override suspend fun authenticate(email: String, passwordHash: String): UserEntity? = null
     override suspend fun updateUser(user: UserEntity) {}
+    override suspend fun updateUserCredentials(oldEmail: String, newEmail: String, newUsername: String, newPassword: String): Int = 1
     override suspend fun updateTruequeCoins(userId: String, availableCoins: Double, escrowCoins: Double) {}
     override suspend fun getTruequeCoins(userId: String): Double? = 100.0
     override suspend fun deleteUser(userId: String) {}

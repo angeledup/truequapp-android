@@ -137,6 +137,7 @@ private class FakeSyncTruequeDao : TruequeDao {
     override fun getOfertasRecibidas(correo: String): Flow<List<TruequeConOfertas>> = flowOf(emptyList())
     override fun getOfertasEnviadas(correo: String): Flow<List<TruequeConOfertas>> = flowOf(emptyList())
     override fun getHistorialTruequesPorUsuario(correo: String): Flow<List<TruequeConOfertas>> = flowOf(emptyList())
+    override suspend fun getTruequesEnviando(): List<TruequeConOfertas> = emptyList()
     override suspend fun deleteTruequeById(truequeId: String) { trueques.remove(truequeId) }
 }
 
