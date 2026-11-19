@@ -267,17 +267,21 @@ class CatalogViewModel @Inject constructor(
             is CatalogUiEvent.SubmitPublication -> submitPublication()
             is CatalogUiEvent.PauseItem -> pauseItem(event.itemId)
             is CatalogUiEvent.DeleteItem -> deleteItem(event.itemId)
-            is CatalogUiEvent.RefreshCatalog -> refreshCatalog()
+            is CatalogUiEvent.RefreshCatalog -> refreshCatalog(isManual = event.isManual)
             is CatalogUiEvent.DismissError -> setState { copy(errorMessage = null) }
         }
     }
 
-    private fun refreshCatalog() {
+    private fun refreshCatalog(isManual: Boolean = true) {
         viewModelScope.launch(dispatchers.io) {
-            setState { copy(isLoading = true) }
+            if (isManual) {
+                setState { copy(isLoading = true) }
+            }
             syncCatalog()
-            setState { copy(isLoading = false) }
-            sendEffect(CatalogUiEffect.ShowSnackbar("Catálogo actualizado desde la nube."))
+            if (isManual) {
+                setState { copy(isLoading = false) }
+                sendEffect(CatalogUiEffect.ShowSnackbar("Catálogo actualizado desde la nube."))
+            }
         }
     }
 

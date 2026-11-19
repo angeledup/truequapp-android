@@ -9,6 +9,7 @@ import com.truequapp.core.domain.model.ItemStatus
 import com.truequapp.core.domain.model.ItemType
 import com.truequapp.core.domain.model.TradeItem
 import com.truequapp.feature.catalog.compressor.WebPImageCompressor
+import com.truequapp.feature.catalog.mvi.CatalogUiEffect
 import com.truequapp.feature.catalog.mvi.CatalogUiEvent
 import com.truequapp.feature.catalog.mvi.CatalogViewModel
 import kotlinx.coroutines.CoroutineDispatcher
@@ -16,6 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -327,5 +329,35 @@ class CatalogViewModelTest {
         viewModel.onEvent(CatalogUiEvent.ToggleMyPublicationsFilter)
         val filteredState = viewModel.uiState.value
         assertTrue(filteredState.filteredItems.any { it.title == "Mi Artículo Propio" })
+    }
+
+    @Test
+    @DisplayName("Actualización automática periódica: no debe mostrar ningún aviso en pantalla (isManual = false)")
+    fun shouldNotShowSnackbarOnAutomaticPeriodicCatalogRefresh() = runTest(testDispatcher) {
+        val effects = mutableListOf<CatalogUiEffect>()
+        val job = launch {
+            viewModel.uiEffect.collect { effects.add(it) }
+        }
+
+        viewModel.onEvent(CatalogUiEvent.RefreshCatalog(isManual = false))
+        advanceUntilIdle()
+
+        assertTrue(effects.none { it is CatalogUiEffect.ShowSnackbar && it.message.contains("actualizado") })
+        job.cancel()
+    }
+
+    @Test
+    @DisplayName("Actualización manual mediante botón de catálogo: sí debe mostrar aviso de confirmación (isManual = true)")
+    fun shouldShowSnackbarOnlyOnManualCatalogRefresh() = runTest(testDispatcher) {
+        val effects = mutableListOf<CatalogUiEffect>()
+        val job = launch {
+            viewModel.uiEffect.collect { effects.add(it) }
+        }
+
+        viewModel.onEvent(CatalogUiEvent.RefreshCatalog(isManual = true))
+        advanceUntilIdle()
+
+        assertTrue(effects.any { it is CatalogUiEffect.ShowSnackbar && it.message.contains("Catálogo actualizado") })
+        job.cancel()
     }
 }

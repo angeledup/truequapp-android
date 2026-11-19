@@ -86,6 +86,7 @@ fun CatalogFeedScreen(
     onNavigateToItemDetail: (String) -> Unit,
     onNavigateToPublish: () -> Unit,
     onCoinsClick: () -> Unit = {},
+    onManualSync: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -93,11 +94,11 @@ fun CatalogFeedScreen(
     var showAdvancedFilters by remember { mutableStateOf(false) }
     val gridState = rememberLazyGridState()
 
-    // Sondeo periódico en tiempo real cada 6 segundos para mantener el catálogo actualizado mientras se está en la pantalla
+    // Sincronización periódica automática en segundo plano (silenciosa, sin aviso ni interrupciones)
     LaunchedEffect(Unit) {
         while (isActive) {
-            delay(6000)
-            onEvent(CatalogUiEvent.RefreshCatalog)
+            delay(5000)
+            onEvent(CatalogUiEvent.RefreshCatalog(isManual = false))
         }
     }
 
@@ -174,7 +175,10 @@ fun CatalogFeedScreen(
                                 Icon(Icons.Default.Clear, contentDescription = "Limpiar")
                             }
                         }
-                        IconButton(onClick = { onEvent(CatalogUiEvent.RefreshCatalog) }) {
+                        IconButton(onClick = {
+                            onEvent(CatalogUiEvent.RefreshCatalog(isManual = true))
+                            onManualSync?.invoke()
+                        }) {
                             Icon(
                                 imageVector = Icons.Default.Refresh,
                                 contentDescription = "Actualizar",
