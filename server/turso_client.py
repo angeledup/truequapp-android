@@ -313,26 +313,4 @@ def turso_delete_item(table_name: str, item_id: str):
     stmts = [{"sql": f"DELETE FROM {table_name} WHERE id = ?;", "args": [item_id]}]
     execute_pipeline(stmts)
 
-def sync_local_data_to_turso(usuarios_data: list, catalogo_data: list, propuestas_data: list, chats_dict: dict):
-    """Sincroniza datos precargados si Turso se encuentra vacío."""
-    if not is_turso_configured():
-        return
 
-    res = execute_pipeline([{"sql": "SELECT COUNT(*) as count FROM usuarios;"}])
-    count = 0
-    if res and res[0].get("ok"):
-        rows = res[0].get("rows", [])
-        if rows:
-            count = int(rows[0].get("count", 0))
-
-    if count == 0:
-        logger.info("Turso se encuentra vacío. Sembrando usuarios, artículos escolares CETIS 79 y propuestas...")
-        if usuarios_data:
-            turso_save_table("usuarios", usuarios_data)
-        if catalogo_data:
-            turso_save_table("catalogo", catalogo_data)
-        if propuestas_data:
-            turso_save_table("propuestas", propuestas_data)
-        if chats_dict:
-            for prop_id, msgs in chats_dict.items():
-                turso_save_table("chats", msgs, prop_id=prop_id)
