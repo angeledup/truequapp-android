@@ -11,7 +11,10 @@ import javax.inject.Singleton
 
 sealed interface LoginResult {
     data class Success(val user: UserEntity) : LoginResult
-    data class UserNotFound(val message: String = "No hay una cuenta vinculada al correo") : LoginResult
+    data class UserNotFound(
+        val message: String = "No hay una cuenta vinculada al correo",
+        val email: String = ""
+    ) : LoginResult
     data class InvalidPassword(val message: String = "Contraseña incorrecta") : LoginResult
     data class ValidationError(val message: String) : LoginResult
 }
@@ -28,12 +31,14 @@ class AuthRepository @Inject constructor(
     private val userSessionDataStore: UserSessionDataStore
 ) {
 
+    var cloudBaseUrl: String = "https://truequapp-pi.vercel.app"
+
     val currentSessionFlow: Flow<UserSession> get() = userSessionDataStore.sessionFlow
 
     /**
-     * Valida credenciales contra la base de datos SQL.
-     * Retorna error específico si el correo no existe ("No hay una cuenta vinculada al correo")
-     * o si la contraseña no coincide ("Contraseña incorrecta").
+     * Valida credenciales contra la base de datos en la nube (Turso) en primer lugar.
+     * Si no se encuentra en la base de datos, retorna UserNotFound para que la interfaz
+     * notifique al usuario y le permita continuar con el protocolo de registro.
      */
     suspend fun login(correo: String, contrasena: String): LoginResult {
         val trimmedEmail = correo.trim()
@@ -45,16 +50,19 @@ class AuthRepository @Inject constructor(
             return LoginResult.ValidationError("Por favor ingresa tu contraseña")
         }
 
-        var user = userDao.getUserByEmail(trimmedEmail)
+        // 1. Validar primero contra la base de datos en la nube (Turso vía Vercel)
+        var cloudAttempted = false
+        var cloudUserNotFound = false
+        var cloudInvalidPassword = false
+        var cloudUserEntity: UserEntity? = null
 
-        // Si no existe localmente, intentar consultar la base de datos en la nube (Vercel / Turso)
-        if (user == null) {
+        if (cloudBaseUrl.isNotBlank()) {
             try {
-                val url = java.net.URL("https://truequapp-pi.vercel.app/api/usuarios/login")
+                val url = java.net.URL("${cloudBaseUrl.trimEnd('/')}/api/usuarios/login")
                 val conn = url.openConnection() as java.net.HttpURLConnection
                 conn.requestMethod = "POST"
-                conn.connectTimeout = 4000
-                conn.readTimeout = 4000
+                conn.connectTimeout = 3500
+                conn.readTimeout = 3500
                 conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 conn.doOutput = true
                 val json = org.json.JSONObject().apply {
@@ -64,13 +72,17 @@ class AuthRepository @Inject constructor(
                 conn.outputStream.use { os ->
                     os.write(json.toString().toByteArray(Charsets.UTF_8))
                 }
-                if (conn.responseCode == 200) {
+
+                cloudAttempted = true
+                val responseCode = conn.responseCode
+
+                if (responseCode == 200) {
                     val responseText = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
                     val respObj = org.json.JSONObject(responseText)
                     if (respObj.optBoolean("success")) {
                         val uObj = respObj.optJSONObject("user")
                         if (uObj != null) {
-                            val fetchedUser = UserEntity(
+                            cloudUserEntity = UserEntity(
                                 correo = uObj.optString("email", trimmedEmail),
                                 contrasena = contrasena,
                                 usuario = uObj.optString("name", trimmedEmail.substringBefore("@")),
@@ -79,33 +91,71 @@ class AuthRepository @Inject constructor(
                                 truequesRealizados = uObj.optInt("completedTrades", 0),
                                 calificacion = uObj.optDouble("bayesianRating", 5.0)
                             )
-                            userDao.insertUser(fetchedUser)
-                            user = fetchedUser
                         }
                     }
+                } else if (responseCode == 404) {
+                    cloudUserNotFound = true
+                } else if (responseCode == 401) {
+                    cloudInvalidPassword = true
                 }
                 conn.disconnect()
             } catch (e: Exception) {
-                // Silencioso ante falta de red
+                // Silencioso ante falta de red o error de conexión
             }
         }
 
-        if (user == null) {
-            return LoginResult.UserNotFound()
+        if (cloudAttempted) {
+            if (cloudUserNotFound) {
+                // Si la nube confirma que no existe el usuario, purgar cualquier dato huérfano local en Room
+                val localGhost = userDao.getUserByEmail(trimmedEmail)
+                if (localGhost != null) {
+                    try {
+                        userDao.deleteUser(localGhost.id)
+                    } catch (_: Exception) {}
+                }
+                return LoginResult.UserNotFound(
+                    message = "No hay una cuenta vinculada a este correo en la base de datos",
+                    email = trimmedEmail
+                )
+            }
+
+            if (cloudInvalidPassword) {
+                return LoginResult.InvalidPassword()
+            }
+
+            if (cloudUserEntity != null) {
+                // Sincronizar en la base de datos local SQLite Room
+                userDao.insertUser(cloudUserEntity)
+                userSessionDataStore.saveUser(
+                    userId = cloudUserEntity.usuario,
+                    email = cloudUserEntity.correo,
+                    isKycVerified = false
+                )
+                return LoginResult.Success(cloudUserEntity)
+            }
         }
 
-        if (user.contrasena != contrasena) {
+        // 2. Si no hubo conectividad a la nube o no se pudo verificar online, consultar la base de datos local SQLite Room
+        val localUser = userDao.getUserByEmail(trimmedEmail)
+        if (localUser == null) {
+            return LoginResult.UserNotFound(
+                message = "No hay una cuenta vinculada al correo",
+                email = trimmedEmail
+            )
+        }
+
+        if (localUser.contrasena != contrasena) {
             return LoginResult.InvalidPassword()
         }
 
         // Al autenticar con éxito, se persiste la sesión del usuario
         userSessionDataStore.saveUser(
-            userId = user.usuario,
-            email = user.correo,
+            userId = localUser.usuario,
+            email = localUser.correo,
             isKycVerified = false
         )
 
-        return LoginResult.Success(user)
+        return LoginResult.Success(localUser)
     }
 
     /**

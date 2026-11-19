@@ -18,7 +18,9 @@ data class LoginUiState(
     val isLoading: Boolean = false,
     val emailError: String? = null,
     val passwordError: String? = null,
-    val generalError: String? = null
+    val generalError: String? = null,
+    val showRegisterPromptDialog: Boolean = false,
+    val unconfirmedEmail: String = ""
 ) : UiState
 
 sealed interface LoginUiEvent : UiEvent {
@@ -27,6 +29,8 @@ sealed interface LoginUiEvent : UiEvent {
     data object TogglePasswordVisibility : LoginUiEvent
     data object SubmitLogin : LoginUiEvent
     data object ClearErrors : LoginUiEvent
+    data object DismissRegisterPromptDialog : LoginUiEvent
+    data object ConfirmProceedToRegister : LoginUiEvent
 }
 
 sealed interface LoginUiEffect : UiEffect {
@@ -47,7 +51,8 @@ class LoginViewModel @Inject constructor(
                     copy(
                         email = event.value,
                         emailError = null,
-                        generalError = null
+                        generalError = null,
+                        showRegisterPromptDialog = false
                     )
                 }
             }
@@ -64,7 +69,21 @@ class LoginViewModel @Inject constructor(
                 setState { copy(isPasswordVisible = !isPasswordVisible) }
             }
             is LoginUiEvent.ClearErrors -> {
-                setState { copy(emailError = null, passwordError = null, generalError = null) }
+                setState {
+                    copy(
+                        emailError = null,
+                        passwordError = null,
+                        generalError = null,
+                        showRegisterPromptDialog = false
+                    )
+                }
+            }
+            is LoginUiEvent.DismissRegisterPromptDialog -> {
+                setState { copy(showRegisterPromptDialog = false) }
+            }
+            is LoginUiEvent.ConfirmProceedToRegister -> {
+                setState { copy(showRegisterPromptDialog = false) }
+                sendEffect(LoginUiEffect.NavigateToRegister)
             }
             is LoginUiEvent.SubmitLogin -> {
                 login()
@@ -81,21 +100,24 @@ class LoginViewModel @Inject constructor(
                 isLoading = true,
                 emailError = null,
                 passwordError = null,
-                generalError = null
+                generalError = null,
+                showRegisterPromptDialog = false
             )
         }
 
         viewModelScope.launch {
             when (val result = authRepository.login(email, password)) {
                 is LoginResult.Success -> {
-                    setState { copy(isLoading = false) }
+                    setState { copy(isLoading = false, showRegisterPromptDialog = false) }
                     sendEffect(LoginUiEffect.NavigateToHome)
                 }
                 is LoginResult.UserNotFound -> {
                     setState {
                         copy(
                             isLoading = false,
-                            emailError = result.message
+                            emailError = result.message,
+                            showRegisterPromptDialog = true,
+                            unconfirmedEmail = result.email.ifBlank { email }
                         )
                     }
                 }
@@ -103,7 +125,8 @@ class LoginViewModel @Inject constructor(
                     setState {
                         copy(
                             isLoading = false,
-                            passwordError = result.message
+                            passwordError = result.message,
+                            showRegisterPromptDialog = false
                         )
                     }
                 }
@@ -111,7 +134,8 @@ class LoginViewModel @Inject constructor(
                     setState {
                         copy(
                             isLoading = false,
-                            generalError = result.message
+                            generalError = result.message,
+                            showRegisterPromptDialog = false
                         )
                     }
                 }

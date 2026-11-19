@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -34,7 +35,9 @@ class LoginViewModelTest {
         Dispatchers.setMain(testDispatcher)
         fakeDao = FakeLoginUserDao()
         fakeSession = FakeLoginSessionDataStore()
-        repository = AuthRepository(fakeDao, fakeSession)
+        repository = AuthRepository(fakeDao, fakeSession).apply {
+            cloudBaseUrl = ""
+        }
         viewModel = LoginViewModel(repository)
     }
 
@@ -44,7 +47,7 @@ class LoginViewModelTest {
     }
 
     @Test
-    fun `shows email error when email is not registered in database`() = runTest {
+    fun `shows email error and prompts registration dialog when email is not registered in database`() = runTest {
         viewModel.onEvent(LoginUiEvent.EmailChanged("desconocido@correo.com"))
         viewModel.onEvent(LoginUiEvent.PasswordChanged("pass1234"))
         viewModel.onEvent(LoginUiEvent.SubmitLogin)
@@ -53,6 +56,45 @@ class LoginViewModelTest {
 
         assertEquals("No hay una cuenta vinculada al correo", viewModel.uiState.value.emailError)
         assertNull(viewModel.uiState.value.passwordError)
+        assertEquals(true, viewModel.uiState.value.showRegisterPromptDialog)
+        assertEquals("desconocido@correo.com", viewModel.uiState.value.unconfirmedEmail)
+    }
+
+    @Test
+    fun `dismissing register dialog closes prompt without navigating`() = runTest {
+        viewModel.onEvent(LoginUiEvent.EmailChanged("desconocido@correo.com"))
+        viewModel.onEvent(LoginUiEvent.PasswordChanged("pass1234"))
+        viewModel.onEvent(LoginUiEvent.SubmitLogin)
+        advanceUntilIdle()
+
+        assertEquals(true, viewModel.uiState.value.showRegisterPromptDialog)
+
+        viewModel.onEvent(LoginUiEvent.DismissRegisterPromptDialog)
+        assertEquals(false, viewModel.uiState.value.showRegisterPromptDialog)
+    }
+
+    @Test
+    fun `confirming register dialog navigates to register screen`() = runTest {
+        viewModel.onEvent(LoginUiEvent.EmailChanged("desconocido@correo.com"))
+        viewModel.onEvent(LoginUiEvent.PasswordChanged("pass1234"))
+        viewModel.onEvent(LoginUiEvent.SubmitLogin)
+        advanceUntilIdle()
+
+        var navigatedToRegister = false
+        val job = launch {
+            viewModel.uiEffect.collect { effect ->
+                if (effect is LoginUiEffect.NavigateToRegister) {
+                    navigatedToRegister = true
+                }
+            }
+        }
+
+        viewModel.onEvent(LoginUiEvent.ConfirmProceedToRegister)
+        advanceUntilIdle()
+
+        assertEquals(false, viewModel.uiState.value.showRegisterPromptDialog)
+        assertEquals(true, navigatedToRegister)
+        job.cancel()
     }
 
     @Test

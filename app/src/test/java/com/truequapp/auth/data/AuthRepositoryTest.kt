@@ -24,7 +24,9 @@ class AuthRepositoryTest {
     fun setUp() {
         fakeUserDao = FakeUserDao()
         fakeSessionDataStore = FakeSessionDataStore()
-        authRepository = AuthRepository(fakeUserDao, fakeSessionDataStore)
+        authRepository = AuthRepository(fakeUserDao, fakeSessionDataStore).apply {
+            cloudBaseUrl = ""
+        }
     }
 
     @Test
