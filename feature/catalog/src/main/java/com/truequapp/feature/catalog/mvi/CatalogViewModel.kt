@@ -77,10 +77,6 @@ class CatalogViewModel @Inject constructor(
         if ((userId == "usr_current" || userId == "usuario_actual") && 
             (targetOwner == "usr_current" || targetOwner == "usuario_actual")) return true
 
-        val combined = "${email.orEmpty()} $userId".lowercase()
-        if (combined.contains("chocolatt") && targetOwner.contains("chocolatt")) return true
-        if (combined.contains("vergara") && targetOwner.contains("vergara")) return true
-
         return false
     }
 

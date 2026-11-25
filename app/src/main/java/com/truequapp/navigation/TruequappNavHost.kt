@@ -15,11 +15,15 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -68,9 +72,22 @@ fun TruequappNavHost(
 
     val syncViewModel: SyncViewModel = hiltViewModel()
     val syncState by syncViewModel.syncState.collectAsStateWithLifecycle()
+    val inAppNotifications by syncViewModel.inAppNotifications.collectAsStateWithLifecycle()
 
-    LaunchedEffect(Unit) {
-        syncViewModel.startPeriodicSync()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> syncViewModel.startPeriodicSync()
+                Lifecycle.Event.ON_STOP -> syncViewModel.stopPeriodicSync()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            syncViewModel.stopPeriodicSync()
+        }
     }
 
     val topLevelRoutes = listOf(
@@ -203,6 +220,16 @@ fun TruequappNavHost(
                     },
                     onManualSync = {
                         syncViewModel.retrySync()
+                    },
+                    unreadNotifications = inAppNotifications.size,
+                    notifications = inAppNotifications,
+                    onNotificationClick = { notif ->
+                        val propId = notif.proposalId
+                        if (!propId.isNullOrBlank()) {
+                            navController.navigate(Screen.TradeNegotiation.createRoute(propId))
+                        } else {
+                            navController.navigate(Screen.Trades.route)
+                        }
                     }
                 )
             }

@@ -37,7 +37,9 @@ class RegisterViewModelTest {
         Dispatchers.setMain(testDispatcher)
         fakeDao = FakeRegisterUserDao()
         fakeSession = FakeRegisterSessionDataStore()
-        repository = AuthRepository(fakeDao, fakeSession)
+        repository = AuthRepository(fakeDao, fakeSession).apply {
+            cloudBaseUrl = "" // Desactivar llamadas de red en tests unitarios
+        }
         viewModel = RegisterViewModel(repository)
     }
 

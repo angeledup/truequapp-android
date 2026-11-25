@@ -59,6 +59,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.truequapp.core.designsystem.component.InAppNotificationItem
 import com.truequapp.core.designsystem.component.TruequappTopAppBar
 import com.truequapp.core.designsystem.theme.PaletteConfig
 import com.truequapp.core.designsystem.theme.TruequappTheme
@@ -87,6 +88,9 @@ fun CatalogFeedScreen(
     onNavigateToPublish: () -> Unit,
     onCoinsClick: () -> Unit = {},
     onManualSync: (() -> Unit)? = null,
+    unreadNotifications: Int = 0,
+    notifications: List<InAppNotificationItem> = emptyList(),
+    onNotificationClick: (InAppNotificationItem) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -135,7 +139,9 @@ fun CatalogFeedScreen(
                 eyebrow = "Comunidad CETIS 79",
                 title = "Catálogo Escolar",
                 coinsBalance = state.truequeCoins.toInt(),
-                unreadNotifications = 1,
+                unreadNotifications = unreadNotifications,
+                notifications = notifications,
+                onNotificationClick = onNotificationClick,
                 onCoinsClick = onCoinsClick
             )
         },

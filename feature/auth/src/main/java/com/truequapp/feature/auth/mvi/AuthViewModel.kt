@@ -111,7 +111,6 @@ class AuthViewModel @Inject constructor(
             is AuthUiEvent.NeighborhoodChanged -> setState { copy(neighborhoodInput = event.neighborhood, errorMessage = null) }
             is AuthUiEvent.OtpCodeChanged -> setState { copy(otpCodeInput = event.code, errorMessage = null) }
             is AuthUiEvent.ToggleAuthMode -> setState { copy(isRegisterMode = !isRegisterMode, errorMessage = null) }
-            is AuthUiEvent.QuickLoginAdmin -> executeQuickAdminLogin(event.email, event.password)
             is AuthUiEvent.SubmitLogin -> executeLogin()
             is AuthUiEvent.SubmitRegister -> executeRegister()
             is AuthUiEvent.VerifyOtp -> executeVerifyOtp()
@@ -259,114 +258,6 @@ class AuthViewModel @Inject constructor(
         }
 
         return AccountValidationResult.Success(user)
-    }
-
-    private fun executeQuickAdminLogin(email: String, password: String) {
-        viewModelScope.launch(dispatchers.io) {
-            setState { copy(isLoading = true, errorMessage = null) }
-            delay(150)
-
-            var user = userDao?.getUserByEmailSync(email)
-            if (user == null) {
-                val now = System.currentTimeMillis()
-                val adminUser = when (email) {
-                    "chocolattcorreo@gmail.com" -> UserEntity(
-                        id = "usr_chocolatt",
-                        email = "chocolattcorreo@gmail.com",
-                        name = "chocolatt",
-                        passwordHash = "chocolatte",
-                        phoneNumber = "+529211000001",
-                        authProvider = "EMAIL",
-                        isKycVerified = true,
-                        kycLevel = "TELEFONO_SMS_NIVEL_1",
-                        truequeCoins = 10000.0,
-                        escrowCoins = 0.0,
-                        bayesianRating = 4.9,
-                        ratingsCount = 15,
-                        attendanceRate = 1.0,
-                        obfuscatedNeighborhood = "Centro, Coatzacoalcos",
-                        city = "Coatzacoalcos",
-                        createdAtEpochMs = now,
-                        lastLoginEpochMs = now
-                    )
-                    "Vergaracorreo@gmail.com" -> UserEntity(
-                        id = "usr_vergara",
-                        email = "Vergaracorreo@gmail.com",
-                        name = "Vergara",
-                        passwordHash = "AngEduVr",
-                        phoneNumber = "+529211000002",
-                        authProvider = "EMAIL",
-                        isKycVerified = true,
-                        kycLevel = "TELEFONO_SMS_NIVEL_1",
-                        truequeCoins = 10000.0,
-                        escrowCoins = 0.0,
-                        bayesianRating = 4.9,
-                        ratingsCount = 14,
-                        attendanceRate = 1.0,
-                        obfuscatedNeighborhood = "Col. Petrolera, Coatzacoalcos",
-                        city = "Coatzacoalcos",
-                        createdAtEpochMs = now,
-                        lastLoginEpochMs = now
-                    )
-                    else -> null
-                }
-                if (adminUser != null) {
-                    userDao?.insertUser(adminUser)
-                    user = adminUser
-                }
-            }
-
-            if (user != null) {
-                // Asegurar saldo de 10,000 TruequeCoins para pruebas beta
-                if (user.truequeCoins < 10000.0) {
-                    userDao?.updateTruequeCoins(user.id, 10000.0, user.escrowCoins)
-                    user = user.copy(truequeCoins = 10000.0)
-                }
-                userSessionDataStore.saveUser(
-                    userId = user.id,
-                    email = user.email,
-                    isKycVerified = user.isKycVerified,
-                    name = user.name,
-                    photoUrl = user.photoUrl,
-                    authProvider = user.authProvider
-                )
-                userSessionDataStore.saveTokens(
-                    accessToken = "jwt_token_${user.id}",
-                    refreshToken = "refresh_${user.id}"
-                )
-                userSessionDataStore.updateTruequeCoins(user.truequeCoins, user.escrowCoins)
-
-                setState {
-                    copy(
-                        isLoading = false,
-                        isLoggedIn = true,
-                        currentUserId = user.id,
-                        userName = user.name,
-                        userEmail = user.email,
-                        userPhone = user.phoneNumber.orEmpty(),
-                        nameInput = user.name,
-                        emailInput = user.email,
-                        userNeighborhood = user.obfuscatedNeighborhood,
-                        obfuscatedNeighborhood = user.obfuscatedNeighborhood,
-                        kycLevel = if (user.isKycVerified) KycLevel.TELEFONO_SMS_NIVEL_1 else KycLevel.BASICO_NIVEL_0,
-                        truequeCoins = user.truequeCoins,
-                        authProvider = user.authProvider,
-                        bayesianRating = user.bayesianRating,
-                        attendanceRate = user.attendanceRate,
-                        errorMessage = null
-                    )
-                }
-                sendEffect(AuthUiEffect.ShowSnackbar("¡Bienvenido, ${user.name}! Sesión de administrador iniciada."))
-                sendEffect(AuthUiEffect.NavigateToHome)
-            } else {
-                setState {
-                    copy(
-                        isLoading = false,
-                        errorMessage = "No se pudo iniciar sesión con la cuenta solicitada."
-                    )
-                }
-            }
-        }
     }
 
     private fun executeLogin() {

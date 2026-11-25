@@ -9,7 +9,9 @@ import com.truequapp.core.datastore.model.DatabaseValidationMode
 import com.truequapp.core.domain.model.TradeModality
 import com.truequapp.core.domain.model.TradeProposal
 import com.truequapp.core.domain.model.TradeStatus
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -151,8 +153,8 @@ class TradeRepository @Inject constructor(
         }
     }
 
-    suspend fun syncProposalsFromCloud(userEmail: String) {
-        if (userEmail.isBlank()) return
+    suspend fun syncProposalsFromCloud(userEmail: String) = withContext(Dispatchers.IO) {
+        if (userEmail.isBlank()) return@withContext
         val cloudUrl = "https://truequapp-pi.vercel.app/api/trueques?user=${java.net.URLEncoder.encode(userEmail, "UTF-8")}"
         try {
             val url = java.net.URL(cloudUrl)
@@ -217,7 +219,7 @@ class TradeRepository @Inject constructor(
                 }
             } catch (_: Exception) {
             }
-    }
+        }
 
     /**
      * Aplica una contraoferta (CU011) actualizando la oferta de ítems/créditos

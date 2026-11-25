@@ -231,10 +231,6 @@ class TradeViewModel @Inject constructor(
         if ((userId == "usr_current" || userId == "usuario_actual" || userId.isBlank()) && 
             (targetOwner == "usr_current" || targetOwner == "usuario_actual")) return true
 
-        val combined = "${email.orEmpty()} $userId".lowercase()
-        if (combined.contains("chocolatt") && targetOwner.contains("chocolatt")) return true
-        if (combined.contains("vergara") && targetOwner.contains("vergara")) return true
-
         return false
     }
 
@@ -728,20 +724,12 @@ class TradeViewModel @Inject constructor(
             fun isReceiver(prop: TradeProposal): Boolean {
                 return prop.receiverUserId.equals(userEmail, ignoreCase = true) ||
                        prop.receiverUserId.equals(userId, ignoreCase = true) ||
-                       (userEmail?.contains("chocolatt", ignoreCase = true) == true && prop.receiverUserId.contains("chocolatt", ignoreCase = true)) ||
-                       (userEmail?.contains("vergara", ignoreCase = true) == true && prop.receiverUserId.contains("vergara", ignoreCase = true)) ||
-                       (userId.contains("chocolatt", ignoreCase = true) && prop.receiverUserId.contains("chocolatt", ignoreCase = true)) ||
-                       (userId.contains("vergara", ignoreCase = true) && prop.receiverUserId.contains("vergara", ignoreCase = true)) ||
                        (userId == "usr_current" && prop.receiverUserId == "usr_current")
             }
 
             fun isRequester(prop: TradeProposal): Boolean {
                 return prop.requesterUserId.equals(userEmail, ignoreCase = true) ||
                        prop.requesterUserId.equals(userId, ignoreCase = true) ||
-                       (userEmail?.contains("chocolatt", ignoreCase = true) == true && prop.requesterUserId.contains("chocolatt", ignoreCase = true)) ||
-                       (userEmail?.contains("vergara", ignoreCase = true) == true && prop.requesterUserId.contains("vergara", ignoreCase = true)) ||
-                       (userId.contains("chocolatt", ignoreCase = true) && prop.requesterUserId.contains("chocolatt", ignoreCase = true)) ||
-                       (userId.contains("vergara", ignoreCase = true) && prop.requesterUserId.contains("vergara", ignoreCase = true)) ||
                        (userId == "usr_current" && prop.requesterUserId == "usr_current")
             }
 
@@ -1011,6 +999,7 @@ class TradeViewModel @Inject constructor(
 
             setState {
                 copy(
+                    currentProposal = proposal,
                     showCancelDialog = true,
                     isPenaltyCancellation = evaluation.isPenaltyApplied,
                     cancellationWarningMessage = evaluation.message
@@ -1019,6 +1008,7 @@ class TradeViewModel @Inject constructor(
         } else {
             setState {
                 copy(
+                    currentProposal = proposal,
                     showCancelDialog = true,
                     isPenaltyCancellation = false,
                     cancellationWarningMessage = "¿Estás seguro de cancelar este intercambio?"
@@ -1040,16 +1030,17 @@ class TradeViewModel @Inject constructor(
             setState { copy(currentUserProfile = evaluation.updatedUserProfile) }
         }
 
-        // Liberar artículos reservados si existían
-        val targetItem = currentState.negotiationTargetItem
-        if (targetItem?.status == ItemStatus.RESERVADO) {
-            val tIndex = inMemoryItems.indexOfFirst { it.id == targetItem.id }
-            if (tIndex != -1) inMemoryItems[tIndex] = targetItem.copy(status = ItemStatus.DISPONIBLE)
+        // Liberar artículos reservados si existían usando IDs reales de la propuesta
+        if (proposal.targetItemId.isNotBlank()) {
+            val tIndex = inMemoryItems.indexOfFirst { it.id == proposal.targetItemId }
+            if (tIndex != -1 && inMemoryItems[tIndex].status == ItemStatus.RESERVADO) {
+                inMemoryItems[tIndex] = inMemoryItems[tIndex].copy(status = ItemStatus.DISPONIBLE)
+            }
         }
-        currentState.negotiationOfferedItems.forEach { offered ->
-            if (offered.status == ItemStatus.RESERVADO) {
-                val oIndex = inMemoryItems.indexOfFirst { it.id == offered.id }
-                if (oIndex != -1) inMemoryItems[oIndex] = offered.copy(status = ItemStatus.DISPONIBLE)
+        proposal.offeredItemIds.filter { it.isNotBlank() }.forEach { offeredId ->
+            val oIndex = inMemoryItems.indexOfFirst { it.id == offeredId }
+            if (oIndex != -1 && inMemoryItems[oIndex].status == ItemStatus.RESERVADO) {
+                inMemoryItems[oIndex] = inMemoryItems[oIndex].copy(status = ItemStatus.DISPONIBLE)
             }
         }
 

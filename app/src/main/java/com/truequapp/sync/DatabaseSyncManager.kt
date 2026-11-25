@@ -4,18 +4,26 @@ import android.util.Log
 import com.truequapp.core.database.dao.TruequeDao
 import com.truequapp.core.database.dao.UserDao
 import com.truequapp.core.database.entity.OfertaItemEntity
+import com.truequapp.core.database.entity.TruequeConOfertas
 import com.truequapp.core.database.entity.TruequeEntity
 import com.truequapp.core.database.storage.UserPublicationStorage
 import com.truequapp.core.datastore.UserSessionDataStore
+import com.truequapp.notification.TradeNotificationHelper
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
@@ -49,13 +57,24 @@ class DatabaseSyncManager @Inject constructor(
     private val userDao: UserDao,
     private val truequeDao: TruequeDao,
     private val userSessionDataStore: UserSessionDataStore,
-    private val userPublicationStorage: UserPublicationStorage? = null
+    private val userPublicationStorage: UserPublicationStorage? = null,
+    private val tradeNotificationHelper: TradeNotificationHelper? = null
 ) {
 
     var cloudBaseUrl: String = "https://truequapp-pi.vercel.app"
 
     private val _syncState = MutableStateFlow<SyncState>(SyncState.Idle)
     val syncState: StateFlow<SyncState> = _syncState.asStateFlow()
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val incomingOffersFlow: Flow<List<TruequeConOfertas>> = userSessionDataStore.sessionFlow.flatMapLatest { session ->
+        val email = session.userEmail.orEmpty().trim()
+        if (email.isNotBlank()) {
+            truequeDao.getOfertasRecibidas(email)
+        } else {
+            flowOf(emptyList())
+        }
+    }
 
     private var syncJob: Job? = null
 
@@ -65,7 +84,7 @@ class DatabaseSyncManager @Inject constructor(
      */
     fun startPeriodicSync(scope: CoroutineScope) {
         if (syncJob?.isActive == true) return
-        syncJob = scope.launch {
+        syncJob = scope.launch(Dispatchers.IO) {
             while (isActive) {
                 syncDatabase()
                 delay(5_000L) // 5 segundos exactos
@@ -79,7 +98,7 @@ class DatabaseSyncManager @Inject constructor(
     }
 
     fun triggerManualSync(scope: CoroutineScope) {
-        scope.launch {
+        scope.launch(Dispatchers.IO) {
             syncDatabase()
         }
     }
@@ -164,6 +183,10 @@ class DatabaseSyncManager @Inject constructor(
             if (code == 200) {
                 val text = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
                 val array = JSONArray(text)
+                val currentSession = userSessionDataStore.sessionFlow.first()
+                val currentEmail = currentSession.userEmail.orEmpty().trim()
+                val currentUserId = currentSession.userId.orEmpty().trim()
+
                 for (i in 0 until array.length()) {
                     val obj = array.optJSONObject(i) ?: continue
                     val propId = obj.optString("id")
@@ -183,6 +206,25 @@ class DatabaseSyncManager @Inject constructor(
                     }
                     val coins = obj.optDouble("monetaryCompensationCoins", 0.0)
                     val createdAt = obj.optLong("createdAtEpochMs", System.currentTimeMillis())
+
+                    // Notificación en bandeja del teléfono si es una nueva oferta entrante dirigida al usuario activo
+                    val isForActiveUser = (currentEmail.isNotBlank() && uB.equals(currentEmail, ignoreCase = true)) ||
+                                          (currentUserId.isNotBlank() && uB.equals(currentUserId, ignoreCase = true))
+                    val isOfferPending = statusStr in listOf("PENDIENTE", "PROPUESTA_ENVIADA", "CONTRAOFERTADA")
+                    val existingProposal = truequeDao.getTruequeById(propId)
+
+                    if (isForActiveUser && isOfferPending && activa && existingProposal == null) {
+                        try {
+                            tradeNotificationHelper?.notifyNewTradeOffer(
+                                proposalId = propId,
+                                senderNameOrEmail = uA,
+                                targetItemId = targetId,
+                                coins = coins
+                            )
+                        } catch (_: Exception) {
+                            // Silencioso ante fallos en capa de notificaciones del sistema
+                        }
+                    }
 
                     val ofA = OfertaItemEntity(
                         id = "of_a_$propId",
