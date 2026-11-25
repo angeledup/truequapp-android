@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.DropdownMenu
@@ -43,6 +44,14 @@ import androidx.compose.ui.unit.sp
 import com.truequapp.core.designsystem.theme.PaletteConfig
 import com.truequapp.core.designsystem.theme.TruequappTheme
 
+data class InAppNotificationItem(
+    val id: String,
+    val title: String,
+    val description: String,
+    val time: String = "Ahora",
+    val proposalId: String? = null
+)
+
 /**
  * Standard Truequapp Top App Bar with embedded TruequeCoins balance and interactive notification menu (Warm Studio Design).
  */
@@ -53,6 +62,8 @@ fun TruequappTopAppBar(
     coinsBalance: Int,
     eyebrow: String? = null,
     unreadNotifications: Int = 0,
+    notifications: List<InAppNotificationItem> = emptyList(),
+    onNotificationClick: (InAppNotificationItem) -> Unit = {},
     onCoinsClick: () -> Unit = {},
     onNotificationsClick: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -207,32 +218,36 @@ fun TruequappTopAppBar(
                         thickness = 1.dp
                     )
 
-                    // Notification 1: Balance
-                    NotificationMenuItem(
-                        icon = Icons.Default.MonetizationOn,
-                        iconTint = PaletteConfig.GoldChampagne,
-                        title = "Balance disponible",
-                        description = "Tienes $coinsBalance TruequeCoins (TC) para intercambios o trueques.",
-                        time = "Ahora"
-                    )
-
-                    // Notification 2: Punto Seguro CETIS 79
-                    NotificationMenuItem(
-                        icon = Icons.Default.Security,
-                        iconTint = PaletteConfig.SafeZoneVerified,
-                        title = "Punto Seguro CETIS 79",
-                        description = "Entrega con código QR en Caseta de Vigilancia o Domo Cívico.",
-                        time = "Hoy"
-                    )
-
-                    // Notification 3: Nube y Sincronización
-                    NotificationMenuItem(
-                        icon = Icons.Default.Sync,
-                        iconTint = PaletteConfig.PrimaryLight,
-                        title = "Sincronización en la Nube",
-                        description = "Tus ofertas y chats se respaldan automáticamente en tiempo real.",
-                        time = "Hoy"
-                    )
+                    if (notifications.isEmpty()) {
+                        NotificationMenuItem(
+                            icon = Icons.Default.MonetizationOn,
+                            iconTint = PaletteConfig.GoldChampagne,
+                            title = "Balance disponible",
+                            description = "Tienes $coinsBalance TruequeCoins (TC) para intercambios o trueques.",
+                            time = "Ahora"
+                        )
+                        NotificationMenuItem(
+                            icon = Icons.Default.Security,
+                            iconTint = PaletteConfig.SafeZoneVerified,
+                            title = "Punto Seguro CETIS 79",
+                            description = "Entrega con código QR en Caseta de Vigilancia o Domo Cívico.",
+                            time = "Hoy"
+                        )
+                    } else {
+                        notifications.forEach { notif ->
+                            NotificationMenuItem(
+                                icon = Icons.Default.SwapHoriz,
+                                iconTint = PaletteConfig.GoldChampagne,
+                                title = notif.title,
+                                description = notif.description,
+                                time = notif.time,
+                                onClick = {
+                                    showMenu = false
+                                    onNotificationClick(notif)
+                                }
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -245,12 +260,13 @@ private fun NotificationMenuItem(
     iconTint: androidx.compose.ui.graphics.Color,
     title: String,
     description: String,
-    time: String
+    time: String,
+    onClick: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { /* Dismiss or action */ }
+            .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.Top
     ) {

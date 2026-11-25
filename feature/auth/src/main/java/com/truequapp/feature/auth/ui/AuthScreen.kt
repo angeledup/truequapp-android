@@ -283,7 +283,7 @@ fun AuthScreen(
                     value = state.emailInput,
                     onValueChange = { onEvent(AuthUiEvent.EmailChanged(it)) },
                     label = { Text("Correo o Usuario") },
-                    placeholder = { Text("chocolatt / Vergara o correo") },
+                    placeholder = { Text("ejemplo@correo.com") },
                     leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                     singleLine = true,
@@ -447,93 +447,6 @@ fun AuthScreen(
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Medium
                     )
-                }
-            }
-
-            // Opciones de cuentas Beta colocadas discretamente en la parte inferior derecha
-            var showBetaMenu by remember { mutableStateOf(false) }
-
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(16.dp)
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    AnimatedVisibility(
-                        visible = showBetaMenu,
-                        enter = fadeIn() + slideInVertically { it / 2 },
-                        exit = fadeOut() + slideOutVertically { it / 2 }
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.surface,
-                            shadowElevation = 8.dp,
-                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                            modifier = Modifier.padding(bottom = 4.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(12.dp),
-                                horizontalAlignment = Alignment.End,
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Text(
-                                    text = "Acceso Rápido Beta (10,000 TC)",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-
-                                // Botón chocolatt
-                                Button(
-                                    onClick = {
-                                        showBetaMenu = false
-                                        onEvent(AuthUiEvent.QuickLoginAdmin("chocolattcorreo@gmail.com", "chocolatte"))
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5D4037)),
-                                    shape = RoundedCornerShape(10.dp),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                                ) {
-                                    Text("🍫 chocolatt (10k TC)", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
-                                }
-
-                                // Botón Vergara
-                                Button(
-                                    onClick = {
-                                        showBetaMenu = false
-                                        onEvent(AuthUiEvent.QuickLoginAdmin("Vergaracorreo@gmail.com", "AngEduVr"))
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D47A1)),
-                                    shape = RoundedCornerShape(10.dp),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                                ) {
-                                    Text("👤 Vergara (10k TC)", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
-                                }
-                            }
-                        }
-                    }
-
-                    // Botón flotante discreto tipo píldora
-                    FilledTonalButton(
-                        onClick = { showBetaMenu = !showBetaMenu },
-                        shape = RoundedCornerShape(20.dp),
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f),
-                            contentColor = MaterialTheme.colorScheme.primary
-                        ),
-                        elevation = ButtonDefaults.filledTonalButtonElevation(defaultElevation = 4.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = if (showBetaMenu) "✕ Cerrar" else "⚡ Cuentas Beta",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
                 }
             }
 

@@ -7,8 +7,10 @@ import com.truequapp.core.database.entity.ChatMessageEntity
 import com.truequapp.core.database.entity.TruequeConOfertas
 import com.truequapp.core.network.websocket.SocketManager
 import com.truequapp.feature.chat.mvi.ChatMessageItem
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -166,7 +168,7 @@ class ChatRepository @Inject constructor(
         chatMessageDao.markMessagesAsRead(proposalId, currentUserEmail)
     }
 
-    suspend fun syncMessagesFromCloud(proposalId: String) {
+    suspend fun syncMessagesFromCloud(proposalId: String) = withContext(Dispatchers.IO) {
         val cloudUrl = "https://truequapp-pi.vercel.app/api/trueques/$proposalId/chat"
         try {
             val url = java.net.URL(cloudUrl)
@@ -214,8 +216,8 @@ class ChatRepository @Inject constructor(
      * Sincroniza desde la nube todas las propuestas del usuario y los mensajes más recientes
      * para que aparezcan en el listado de conversaciones.
      */
-    suspend fun syncConversationsFromCloud(currentUserEmail: String) {
-        if (currentUserEmail.isBlank()) return
+    suspend fun syncConversationsFromCloud(currentUserEmail: String) = withContext(Dispatchers.IO) {
+        if (currentUserEmail.isBlank()) return@withContext
         val cloudUrl = "https://truequapp-pi.vercel.app/api/trueques?user=${java.net.URLEncoder.encode(currentUserEmail, "UTF-8")}"
         try {
             val url = java.net.URL(cloudUrl)
@@ -283,7 +285,7 @@ class ChatRepository @Inject constructor(
                 }
             } catch (_: Exception) {
             }
-    }
+        }
 
     suspend fun getProposalById(proposalId: String): TruequeConOfertas? {
         return truequeDao.getTruequeById(proposalId)

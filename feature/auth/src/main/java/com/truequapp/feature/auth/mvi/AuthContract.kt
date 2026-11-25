@@ -75,9 +75,6 @@ sealed interface AuthUiEvent : UiEvent {
     ) : AuthUiEvent
     data class SignInWithGoogleFailure(val errorMessage: String) : AuthUiEvent
 
-    // Acceso Rápido Administradores Beta
-    data class QuickLoginAdmin(val email: String, val password: String) : AuthUiEvent
-
     // Edición de Perfil y persistencia directa en Base de Datos Room
     data object OpenEditProfileDialog : AuthUiEvent
     data object DismissEditProfileDialog : AuthUiEvent

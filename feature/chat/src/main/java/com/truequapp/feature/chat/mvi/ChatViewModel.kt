@@ -68,10 +68,10 @@ class ChatViewModel @Inject constructor(
     private fun initChat(proposalId: String, currentUserId: String) {
         viewModelScope.launch(dispatchers.io) {
             val sessionEmail = userSessionDataStore.sessionFlow.firstOrNull()?.userEmail
-            val resolvedUserId = if (currentUserId.isNotBlank()) currentUserId else (sessionEmail ?: "angeleduvr@gmail.com")
+            val resolvedUserId = if (currentUserId.isNotBlank()) currentUserId else sessionEmail.orEmpty()
 
             var dbProposal = chatRepository?.getProposalById(proposalId)
-            if (dbProposal == null && chatRepository != null) {
+            if (dbProposal == null && chatRepository != null && resolvedUserId.isNotBlank()) {
                 try {
                     chatRepository.syncConversationsFromCloud(resolvedUserId)
                     dbProposal = chatRepository.getProposalById(proposalId)
@@ -85,18 +85,10 @@ class ChatViewModel @Inject constructor(
             }
 
             val userIdForValidation = if (proposal != null) {
-                if (proposal.requesterUserId == resolvedUserId || proposal.receiverUserId == resolvedUserId) {
+                if (proposal.requesterUserId.equals(resolvedUserId, ignoreCase = true) || proposal.receiverUserId.equals(resolvedUserId, ignoreCase = true)) {
                     resolvedUserId
-                } else if (sessionEmail != null && (proposal.requesterUserId == sessionEmail || proposal.receiverUserId == sessionEmail)) {
+                } else if (!sessionEmail.isNullOrBlank() && (proposal.requesterUserId.equals(sessionEmail, ignoreCase = true) || proposal.receiverUserId.equals(sessionEmail, ignoreCase = true))) {
                     sessionEmail
-                } else if (resolvedUserId.contains("vergara", ignoreCase = true) && proposal.requesterUserId.contains("vergara", ignoreCase = true)) {
-                    proposal.requesterUserId
-                } else if (resolvedUserId.contains("vergara", ignoreCase = true) && proposal.receiverUserId.contains("vergara", ignoreCase = true)) {
-                    proposal.receiverUserId
-                } else if (resolvedUserId.contains("chocolatt", ignoreCase = true) && proposal.requesterUserId.contains("chocolatt", ignoreCase = true)) {
-                    proposal.requesterUserId
-                } else if (resolvedUserId.contains("chocolatt", ignoreCase = true) && proposal.receiverUserId.contains("chocolatt", ignoreCase = true)) {
-                    proposal.receiverUserId
                 } else {
                     resolvedUserId
                 }

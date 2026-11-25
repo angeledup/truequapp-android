@@ -6,8 +6,10 @@ import com.truequapp.core.datastore.DatabaseValidationModeManager
 import com.truequapp.core.datastore.UserSessionDataStore
 import com.truequapp.core.datastore.model.DatabaseValidationMode
 import com.truequapp.core.datastore.model.UserSession
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -70,50 +72,52 @@ class AuthRepository @Inject constructor(
         var cloudUserEntity: UserEntity? = null
 
         if (isOnlineMode && cloudBaseUrl.isNotBlank()) {
-            try {
-                val url = java.net.URL("${cloudBaseUrl.trimEnd('/')}/api/usuarios/login")
-                val conn = url.openConnection() as java.net.HttpURLConnection
-                conn.requestMethod = "POST"
-                conn.connectTimeout = 3500
-                conn.readTimeout = 3500
-                conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                conn.doOutput = true
-                val json = org.json.JSONObject().apply {
-                    put("identifier", trimmedEmail)
-                    put("password", contrasena)
-                }
-                conn.outputStream.use { os ->
-                    os.write(json.toString().toByteArray(Charsets.UTF_8))
-                }
-
-                cloudAttempted = true
-                val responseCode = conn.responseCode
-
-                if (responseCode == 200) {
-                    val responseText = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-                    val respObj = org.json.JSONObject(responseText)
-                    if (respObj.optBoolean("success")) {
-                        val uObj = respObj.optJSONObject("user")
-                        if (uObj != null) {
-                            cloudUserEntity = UserEntity(
-                                correo = uObj.optString("email", trimmedEmail),
-                                contrasena = contrasena,
-                                usuario = uObj.optString("name", trimmedEmail.substringBefore("@")),
-                                numeroTelefonico = uObj.optString("phoneNumber", "+520000000000"),
-                                cantidadTruequeCoins = uObj.optDouble("truequeCoins", 100.0),
-                                truequesRealizados = uObj.optInt("completedTrades", 0),
-                                calificacion = uObj.optDouble("bayesianRating", 5.0)
-                            )
-                        }
+            withContext(Dispatchers.IO) {
+                try {
+                    val url = java.net.URL("${cloudBaseUrl.trimEnd('/')}/api/usuarios/login")
+                    val conn = url.openConnection() as java.net.HttpURLConnection
+                    conn.requestMethod = "POST"
+                    conn.connectTimeout = 3500
+                    conn.readTimeout = 3500
+                    conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                    conn.doOutput = true
+                    val json = org.json.JSONObject().apply {
+                        put("identifier", trimmedEmail)
+                        put("password", contrasena)
                     }
-                } else if (responseCode == 404) {
-                    cloudUserNotFound = true
-                } else if (responseCode == 401) {
-                    cloudInvalidPassword = true
+                    conn.outputStream.use { os ->
+                        os.write(json.toString().toByteArray(Charsets.UTF_8))
+                    }
+
+                    cloudAttempted = true
+                    val responseCode = conn.responseCode
+
+                    if (responseCode == 200) {
+                        val responseText = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                        val respObj = org.json.JSONObject(responseText)
+                        if (respObj.optBoolean("success")) {
+                            val uObj = respObj.optJSONObject("user")
+                            if (uObj != null) {
+                                cloudUserEntity = UserEntity(
+                                    correo = uObj.optString("email", trimmedEmail),
+                                    contrasena = contrasena,
+                                    usuario = uObj.optString("name", trimmedEmail.substringBefore("@")),
+                                    numeroTelefonico = uObj.optString("phoneNumber", "+520000000000"),
+                                    cantidadTruequeCoins = uObj.optDouble("truequeCoins", 100.0),
+                                    truequesRealizados = uObj.optInt("completedTrades", 0),
+                                    calificacion = uObj.optDouble("bayesianRating", 5.0)
+                                )
+                            }
+                        }
+                    } else if (responseCode == 404) {
+                        cloudUserNotFound = true
+                    } else if (responseCode == 401) {
+                        cloudInvalidPassword = true
+                    }
+                    conn.disconnect()
+                } catch (e: Exception) {
+                    // Silencioso ante falta de red o error de conexión
                 }
-                conn.disconnect()
-            } catch (e: Exception) {
-                // Silencioso ante falta de red o error de conexión
             }
         }
 
@@ -205,35 +209,41 @@ class AuthRepository @Inject constructor(
 
         // 1. Validar existencia previa directamente con db-Online (Turso) si estamos en modo online
         if (isOnlineMode && cloudBaseUrl.isNotBlank()) {
-            try {
-                val url = java.net.URL("${cloudBaseUrl.trimEnd('/')}/api/usuarios/register")
-                val conn = url.openConnection() as java.net.HttpURLConnection
-                conn.requestMethod = "POST"
-                conn.connectTimeout = 4000
-                conn.readTimeout = 4000
-                conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                conn.doOutput = true
-                val json = org.json.JSONObject().apply {
-                    put("id", "usr_${java.util.UUID.randomUUID().toString().take(8)}")
-                    put("email", trimmedEmail)
-                    put("name", trimmedUser)
-                    put("passwordHash", contrasena)
-                    put("phoneNumber", trimmedPhone)
-                    put("truequeCoins", 100.0)
-                    put("bayesianRating", 5.0)
-                    put("ratingsCount", 0)
-                    put("completedTrades", 0)
+            var emailExistsInCloud = false
+            withContext(Dispatchers.IO) {
+                try {
+                    val url = java.net.URL("${cloudBaseUrl.trimEnd('/')}/api/usuarios/register")
+                    val conn = url.openConnection() as java.net.HttpURLConnection
+                    conn.requestMethod = "POST"
+                    conn.connectTimeout = 4000
+                    conn.readTimeout = 4000
+                    conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                    conn.doOutput = true
+                    val json = org.json.JSONObject().apply {
+                        put("id", "usr_${java.util.UUID.randomUUID().toString().take(8)}")
+                        put("email", trimmedEmail)
+                        put("name", trimmedUser)
+                        put("passwordHash", contrasena)
+                        put("phoneNumber", trimmedPhone)
+                        put("truequeCoins", 100.0)
+                        put("bayesianRating", 5.0)
+                        put("ratingsCount", 0)
+                        put("completedTrades", 0)
+                    }
+                    conn.outputStream.use { os ->
+                        os.write(json.toString().toByteArray(Charsets.UTF_8))
+                    }
+                    val code = conn.responseCode
+                    conn.disconnect()
+                    if (code == 409) {
+                        emailExistsInCloud = true
+                    }
+                } catch (_: Exception) {
+                    // Silencioso ante falta de red para permitir modo offline
                 }
-                conn.outputStream.use { os ->
-                    os.write(json.toString().toByteArray(Charsets.UTF_8))
-                }
-                val code = conn.responseCode
-                conn.disconnect()
-                if (code == 409) {
-                    return RegisterResult.EmailAlreadyExists("Ya existe una cuenta registrada con este correo en la base de datos")
-                }
-            } catch (_: Exception) {
-                // Silencioso ante falta de red para permitir modo offline
+            }
+            if (emailExistsInCloud) {
+                return RegisterResult.EmailAlreadyExists("Ya existe una cuenta registrada con este correo en la base de datos")
             }
         }
 
@@ -306,37 +316,44 @@ class AuthRepository @Inject constructor(
 
         // 1. Validar y actualizar en db-Online (Turso) si estamos en modo online
         if (isOnlineMode && cloudBaseUrl.isNotBlank()) {
-            try {
-                val url = java.net.URL("${cloudBaseUrl.trimEnd('/')}/api/usuarios/update")
-                val conn = url.openConnection() as java.net.HttpURLConnection
-                conn.requestMethod = "POST"
-                conn.connectTimeout = 4500
-                conn.readTimeout = 4500
-                conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                conn.doOutput = true
+            var cloudErrorResult: UpdateProfileResult? = null
+            withContext(Dispatchers.IO) {
+                try {
+                    val url = java.net.URL("${cloudBaseUrl.trimEnd('/')}/api/usuarios/update")
+                    val conn = url.openConnection() as java.net.HttpURLConnection
+                    conn.requestMethod = "POST"
+                    conn.connectTimeout = 4500
+                    conn.readTimeout = 4500
+                    conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                    conn.doOutput = true
 
-                val json = org.json.JSONObject().apply {
-                    put("currentEmail", trimmedCurrEmail)
-                    put("newEmail", trimmedEmail)
-                    put("newUsername", trimmedUser)
-                    put("newPassword", newPassword)
-                }
-                conn.outputStream.use { os ->
-                    os.write(json.toString().toByteArray(Charsets.UTF_8))
-                }
+                    val json = org.json.JSONObject().apply {
+                        put("currentEmail", trimmedCurrEmail)
+                        put("newEmail", trimmedEmail)
+                        put("newUsername", trimmedUser)
+                        put("newPassword", newPassword)
+                    }
+                    conn.outputStream.use { os ->
+                        os.write(json.toString().toByteArray(Charsets.UTF_8))
+                    }
 
-                val responseCode = conn.responseCode
-                if (responseCode == 409) {
-                    conn.disconnect()
-                    return UpdateProfileResult.EmailAlreadyExists("El correo ya se encuentra registrado por otra cuenta en la base de datos")
-                } else if (responseCode !in 200..299) {
-                    val err = conn.errorStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
-                    conn.disconnect()
-                    return UpdateProfileResult.Error("Error al actualizar en la nube: $err")
+                    val responseCode = conn.responseCode
+                    if (responseCode == 409) {
+                        conn.disconnect()
+                        cloudErrorResult = UpdateProfileResult.EmailAlreadyExists("El correo ya se encuentra registrado por otra cuenta en la base de datos")
+                    } else if (responseCode !in 200..299) {
+                        val err = conn.errorStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+                        conn.disconnect()
+                        cloudErrorResult = UpdateProfileResult.Error("Error al actualizar en la nube: $err")
+                    } else {
+                        conn.disconnect()
+                    }
+                } catch (_: Throwable) {
+                    // Modo offline / fallo de red
                 }
-                conn.disconnect()
-            } catch (_: Throwable) {
-                // Modo offline / fallo de red
+            }
+            if (cloudErrorResult != null) {
+                return cloudErrorResult!!
             }
         }
 

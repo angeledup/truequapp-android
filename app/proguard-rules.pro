@@ -41,7 +41,12 @@
 -keep class androidx.biometric.** { *; }
 -dontwarn androidx.biometric.**
 
-# 7. Jetpack Compose & Hilt Inyección de Dependencias
--keep class com.truequapp.** { *; }
+# 7. Jetpack Compose, Hilt y Room Database
 -keep class * extends androidx.lifecycle.ViewModel { *; }
--keep class * extends androidx.room.RoomDatabase
+-keep class * extends androidx.room.RoomDatabase { *; }
+-keep @androidx.room.Entity class * { *; }
+-keep @androidx.room.Dao interface * { *; }
+
+# Preservar modelos de dominio y entidades de base de datos para serialización/deserialización
+-keepclassmembers class com.truequapp.core.domain.model.** { *; }
+-keepclassmembers class com.truequapp.core.database.entity.** { *; }
